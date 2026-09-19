@@ -1,0 +1,53 @@
+# ── Environment files ──────────────────────────────────────────
+.env
+.env.local
+.env.production
+backend/.env
+backend/.env.local
+
+# .env.example IS tracked (it's the safe template)
+!.env.example
+!backend/.env.example
+
+# ── Python ────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+*.so
+.venv/
+venv/
+env/
+
+# ── Database files ────────────────────────────────────────────
+*.db
+*.sqlite
+*.sqlite3
+backend/aarva.db
+
+# ── ChromaDB local store ──────────────────────────────────────
+backend/chroma_db/
+
+# ── Uploaded textbooks ────────────────────────────────────────
+backend/uploads/
+
+# ── Node / Frontend ───────────────────────────────────────────
+node_modules/
+frontend/node_modules/
+frontend/dist/
+
+# ── OS & Editor ───────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# ── Logs ──────────────────────────────────────────────────────
+*.log
+logs/

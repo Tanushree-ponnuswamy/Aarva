@@ -1,0 +1,36 @@
+# ── Core API ──────────────────────────────────────────────────
+fastapi>=0.110.0
+uvicorn>=0.28.0
+pydantic>=2.6.0
+python-multipart>=0.0.9
+
+# ── Database ──────────────────────────────────────────────────
+sqlalchemy>=2.0.28
+psycopg2-binary>=2.9.9
+
+# ── Vector Store ──────────────────────────────────────────────
+chromadb>=0.4.24
+
+# ── Auth ──────────────────────────────────────────────────────
+python-jose[cryptography]>=3.3.0
+passlib[bcrypt]>=1.7.4
+
+# ── HTTP ──────────────────────────────────────────────────────
+requests>=2.31.0
+
+# ── Document Parsing ──────────────────────────────────────────
+# PDF
+PyMuPDF>=1.24.0               # fitz — fast PDF text + page extraction
+pdfplumber>=0.11.0            # fallback table/column-aware extraction
+
+# DOCX / DOC
+python-docx>=1.1.0            # .docx paragraph & table extraction
+mammoth>=1.6.0                # .doc → clean text fallback
+
+# Image OCR
+Pillow>=10.3.0                # image loading / preprocessing
+pytesseract>=0.3.10           # Tesseract OCR wrapper (requires tesseract-ocr system install)
+easyocr>=1.7.1                # deep-learning OCR (no system deps, GPU-optional)
+
+# Plain text / encoding detection
+chardet>=5.2.0                # auto-detect file encoding for .txt files
