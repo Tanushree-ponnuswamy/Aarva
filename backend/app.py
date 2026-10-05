@@ -31,6 +31,20 @@ app.include_router(textbook_router)
 app.include_router(summary_router)
 app.include_router(quiz_router)
 
+from routes.summary import ChatMessageRequest
+from services.llama_service import llama_service
+
+@app.post("/api/chat", tags=["Textbook Summarization & AI Chat"])
+def direct_chat_endpoint(req: ChatMessageRequest):
+    """Direct alias for interactive Hybrid RAG Knowledge Base Chat."""
+    target_id = req.document_id if req.document_id is not None else req.textbook_id
+    return llama_service.chat_response(
+        query=req.query,
+        textbook_id=target_id,
+        language=req.language or "English",
+        conversation_history=req.conversation_history
+    )
+
 @app.on_event("startup")
 def on_startup():
     print("[STARTUP] Initializing AARVA Database and Seeding Demo Data...")

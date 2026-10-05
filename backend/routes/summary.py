@@ -11,7 +11,9 @@ router = APIRouter(prefix="/api/summary", tags=["Textbook Summarization & AI Cha
 class ChatMessageRequest(BaseModel):
     query: str
     textbook_id: Optional[int] = None
+    document_id: Optional[int] = None
     language: Optional[str] = "English"
+    conversation_history: Optional[List[dict]] = None
 
 @router.get("/{textbook_id}")
 def get_summary(
@@ -64,12 +66,16 @@ def get_summary(
 @router.post("/chat")
 def chat_with_tutor(req: ChatMessageRequest):
     """
-    Llama AI Tutor chat endpoint — retrieves textbook context from ChromaDB
-    and generates an interactive, multilingual tutoring response.
+    Interactive Knowledge Base / Tutor Chat endpoint.
+    Retrieves grounded context using Hybrid Retrieval (Dense Vector + BM25 Lexical)
+    and generates an answer via Mistral / Llama with cited page/sheet sources.
     """
+    target_id = req.document_id if req.document_id is not None else req.textbook_id
     reply = llama_service.chat_response(
         query=req.query,
-        textbook_id=req.textbook_id,
-        language=req.language or "English"
+        textbook_id=target_id,
+        language=req.language or "English",
+        conversation_history=req.conversation_history
     )
     return reply
+

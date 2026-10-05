@@ -32,7 +32,7 @@ async def upload_textbook(
     user_id: int = Form(...),
     title: str = Form(...),
     author: Optional[str] = Form("Unknown Author"),
-    pages: Optional[int] = Form(180),
+    pages: Optional[int] = Form(None),
     file: Optional[UploadFile] = File(None),
     db: Session = Depends(get_db)
 ):
@@ -41,61 +41,47 @@ async def upload_textbook(
     if not user:
         raise HTTPException(status_code=404, detail="User not found.")
 
-    filename = file.filename if file else f"{title.lower().replace(' ', '_')}.pdf"
-    file_size_str = "8.4 MB"
+    from services.knowledge_base_service import knowledge_base_service
 
-    # Generate initial summary structure
-    initial_summary = {
-        "complete_summary": f"A structured academic text on {title}. Covers foundational definitions, intermediate protocols, and advanced problem-solving methodologies designed for comprehensive curriculum mastery.",
-        "chapters": [
-            {"chapter": 1, "title": f"Introduction & Core Foundations of {title}", "pages": "1-35", "summary": "Establishes definitions, historical evolution, and primary design paradigms."},
-            {"chapter": 2, "title": "Core Architectural Models", "pages": "36-85", "summary": "In-depth mathematical formulations, structural breakdown, and empirical case studies."},
-            {"chapter": 3, "title": "Advanced Implementations & Real-World Systems", "pages": "86-140", "summary": "Focuses on latency bottlenecks, fault-tolerance mechanisms, and production patterns."},
-            {"chapter": 4, "title": "Emerging Frontiers and Future Trends", "pages": "141-180", "summary": "Explores AI integration, cloud-scale architectures, and optimization heuristics."}
-        ],
-        "key_points": [
-            f"Fundamental principles governing modern {title} implementation.",
-            "Key trade-offs between theoretical optimality and hardware constraints.",
-            "Standardized protocols ensuring interoperability across diverse vendor ecosystems.",
-            "Practical debugging techniques and diagnostic metrics."
-        ],
-        "definitions": [
-            {"term": "Protocol Specification", "definition": "A formal description of message formats and transmission rules for data exchange."},
-            {"term": "Throughput Efficiency", "definition": "The ratio of useful payload data successfully received to the total raw channel capacity."},
-            {"term": "Fault Resilience", "definition": "The system ability to maintain continuous availability and data integrity despite hardware or link anomalies."}
-        ]
-    }
+    filename = file.filename if (file and file.filename) else f"{title.lower().replace(' ', '_')}.pdf"
+    
+    # Read uploaded file content or generate starter document
+    if file:
+        file_bytes = await file.read()
+    else:
+        # Fallback text representation
+        default_content = (
+            f"# {title}\nAuthor: {author or 'Academic Faculty'}\n\n"
+            f"Foundational principles and advanced paradigms of {title}. "
+            f"Covers system architecture, protocols, performance metrics, and compliance guidelines.\n"
+        )
+        file_bytes = default_content.encode("utf-8")
+        filename = f"{title.lower().replace(' ', '_')}.txt"
 
-    new_book = Textbook(
+    # Execute end-to-end ingestion pipeline (Parsing -> Chunking -> Embedding -> DB)
+    result = knowledge_base_service.ingest_document(
+        file_bytes=file_bytes,
+        filename=filename,
         user_id=user_id,
         title=title,
-        author=author or "Academic Press",
-        file_name=filename,
-        file_size=file_size_str,
-        total_pages=pages,
-        status="processed",
-        summary_data=initial_summary
+        author=author or "Academic Author",
+        db=db
     )
-    db.add(new_book)
-    db.commit()
-    db.refresh(new_book)
-
-    # Index chunks into ChromaDB for semantic search & AI chat
-    chunks = [
-        {"id": "c1", "text": f"Foundational theorems and equations relating to {title}. Explains core concepts and definitions.", "page": 12, "chapter": "Chapter 1"},
-        {"id": "c2", "text": f"Algorithmic analysis and trade-offs in {title}. Covers time complexity and spatial memory bounds.", "page": 48, "chapter": "Chapter 2"},
-        {"id": "c3", "text": f"Industrial case studies and deployment checklists for {title}. Addresses fault-recovery and scale.", "page": 95, "chapter": "Chapter 3"}
-    ]
-    chroma_store.add_textbook_chunks(textbook_id=new_book.id, book_title=title, chunks=chunks)
 
     return {
         "success": True,
-        "message": f"'{title}' uploaded and indexed successfully into ChromaDB and PostgreSQL.",
+        "message": f"'{result['title']}' ({result['file_type'].upper()}) parsed and indexed successfully ({result['total_chunks']} chunks, {result['total_pages']} pages/sheets).",
         "textbook": {
-            "id": new_book.id,
-            "title": new_book.title,
-            "author": new_book.author,
-            "status": new_book.status
+            "id": result["document_id"],
+            "title": result["title"],
+            "author": result["author"],
+            "file_name": result["file_name"],
+            "file_type": result["file_type"],
+            "file_size": result["file_size"],
+            "total_pages": result["total_pages"],
+            "total_chunks": result["total_chunks"],
+            "status": "processed",
+            "summary": result["summary"]
         }
     }
 
@@ -105,6 +91,10 @@ def delete_textbook(textbook_id: int, db: Session = Depends(get_db)):
     if not book:
         raise HTTPException(status_code=404, detail="Textbook not found.")
 
+    # Remove vector chunks from ChromaDB
+    chroma_store.delete_textbook_chunks(textbook_id=textbook_id)
+
     db.delete(book)
     db.commit()
-    return {"success": True, "message": "Textbook deleted."}
+    return {"success": True, "message": "Textbook and vector chunks deleted."}
+

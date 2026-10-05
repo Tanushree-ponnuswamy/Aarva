@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 from datetime import datetime
 from database.postgres import get_db
 from models.models import User, StudentProfile, StudentInterests, LearningPreferences, LoginActivity, LearningProgress
+from services.auth_service import auth_service, get_current_user
 
 router = APIRouter(prefix="/api/auth", tags=["Authentication"])
 
@@ -44,18 +45,20 @@ class LoginRequest(BaseModel):
 
 @router.post("/signup")
 def register_user(req: SignupRequest, db: Session = Depends(get_db)):
-    existing = db.query(User).filter(User.email == req.email).first()
+    existing = db.query(User).filter(User.email == req.email.strip().lower()).first()
     if existing:
         raise HTTPException(status_code=400, detail="An account with this email already exists.")
 
+    hashed_pw = auth_service.hash_password(req.password)
+
     new_user = User(
-        name=req.name,
-        email=req.email,
-        password_hash=req.password, # Production: passlib bcrypt
+        name=req.name.strip(),
+        email=req.email.strip().lower(),
+        password_hash=hashed_pw,
         phone=req.phone,
         dob=req.dob,
         gender=req.gender,
-        role="student", # User cannot assign admin role on signup
+        role="student",
         is_active=True
     )
     db.add(new_user)
@@ -79,22 +82,22 @@ def register_user(req: SignupRequest, db: Session = Depends(get_db)):
     # Interests
     interests = StudentInterests(
         user_id=new_user.id,
-        subjects=req.subjects,
-        goals=req.goals,
-        personal_interests=req.personal_interests
+        subjects=req.subjects or [],
+        goals=req.goals or [],
+        personal_interests=req.personal_interests or []
     )
     db.add(interests)
 
     # Preferences
     preferences = LearningPreferences(
         user_id=new_user.id,
-        preferred_language=req.preferred_language,
-        learning_style=req.learning_style,
-        voice_assistance=req.voice_assistance,
-        text_to_speech=req.text_to_speech,
-        speech_input=req.speech_input,
-        larger_text=req.larger_text,
-        simplified_explanations=req.simplified_explanations
+        preferred_language=req.preferred_language or "English",
+        learning_style=req.learning_style or [],
+        voice_assistance=req.voice_assistance or False,
+        text_to_speech=req.text_to_speech or False,
+        speech_input=req.speech_input or False,
+        larger_text=req.larger_text or False,
+        simplified_explanations=req.simplified_explanations or False
     )
     db.add(preferences)
 
@@ -119,9 +122,20 @@ def register_user(req: SignupRequest, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(new_user)
 
+    # Issue JWT token immediately upon signup
+    jwt_token = auth_service.create_access_token({
+        "sub": new_user.email,
+        "user_id": new_user.id,
+        "role": new_user.role,
+        "email": new_user.email
+    })
+
     return {
         "success": True,
         "message": "Account created successfully.",
+        "token": jwt_token,
+        "access_token": jwt_token,
+        "token_type": "bearer",
         "user": {
             "id": new_user.id,
             "name": new_user.name,
@@ -133,12 +147,20 @@ def register_user(req: SignupRequest, db: Session = Depends(get_db)):
 
 @router.post("/login")
 def login(req: LoginRequest, db: Session = Depends(get_db)):
-    user = db.query(User).filter(User.email == req.email).first()
+    email_clean = req.email.strip().lower()
+    user = db.query(User).filter(User.email == email_clean).first()
     if not user:
         raise HTTPException(status_code=401, detail="Invalid email or password.")
 
-    if user.password_hash != req.password:
+    # Secure verification
+    is_valid = auth_service.verify_password(req.password, user.password_hash)
+    if not is_valid:
         raise HTTPException(status_code=401, detail="Invalid email or password.")
+
+    # Seamlessly upgrade plain seed password to bcrypt if needed
+    if not user.password_hash.startswith(("$2a$", "$2b$", "$2y$")):
+        user.password_hash = auth_service.hash_password(req.password)
+        db.commit()
 
     if not user.is_active:
         raise HTTPException(status_code=403, detail="Your account has been deactivated. Please contact support.")
@@ -157,15 +179,46 @@ def login(req: LoginRequest, db: Session = Depends(get_db)):
     db.add(act)
     db.commit()
 
+    # Generate JWT token
+    jwt_token = auth_service.create_access_token({
+        "sub": user.email,
+        "user_id": user.id,
+        "role": user.role,
+        "email": user.email
+    })
+
     return {
         "success": True,
-        "token": f"aarva_session_{user.id}_{int(datetime.utcnow().timestamp())}",
+        "token": jwt_token,
+        "access_token": jwt_token,
+        "token_type": "bearer",
         "user": {
             "id": user.id,
             "name": user.name,
             "email": user.email,
             "role": user.role,
             "learner_type": user.profile.learner_type if user.profile else "student"
+        }
+    }
+
+@router.get("/me")
+def get_current_user_profile(user: User = Depends(get_current_user)):
+    """Return the profile and preferences of the authenticated user from JWT."""
+    return {
+        "id": user.id,
+        "name": user.name,
+        "email": user.email,
+        "role": user.role,
+        "is_active": user.is_active,
+        "learner_type": user.profile.learner_type if user.profile else "student",
+        "institution": user.profile.institution if user.profile else None,
+        "department": user.profile.department if user.profile else None,
+        "preferred_language": user.preferences.preferred_language if user.preferences else "English",
+        "progress": {
+            "xp": user.progress.xp if user.progress else 0,
+            "level": user.progress.level if user.progress else 1,
+            "streak_days": user.progress.streak_days if user.progress else 1,
+            "badges": user.progress.badges if user.progress else []
         }
     }
 
@@ -182,3 +235,4 @@ def logout(user_id: int, db: Session = Depends(get_db)):
         db.commit()
 
     return {"success": True, "message": "Logged out successfully."}
+

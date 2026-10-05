@@ -32,5 +32,12 @@ Pillow>=10.3.0                # image loading / preprocessing
 pytesseract>=0.3.10           # Tesseract OCR wrapper (requires tesseract-ocr system install)
 easyocr>=1.7.1                # deep-learning OCR (no system deps, GPU-optional)
 
+# Excel (.xlsx / .xls)
+openpyxl>=3.1.2               # Excel sheet parsing and tabular cell extraction
+
 # Plain text / encoding detection
 chardet>=5.2.0                # auto-detect file encoding for .txt files
+
+# ── Hybrid Retrieval (BM25) ──────────────────────────────────
+rank-bm25>=0.2.2              # BM25 Okapi lexical sparse ranking
+

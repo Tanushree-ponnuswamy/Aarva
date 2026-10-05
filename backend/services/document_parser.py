@@ -61,6 +61,7 @@ SUPPORTED_TYPES = {
     "pdf":  [".pdf"],
     "docx": [".docx"],
     "doc":  [".doc"],
+    "excel":[".xlsx", ".xls"],
     "text": [".txt", ".md", ".rst", ".csv", ".log"],
     "image":[".png", ".jpg", ".jpeg", ".bmp", ".tiff", ".tif", ".webp"],
 }
@@ -322,6 +323,91 @@ def _parse_text(data: bytes, filename: str) -> ParseResult:
         return _empty_result("text", f"Text parse error: {e}")
 
 
+# ─── Excel (.xlsx / .xls) Parser ─────────────────────────────────────────────
+
+def _parse_excel(data: bytes, filename: str) -> ParseResult:
+    """
+    Parses Excel workbooks (.xlsx, .xls) using openpyxl.
+    Each worksheet is treated as a distinct page/section chunk with sheet metadata,
+    row/column tabular structure, and cell content formatting.
+    """
+    warnings: List[str] = []
+    pages: List[PageChunk] = []
+
+    try:
+        import openpyxl
+
+        wb = openpyxl.load_workbook(io.BytesIO(data), data_only=True)
+        sheet_names = wb.sheetnames
+
+        if not sheet_names:
+            warnings.append("Excel workbook contains no sheets.")
+            return _empty_result("excel", "Empty workbook with no sheets.")
+
+        for idx, sheet_name in enumerate(sheet_names, start=1):
+            sheet = wb[sheet_name]
+            rows_data = []
+
+            for row in sheet.iter_rows(values_only=True):
+                # Filter out all-None rows
+                non_empty_cells = [str(cell).strip() if cell is not None else "" for cell in row]
+                if any(cell for cell in non_empty_cells):
+                    rows_data.append(non_empty_cells)
+
+            if not rows_data:
+                continue
+
+            # Format rows as markdown/structured text
+            sheet_lines: List[str] = [f"=== Sheet: {sheet_name} (Page {idx}) ==="]
+            
+            # Check if first row is header
+            headers = rows_data[0]
+            if len(rows_data) > 1:
+                header_str = " | ".join(h if h else f"Col{c_idx+1}" for c_idx, h in enumerate(headers))
+                sheet_lines.append(f"Headers: {header_str}")
+                sheet_lines.append("-" * min(80, max(20, len(header_str))))
+
+                for r in rows_data[1:]:
+                    row_pairs = []
+                    for h, val in zip(headers, r):
+                        if val:
+                            col_name = h if h else "Column"
+                            row_pairs.append(f"{col_name}: {val}")
+                    if row_pairs:
+                        sheet_lines.append(" | ".join(row_pairs))
+            else:
+                # Single row
+                sheet_lines.append(" | ".join([c for c in headers if c]))
+
+            sheet_text = "\n".join(sheet_lines)
+            pages.append(
+                PageChunk(
+                    page_number=idx,
+                    text=sheet_text,
+                    chapter=f"Sheet: {sheet_name}",
+                    word_count=len(sheet_text.split()),
+                )
+            )
+
+        if not pages:
+            return _empty_result("excel", "Excel workbook contains only blank cells.")
+
+        full_text = "\n\n".join(p.text for p in pages)
+        return ParseResult(
+            full_text=full_text,
+            pages=pages,
+            page_count=len(pages),
+            file_type="excel",
+            word_count=len(full_text.split()),
+            parse_warnings=warnings,
+        )
+
+    except ImportError:
+        return _empty_result("excel", "openpyxl not installed — cannot process Excel files.")
+    except Exception as e:
+        return _empty_result("excel", f"Excel parse error: {e}")
+
+
 # ─── Image OCR Parser ─────────────────────────────────────────────────────────
 
 def _parse_image(data: bytes, filename: str) -> ParseResult:
@@ -442,6 +528,8 @@ def parse_document(file_data: bytes, filename: str) -> ParseResult:
         return _parse_docx(file_data, filename)
     elif file_type == "doc":
         return _parse_doc(file_data, filename)
+    elif file_type == "excel":
+        return _parse_excel(file_data, filename)
     elif file_type == "text":
         return _parse_text(file_data, filename)
     elif file_type == "image":
