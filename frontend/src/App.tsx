@@ -1383,7 +1383,7 @@ function UploadWorkspace({
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
+  }, [messages, uploading]);
 
   // When a book is selected, fetch stored chat history and live textbook summary
   useEffect(() => {
@@ -2067,30 +2067,6 @@ function UploadWorkspace({
   // ── Book selected — show analysis workspace matching screenshot ───────────
   return (
     <section className={`analysis-workspace ${zenMode ? "fullscreen-zen" : ""}`}>
-      {uploadProgress > 0 && (
-        <div className="analysis-upload-banner">
-          <div className="banner-left">
-            <span className="banner-pulse-dot" />
-            <span className="banner-text">
-              {uploadProgress < 40
-                ? `Uploading document (${uploadProgress}%)...`
-                : uploadProgress < 70
-                  ? `Parsing & OCR extracting (${uploadProgress}%)...`
-                  : uploadProgress < 95
-                    ? `Indexing in ChromaDB & BM25 (${uploadProgress}%)...`
-                    : uploadProgress < 100
-                      ? `Generating AI summaries (${uploadProgress}%)...`
-                      : `Ingestion & Extraction Complete (100%)!`}
-            </span>
-          </div>
-          <div className="banner-right">
-            <div className="banner-bar-outer">
-              <div className="banner-bar-inner" style={{ width: `${uploadProgress}%` }} />
-            </div>
-            <span className="banner-pct-tag">{uploadProgress}%</span>
-          </div>
-        </div>
-      )}
       {uploadError && <p className="form-error" style={{ padding: "0.4rem 1.5rem" }}>{uploadError}</p>}
 
       {/* Main Split Body: Left 50% & Right 50% */}
@@ -2183,7 +2159,7 @@ function UploadWorkspace({
           {leftView === "chat" && (
             <div className="doc-chat-wrapper">
               <div className="chat-messages">
-                {messages.length === 0 ? (
+                {messages.length === 0 && !uploading ? (
                   <div className="chat-empty-state">
                     <div className="chat-empty-icon"><Icon name="spark" size={32} /></div>
                     <h3>Ask Aarva AI</h3>
@@ -2197,6 +2173,65 @@ function UploadWorkspace({
                     </div>
                   ))
                 )}
+
+                {/* ── Upload Progress Card in Chat ── */}
+                {uploading && (
+                  <div className="chat-upload-progress-card">
+                    <div className="cup-header">
+                      <div className="cup-icon-ring">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <polyline points="16 16 12 12 8 16" />
+                          <line x1="12" y1="12" x2="12" y2="21" />
+                          <path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3" />
+                        </svg>
+                      </div>
+                      <div className="cup-title-block">
+                        <span className="cup-title">Ingesting Document</span>
+                        <span className="cup-subtitle">
+                          {uploadProgress < 40
+                            ? "Streaming file to ingestion pipeline..."
+                            : uploadProgress < 65
+                              ? "Parsing & OCR text extraction..."
+                              : uploadProgress < 85
+                                ? "Generating ChromaDB vector embeddings..."
+                                : uploadProgress < 100
+                                  ? "Building BM25 index & AI summaries..."
+                                  : "Finalising knowledge extraction..."}
+                        </span>
+                      </div>
+                      <span className="cup-pct">{uploadProgress}%</span>
+                    </div>
+
+                    <div className="cup-bar-track">
+                      <div className="cup-bar-fill" style={{ width: `${uploadProgress}%` }} />
+                      <div className="cup-bar-glow" style={{ left: `${uploadProgress}%` }} />
+                    </div>
+
+                    <div className="cup-steps">
+                      <div className={`cup-step ${uploadProgress >= 5 ? (uploadProgress >= 40 ? "done" : "active") : ""}`}>
+                        <div className="cup-step-dot" />
+                        <span>File upload & transfer</span>
+                        {uploadProgress >= 40 && <span className="cup-step-check">✓</span>}
+                      </div>
+                      <div className={`cup-step ${uploadProgress >= 40 ? (uploadProgress >= 65 ? "done" : "active") : ""}`}>
+                        <div className="cup-step-dot" />
+                        <span>Document parsing & OCR</span>
+                        {uploadProgress >= 65 && <span className="cup-step-check">✓</span>}
+                      </div>
+                      <div className={`cup-step ${uploadProgress >= 65 ? (uploadProgress >= 85 ? "done" : "active") : ""}`}>
+                        <div className="cup-step-dot" />
+                        <span>Dense vector embeddings</span>
+                        {uploadProgress >= 85 && <span className="cup-step-check">✓</span>}
+                      </div>
+                      <div className={`cup-step ${uploadProgress >= 85 ? (uploadProgress >= 100 ? "done" : "active") : ""}`}>
+                        <div className="cup-step-dot" />
+                        <span>BM25 index & AI synthesis</span>
+                        {uploadProgress >= 100 && <span className="cup-step-check">✓</span>}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 <div ref={chatEndRef} />
               </div>
 
@@ -2293,52 +2328,9 @@ function UploadWorkspace({
         </section>
 
         {/* ── RIGHT PANE: Tabs, Sub-Filters, and Live Extracted Cards ──────────── */}
-        <section className="analysis-right-pane">
-          {uploading ? (
-            <div className="analysis-processing-placeholder">
-              <div className="processing-anim-ring">
-                <span />
-                <span />
-                <span />
-              </div>
-              <div className="processing-content">
-                <div className="processing-pct-badge">{uploadProgress}%</div>
-                <h3>Extracting & Indexing Document</h3>
-                <div className="processing-bar-wrapper">
-                  <div className="processing-bar-fill" style={{ width: `${uploadProgress}%` }} />
-                </div>
-                <p>
-                  {uploadProgress < 40
-                    ? "Streaming file payload to ingestion pipeline..."
-                    : uploadProgress < 65
-                      ? "Document layout analysis, parsing text, and extracting tables..."
-                      : uploadProgress < 90
-                        ? "Generating dense vector embeddings with ChromaDB..."
-                        : uploadProgress < 100
-                          ? "Building Okapi BM25 keyword index and synthesizing chapters..."
-                          : "Finalizing knowledge extraction and rendering results..."}
-                </p>
-                <div className="processing-steps">
-                  <div className={`proc-step ${uploadProgress >= 30 ? "done" : uploadProgress >= 5 ? "active" : ""}`}>
-                    <div className="proc-step-dot" />
-                    <span>File upload & byte transfer ({Math.min(100, Math.round(uploadProgress * 2.5))}%)</span>
-                  </div>
-                  <div className={`proc-step ${uploadProgress >= 60 ? "done" : uploadProgress >= 30 ? "active" : ""}`}>
-                    <div className="proc-step-dot" />
-                    <span>Document parsing & OCR text extraction</span>
-                  </div>
-                  <div className={`proc-step ${uploadProgress >= 85 ? "done" : uploadProgress >= 60 ? "active" : ""}`}>
-                    <div className="proc-step-dot" />
-                    <span>Dense ChromaDB vector embeddings</span>
-                  </div>
-                  <div className={`proc-step ${uploadProgress >= 100 ? "done" : uploadProgress >= 85 ? "active" : ""}`}>
-                    <div className="proc-step-dot" />
-                    <span>BM25 Okapi lexical index & AI chapter synthesis</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          ) : !book && !latestRag ? (
+        {/* Only show right pane after upload is complete */}
+        <section className={`analysis-right-pane ${uploading ? "right-pane-hidden" : ""}`}>
+          {!book && !latestRag && !uploading ? (
             <div className="right-pane-empty-state">
               <div className="right-pane-empty-icon"><Icon name="spark" size={36} /></div>
               <h3>Ready for Analysis</h3>

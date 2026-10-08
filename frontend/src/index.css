@@ -4530,18 +4530,19 @@ form button:hover {
 }
 
 /* Main Split Body: 50% Left / 50% Right */
+/* Main Split Body: Left Chat grows to fill when right pane is hidden */
 .analysis-split-body {
   flex: 1;
   height: 100%;
   min-height: 0;
-  display: grid;
-  grid-template-columns: 1fr 1fr;
+  display: flex;
   overflow: hidden;
   background: #ffffff;
 }
 
-/* ── LEFT PANE: Document Viewer & Chat ────────────────────────── */
+/* Left Pane expands when right pane collapses */
 .analysis-left-pane {
+  flex: 1;
   height: 100%;
   min-height: 0;
   display: flex;
@@ -4550,6 +4551,7 @@ form button:hover {
   border-right: 1.5px solid #ede9f7;
   overflow: hidden;
 }
+
 
 /* Pill switcher row identical to screenshot */
 .pane-pill-row {
@@ -5148,12 +5150,26 @@ form button:hover {
 
 /* ── RIGHT PANE: Analysis Tabs & Cards ────────────────────────── */
 .analysis-right-pane {
+  flex: 1;
   height: 100%;
   min-height: 0;
   display: flex;
   flex-direction: column;
   background: #ffffff;
   overflow: hidden;
+  transition: flex 0.35s ease, opacity 0.35s ease, max-width 0.35s ease;
+  max-width: 50%;
+}
+
+.analysis-right-pane.right-pane-hidden {
+  flex: 0;
+  max-width: 0;
+  min-width: 0;
+  opacity: 0;
+  pointer-events: none;
+  overflow: hidden;
+  padding: 0;
+  border: 0;
 }
 
 .right-pane-empty-state {
@@ -5680,14 +5696,19 @@ form button:hover {
 
 @media (max-width: 900px) {
   .analysis-split-body {
-    grid-template-columns: 1fr;
+    flex-direction: column;
     overflow-y: auto;
   }
 
   .analysis-left-pane {
+    flex: none;
     height: 500px;
     border-right: 0;
     border-bottom: 1.5px solid #ede9f7;
+  }
+
+  .analysis-right-pane {
+    max-width: 100%;
   }
 }
 
@@ -5802,6 +5823,169 @@ form button:hover {
   background: linear-gradient(135deg, #7458f5, #6366f1);
   box-shadow: 0 4px 14px rgba(116, 88, 245, 0.25);
   border: 0;
+}
+
+/* ── In-Chat Upload Progress Card ───────────────────────────── */
+.chat-upload-progress-card {
+  width: 100%;
+  max-width: 100%;
+  background: linear-gradient(145deg, #faf9ff 0%, #f0ebfe 100%);
+  border: 1.5px solid rgba(116, 88, 245, 0.2);
+  border-radius: 1.1rem;
+  padding: 1.15rem 1.3rem;
+  box-shadow: 0 8px 28px rgba(116, 88, 245, 0.1), 0 2px 6px rgba(0,0,0,0.05);
+  animation: cup-slide-in 0.35s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+  margin: 0.25rem 0;
+}
+
+@keyframes cup-slide-in {
+  from { opacity: 0; transform: translateY(10px) scale(0.97); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.cup-header {
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+  margin-bottom: 0.95rem;
+}
+
+.cup-icon-ring {
+  width: 2.5rem;
+  height: 2.5rem;
+  flex: none;
+  display: grid;
+  place-items: center;
+  border-radius: 0.75rem;
+  background: linear-gradient(135deg, #7458f5, #6366f1);
+  color: white;
+  box-shadow: 0 4px 14px rgba(116, 88, 245, 0.35);
+  animation: cup-icon-pulse 2s ease-in-out infinite alternate;
+}
+
+@keyframes cup-icon-pulse {
+  from { box-shadow: 0 4px 14px rgba(116, 88, 245, 0.35); }
+  to   { box-shadow: 0 6px 22px rgba(116, 88, 245, 0.55); }
+}
+
+.cup-title-block {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.cup-title {
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: #17142d;
+  letter-spacing: -0.01em;
+}
+
+.cup-subtitle {
+  font-size: 0.76rem;
+  color: #7458f5;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cup-pct {
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: #7458f5;
+  letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums;
+  flex: none;
+}
+
+/* Progress Bar */
+.cup-bar-track {
+  position: relative;
+  height: 6px;
+  background: rgba(116, 88, 245, 0.12);
+  border-radius: 999px;
+  overflow: visible;
+  margin-bottom: 1rem;
+}
+
+.cup-bar-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #7458f5, #818cf8);
+  transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 2px 8px rgba(116, 88, 245, 0.4);
+}
+
+.cup-bar-glow {
+  position: absolute;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #7458f5;
+  box-shadow: 0 0 10px 4px rgba(116, 88, 245, 0.5);
+  transition: left 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  pointer-events: none;
+}
+
+/* Steps */
+.cup-steps {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.cup-step {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  font-size: 0.78rem;
+  color: #9c97ad;
+  font-weight: 500;
+  transition: color 0.3s ease;
+}
+
+.cup-step.active {
+  color: #5b3fd4;
+}
+
+.cup-step.done {
+  color: #22c55e;
+}
+
+.cup-step-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex: none;
+  background: #ddd8f0;
+  transition: background 0.3s ease, transform 0.3s ease;
+}
+
+.cup-step.active .cup-step-dot {
+  background: #7458f5;
+  box-shadow: 0 0 6px rgba(116, 88, 245, 0.5);
+  animation: cup-dot-pulse 1.2s ease-in-out infinite alternate;
+}
+
+.cup-step.done .cup-step-dot {
+  background: #22c55e;
+}
+
+@keyframes cup-dot-pulse {
+  from { transform: scale(1); box-shadow: 0 0 4px rgba(116, 88, 245, 0.4); }
+  to   { transform: scale(1.4); box-shadow: 0 0 10px rgba(116, 88, 245, 0.7); }
+}
+
+.cup-step-check {
+  margin-left: auto;
+  color: #22c55e;
+  font-size: 0.8rem;
+  font-weight: 700;
 }
 
 .prompt-chips {
