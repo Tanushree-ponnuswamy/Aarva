@@ -159,29 +159,28 @@ def _call_ollama_for_questions(context: str, num_questions: int, topic_hint: str
         f"Generate exactly {num_questions} questions as a valid JSON array:"
     )
 
-    for model in ["mistral:latest", "llama3:latest", "llama3.2:1b"]:
-        try:
-            res = requests.post(
-                "http://localhost:11434/api/generate",
-                json={
-                    "model": model,
-                    "prompt": prompt,
-                    "stream": False,
-                    "options": {"temperature": 0.6, "top_p": 0.9}
-                },
-                timeout=30.0
-            )
-            if res.status_code == 200:
-                raw = res.json().get("response", "").strip()
-                # Extract JSON array from response
-                match = re.search(r'\[.*\]', raw, re.DOTALL)
-                if match:
-                    questions = json.loads(match.group())
-                    if isinstance(questions, list) and len(questions) > 0:
-                        return questions
-        except Exception as e:
-            print(f"[QUIZ_SERVICE] Ollama model {model} failed: {e}")
-            continue
+    # Call Ollama with primary LLM (Qwen3 8B)
+    try:
+        res = requests.post(
+            f"{settings.OLLAMA_BASE_URL}/api/generate",
+            json={
+                "model": settings.LLM_MODEL,
+                "prompt": prompt,
+                "stream": False,
+                "options": {"temperature": 0.6, "top_p": 0.9}
+            },
+            timeout=float(settings.LLM_TIMEOUT_SECONDS)
+        )
+        if res.status_code == 200:
+            raw = res.json().get("response", "").strip()
+            # Extract JSON array from response
+            match = re.search(r'\[.*\]', raw, re.DOTALL)
+            if match:
+                questions = json.loads(match.group())
+                if isinstance(questions, list) and len(questions) > 0:
+                    return questions
+    except Exception as e:
+        print(f"[QUIZ_SERVICE] Ollama model {settings.LLM_MODEL} failed: {e}")
 
     return None
 

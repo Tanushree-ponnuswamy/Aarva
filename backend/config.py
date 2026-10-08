@@ -94,13 +94,21 @@ class Settings:
     RAG_CONTEXT_MAX_CHARS: int = _int_env("RAG_CONTEXT_MAX_CHARS", 4000)
     RAG_FALLBACK_ON_ERROR: bool = os.getenv("RAG_FALLBACK_ON_ERROR", "true").lower() in ("true", "1", "yes")
 
-    # ── LLM Generation (Mistral / Llama) ─────────────────────
+    # ── Single-LLM AI Engine (Qwen3 8B) ──────────────────────
     LLM_PROVIDER: str = os.getenv("LLM_PROVIDER", "ollama")
-    LLM_MODEL: str = os.getenv("LLM_MODEL", os.getenv("MISTRAL_MODEL", "mistral:latest"))
-    LLM_FALLBACK_MODEL: str = os.getenv("LLM_FALLBACK_MODEL", os.getenv("LLAMA_MODEL", "llama3:latest"))
+    LLM_MODEL: str = os.getenv("LLM_MODEL", "qwen3:8b")
     LLM_TEMPERATURE: float = _float_env("LLM_TEMPERATURE", 0.3)
     LLM_MAX_TOKENS: int = _int_env("LLM_MAX_TOKENS", 1024)
-    LLM_TIMEOUT_SECONDS: int = _int_env("LLM_TIMEOUT_SECONDS", 10)
+    LLM_TIMEOUT_SECONDS: int = _int_env("LLM_TIMEOUT_SECONDS", 45)
 
+
+    # ── Email / SMTP Configuration ───────────────────────────
+    SMTP_HOST: str = os.getenv("SMTP_HOST", "smtp.gmail.com")
+    SMTP_PORT: int = _int_env("SMTP_PORT", 587)
+    SMTP_USER: str = os.getenv("SMTP_USER", os.getenv("EMAIL_USER", "thanushreeponix1977@gmail.com"))
+    SMTP_PASSWORD: str = os.getenv("SMTP_PASSWORD", os.getenv("EMAIL_PASS", "hokw qfxq dxiz zyof")).replace(" ", "")
+    SMTP_FROM_EMAIL: str = os.getenv("SMTP_FROM_EMAIL", os.getenv("EMAIL_USER", "thanushreeponix1977@gmail.com"))
+    SMTP_FROM_NAME: str = os.getenv("SMTP_FROM_NAME", "Aarva Learning")
+    SMTP_USE_TLS: bool = os.getenv("SMTP_USE_TLS", "true").lower() in ("true", "1", "yes")
 
 settings = Settings()

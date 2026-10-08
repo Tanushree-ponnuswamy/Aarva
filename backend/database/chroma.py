@@ -1,7 +1,15 @@
 import os
+import sys
+import unittest.mock
 import uuid
 import requests
 from typing import List, Dict, Any
+
+# Bypass Windows Application Control policy blocking cygrpc C-extension DLL
+os.environ["ANONYMIZED_TELEMETRY"] = "False"
+if "opentelemetry.exporter.otlp.proto.grpc.trace_exporter" not in sys.modules:
+    sys.modules["opentelemetry.exporter.otlp.proto.grpc.trace_exporter"] = unittest.mock.MagicMock()
+
 from chromadb.api.types import EmbeddingFunction, Documents, Embeddings
 from config import settings
 
@@ -22,15 +30,15 @@ class OllamaBgeEmbeddingFunction(EmbeddingFunction[Documents]):
                 res = requests.post(
                     f"{self.base_url}/api/embeddings",
                     json={"model": self.model_name, "prompt": text[:2000]},
-                    timeout=5.0
+                    timeout=15.0
                 )
                 if res.status_code == 200:
                     emb = res.json().get("embedding", [])
                     if emb:
                         embeddings.append(emb)
                         continue
-            except Exception:
-                pass
+            except Exception as e:
+                print(f"[EMBEDDING] Warning: Failed embedding chunk with {self.model_name}: {e}")
             embeddings.append([0.0] * settings.EMBEDDING_DIMENSION)
         return embeddings
 

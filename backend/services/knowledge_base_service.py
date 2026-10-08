@@ -19,6 +19,26 @@ from database.chroma import chroma_store
 from models.models import Textbook, User
 
 
+import sys
+
+def _safe_print(*args, **kwargs):
+    """Safely prints text to stdout across all platforms and console encodings."""
+    try:
+        if hasattr(sys.stdout, "reconfigure"):
+            try:
+                sys.stdout.reconfigure(errors="replace")
+            except Exception:
+                pass
+        text = " ".join(str(a) for a in args)
+        print(text, flush=True)
+    except Exception:
+        try:
+            cleaned = " ".join(str(a).encode("ascii", errors="replace").decode("ascii") for a in args)
+            print(cleaned, flush=True)
+        except Exception:
+            pass
+
+
 class KnowledgeBaseService:
     def ingest_document(
         self,
@@ -31,17 +51,58 @@ class KnowledgeBaseService:
     ) -> Dict[str, Any]:
         """
         Full ingestion pipeline: Parse -> Chunk -> Embed into ChromaDB -> Record in DB.
+        Prints the entire document content and extracted details to the terminal.
         """
-        # 1. Parse Document
-        parse_result: ParseResult = parse_document(file_bytes, filename)
         doc_title = title.strip() if title else filename.rsplit(".", 1)[0].replace("_", " ").title()
         doc_author = author.strip() if author else "Document Author"
 
+        _safe_print("\n" + "="*85)
+        _safe_print(f"🚀 [AARVA DOCUMENT INTELLIGENCE PIPELINE] Starting extraction: '{filename}'")
+        _safe_print(f"📦 File Size: {len(file_bytes)} bytes | User ID: {user_id} | Title: '{doc_title}'")
+        _safe_print("="*85 + "\n")
+
+        # 1. Parse Document
+        parse_result: ParseResult = parse_document(file_bytes, filename)
+
+        _safe_print(f"📑 [DOCUMENT PARSER METRICS - '{filename}']")
+        _safe_print(f"   • Format: {parse_result.file_type.upper()}")
+        _safe_print(f"   • Total Pages/Sections: {parse_result.page_count}")
+        _safe_print(f"   • Total Words Extracted: {parse_result.word_count}")
+        _safe_print(f"   • Total Characters: {len(parse_result.full_text)}")
+        if parse_result.parse_warnings:
+            _safe_print(f"   • Warnings: {', '.join(parse_result.parse_warnings)}")
+
+        # ─── PRINT ENTIRE DOCUMENT CONTENT TO TERMINAL ───────────────────────
+        _safe_print("\n" + "#"*85)
+        _safe_print(f"📖 [READING ENTIRE EXTRACTED DOCUMENT CONTENT: '{filename}']")
+        _safe_print("#"*85)
+
+        if parse_result.pages:
+            for page in parse_result.pages:
+                _safe_print(f"\n{'='*80}")
+                _safe_print(f"📄 [PAGE / SECTION {page.page_number}]: {page.chapter} ({page.word_count} words)")
+                _safe_print(f"{'='*80}")
+                _safe_print(page.text)
+                _safe_print(f"{'-'*80}")
+        else:
+            _safe_print(f"\n[RAW TEXT]:\n{parse_result.full_text}\n")
+
+        _safe_print("\n" + "#"*85)
+        _safe_print(f"✅ [FINISHED READING ENTIRE DOCUMENT: '{filename}' | Total Words: {parse_result.word_count}]")
+        _safe_print("#"*85 + "\n")
+
         # 2. Chunk text with metadata
+        _safe_print(f"🧩 [CHUNKING PIPELINE] Chunking '{doc_title}' with semantic boundary detection...")
         chunks: List[DocumentChunk] = chunking_service.chunk_parsed_result(
             parse_result=parse_result,
             file_name=filename
         )
+        _safe_print(f"   • Generated {len(chunks)} contextual chunks across {parse_result.page_count} pages.")
+        for i, c in enumerate(chunks[:3], 1):
+            snippet = c.text[:120].replace('\n', ' ')
+            _safe_print(f"     [Chunk #{i}] (Page {c.page_number}, Chapter: '{c.chapter}') -> {snippet}...")
+        if len(chunks) > 3:
+            _safe_print(f"     ... and {len(chunks) - 3} additional chunks generated.")
 
         # 3. Create or update Database Record
         size_mb = f"{max(0.1, round(len(file_bytes) / (1024 * 1024), 2))} MB"
@@ -68,7 +129,8 @@ class KnowledgeBaseService:
         else:
             doc_id = int(datetime.utcnow().timestamp())
 
-        # 4. Embed into ChromaDB
+        # 4. Embed into ChromaDB & BM25
+        _safe_print(f"\n⚡ [CHROMADB VECTOR EMBEDDING] Embedding {len(chunks)} chunks into ChromaDB...")
         chunk_dicts = [c.to_dict() for c in chunks]
         indexed_count = chroma_store.add_textbook_chunks(
             textbook_id=doc_id,
@@ -77,6 +139,7 @@ class KnowledgeBaseService:
             file_name=filename,
             file_type=parse_result.file_type
         )
+        _safe_print(f"🎯 [INGESTION COMPLETED] Document ID #{doc_id} ('{doc_title}') indexed with {indexed_count} vectors into ChromaDB.\n")
 
         return {
             "success": True,

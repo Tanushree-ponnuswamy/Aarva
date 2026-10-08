@@ -1,4 +1,7 @@
+import os
+from pathlib import Path
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
+from fastapi.responses import FileResponse, Response
 from sqlalchemy.orm import Session
 from typing import Optional, List
 from datetime import datetime
@@ -8,6 +11,9 @@ from database.chroma import chroma_store
 from services.llama_service import llama_service
 
 router = APIRouter(prefix="/api/textbooks", tags=["Textbooks Management"])
+
+UPLOADS_DIR = Path(__file__).resolve().parent.parent / "uploads"
+UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
 
 @router.get("/")
 def get_textbooks(user_id: int, db: Session = Depends(get_db)):
@@ -68,6 +74,14 @@ async def upload_textbook(
         db=db
     )
 
+    # Save file to disk for preview
+    file_path = UPLOADS_DIR / f"{result['document_id']}_{filename}"
+    try:
+        with open(file_path, "wb") as f:
+            f.write(file_bytes)
+    except Exception as e:
+        print(f"[WARN] Failed to write preview file to disk: {e}")
+
     return {
         "success": True,
         "message": f"'{result['title']}' ({result['file_type'].upper()}) parsed and indexed successfully ({result['total_chunks']} chunks, {result['total_pages']} pages/sheets).",
@@ -85,6 +99,24 @@ async def upload_textbook(
         }
     }
 
+@router.get("/{textbook_id}/file")
+def get_textbook_file(textbook_id: int, db: Session = Depends(get_db)):
+    """Serve the raw file content or PDF for preview."""
+    book = db.query(Textbook).filter(Textbook.id == textbook_id).first()
+    if not book:
+        raise HTTPException(status_code=404, detail="Textbook not found.")
+
+    # Check disk for saved file
+    for p in UPLOADS_DIR.glob(f"{textbook_id}_*"):
+        ext = p.suffix.lower()
+        media_type = "application/pdf" if ext == ".pdf" else "text/plain"
+        return FileResponse(path=p, media_type=media_type, filename=book.file_name)
+
+    # Fallback response if file was created before disk persistence
+    summary_text = (book.summary_data or {}).get("complete_summary", f"Document summary for {book.title}.")
+    content = f"# {book.title}\nAuthor: {book.author}\n\n{summary_text}"
+    return Response(content=content, media_type="text/plain")
+
 @router.delete("/{textbook_id}")
 def delete_textbook(textbook_id: int, db: Session = Depends(get_db)):
     book = db.query(Textbook).filter(Textbook.id == textbook_id).first()
@@ -93,6 +125,13 @@ def delete_textbook(textbook_id: int, db: Session = Depends(get_db)):
 
     # Remove vector chunks from ChromaDB
     chroma_store.delete_textbook_chunks(textbook_id=textbook_id)
+
+    # Clean file from disk
+    for p in UPLOADS_DIR.glob(f"{textbook_id}_*"):
+        try:
+            p.unlink()
+        except Exception:
+            pass
 
     db.delete(book)
     db.commit()

@@ -22,9 +22,27 @@ from __future__ import annotations
 import io
 import os
 import re
+import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import List, Optional
+
+def _safe_print(*args, **kwargs):
+    """Safely prints to stdout across all platform console encodings."""
+    try:
+        if hasattr(sys.stdout, "reconfigure"):
+            try:
+                sys.stdout.reconfigure(errors="replace")
+            except Exception:
+                pass
+        text = " ".join(str(a) for a in args)
+        print(text, flush=True)
+    except Exception:
+        try:
+            cleaned = " ".join(str(a).encode("ascii", errors="replace").decode("ascii") for a in args)
+            print(cleaned, flush=True)
+        except Exception:
+            pass
 
 # ─── Data Structures ─────────────────────────────────────────────────────────
 
@@ -101,10 +119,12 @@ def _parse_pdf(data: bytes, filename: str) -> ParseResult:
         import fitz  # PyMuPDF
         doc = fitz.open(stream=data, filetype="pdf")
         total = doc.page_count
+        _safe_print(f"📖 [PDF PARSER] Reading {total} pages from '{filename}'...")
 
         for i, page in enumerate(doc, start=1):
             raw = page.get_text("text")  # type: ignore[attr-defined]
             cleaned = _clean_text(raw)
+            _safe_print(f"   [Page {i}/{total}] Read {len(cleaned.split())} words | Section: '{_guess_chapter(cleaned, i)}'")
 
             # Scanned page fallback — very little text extracted
             if len(cleaned.split()) < 15 and total <= 300:
@@ -178,6 +198,8 @@ def _parse_docx(data: bytes, filename: str) -> ParseResult:
         from docx import Document
         doc = Document(io.BytesIO(data))
 
+        _safe_print(f"📖 [DOCX PARSER] Reading document paragraphs and tables from '{filename}'...")
+
         sections: List[str] = []
         pages: List[PageChunk] = []
         current_chapter = "Introduction"
@@ -195,6 +217,7 @@ def _parse_docx(data: bytes, filename: str) -> ParseResult:
                 if current_lines:
                     block = _clean_text("\n".join(current_lines))
                     pages.append(PageChunk(page_number=page_num, text=block, chapter=current_chapter))
+                    _safe_print(f"   [Section {page_num}] Read {len(block.split())} words | Heading: '{current_chapter}'")
                     sections.append(block)
                     page_num += 1
                     current_lines = []
@@ -309,6 +332,8 @@ def _parse_text(data: bytes, filename: str) -> ParseResult:
         if not pages:
             return _empty_result("text", "File appears empty.")
 
+        _safe_print(f"📖 [TEXT PARSER] Read '{filename}' ({len(words)} words across {len(pages)} sections)...")
+
         full = "\n\n".join(p.text for p in pages)
         return ParseResult(
             full_text=full,
@@ -339,6 +364,8 @@ def _parse_excel(data: bytes, filename: str) -> ParseResult:
 
         wb = openpyxl.load_workbook(io.BytesIO(data), data_only=True)
         sheet_names = wb.sheetnames
+
+        _safe_print(f"📖 [EXCEL PARSER] Reading workbook '{filename}' ({len(sheet_names)} sheets)...")
 
         if not sheet_names:
             warnings.append("Excel workbook contains no sheets.")

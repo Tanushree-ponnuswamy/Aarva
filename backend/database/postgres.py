@@ -1,17 +1,40 @@
 import os
+from dotenv import load_dotenv
+from pathlib import Path
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
-from models.models import Base, User, StudentProfile, StudentInterests, LearningPreferences, LoginActivity, LearningProgress, Textbook, QuizResult
+from models.models import (
+    Base, User, StudentProfile, StudentInterests, LearningPreferences,
+    LoginActivity, LearningProgress, Textbook, QuizResult,
+    UserSession, ChatSession, ChatMessage
+)
 from datetime import datetime, timedelta
+
+# Load .env so DATABASE_URL is always available
+load_dotenv(dotenv_path=Path(__file__).resolve().parent.parent / ".env")
 
 # Default to Postgres if env provided, or SQLite for local dev
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./aarva.db")
 
-# If PostgreSQL is configured, e.g. postgresql://user:password@localhost/aarva_db
 if DATABASE_URL.startswith("sqlite"):
     engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
 else:
-    engine = create_engine(DATABASE_URL)
+    try:
+        # 1. Try standard PostgreSQL driver (psycopg2)
+        engine = create_engine(DATABASE_URL, pool_pre_ping=True)
+        with engine.connect() as conn:
+            pass
+    except Exception:
+        try:
+            # 2. Try pg8000 pure-python driver
+            pg_url = DATABASE_URL.replace("postgresql://", "postgresql+pg8000://", 1)
+            engine = create_engine(pg_url, pool_pre_ping=True)
+            with engine.connect() as conn:
+                pass
+        except Exception:
+            # 3. Fall back to local SQLite if PostgreSQL service is unavailable
+            print("[DATABASE WARNING] PostgreSQL connection unavailable. Falling back to local SQLite (aarva.db).")
+            engine = create_engine("sqlite:///./aarva.db", connect_args={"check_same_thread": False})
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
@@ -54,10 +77,10 @@ def seed_demo_data():
         )
         db.add(admin_act)
 
-        # 2. Student 1: College Student (Aarav Sharma)
+        # 2. Student 1: College Student (Alex Morgan)
         s1 = User(
-            name="Aarav Sharma",
-            email="aarav.sharma@college.edu",
+            name="Alex Morgan",
+            email="student@college.edu",
             password_hash="student123",
             phone="+91 98123 45678",
             dob="2003-05-14",

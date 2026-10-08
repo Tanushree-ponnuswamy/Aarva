@@ -4,7 +4,9 @@ Handles all AI tasks — summarization (complete, chapter, page, concept)
 and interactive AI tutor chat — using Meta-Llama-3-8B-Instruct.
 """
 from typing import Dict, Any, List
+import requests
 from database.chroma import chroma_store
+from config import settings
 
 
 class LlamaService:
@@ -102,7 +104,6 @@ class LlamaService:
         Supports multilingual output (English, Hindi, Tamil, Telugu, Spanish).
         """
         from services.hybrid_retrieval import hybrid_retrieval_engine
-        import requests
 
         # 1. Execute Hybrid Retrieval
         retrieved_chunks = hybrid_retrieval_engine.retrieve(
@@ -140,30 +141,18 @@ class LlamaService:
         combined_context = "\n\n".join(context_parts)
 
         # 3. Generate response using local Ollama (Mistral or Llama) with graceful fallback
-        raw_answer = self._query_llm_or_fallback(query, combined_context, conversation_history)
-
-        # 4. Multilingual wrap if specified
-        reply = raw_answer
-        if language == "Hindi":
-            reply = f"नमस्ते! आपके दस्तावेज़ और पाठ्यपुस्तक के आधार पर:\n\n{raw_answer}\n\nक्या आप चाहते हैं कि मैं इस बिंदु को और विस्तार से समझाऊँ?"
-        elif language == "Tamil":
-            reply = f"வணக்கம்! உங்கள் ஆவணத்தின்படி:\n\n{raw_answer}\n\nஇதை மேலும் விரிவாக விளக்க வேண்டுமா?"
-        elif language == "Telugu":
-            reply = f"నమస్కారం! మీ పత్రాల ప్రకారం:\n\n{raw_answer}\n\nమరిన్ని వివరాలు కావాలా?"
-        elif language == "Spanish":
-            reply = f"¡Hola! Según su documento:\n\n{raw_answer}\n\n¿Le gustaría un desglose adicional?"
-        elif language == "French":
-            reply = f"Bonjour! D'après votre document:\n\n{raw_answer}\n\nSouhaitez-vous que j'approfondisse davantage ce point?"
+        raw_answer = self._query_llm_or_fallback(query, combined_context, conversation_history, language=language)
 
         return {
             "query": query,
-            "response": reply,
+            "response": raw_answer,
             "retrieval_method": "Hybrid (Dense ChromaDB Vector + BM25 Okapi Lexical)",
             "sources": sources,
+            "language": language,
             "suggested_followups": [
-                "Can you extract the critical compliance dates and deadlines?",
-                "What are the specific financial requirements (EMD / fees)?",
-                "Summarize the key deliverables and scope of work."
+                "Can you summarize the main concepts in bullet points?",
+                "Give me 3 practice quiz questions based on this section.",
+                "Explain the most complex term in simple language."
             ]
         }
 
@@ -171,20 +160,22 @@ class LlamaService:
         self,
         query: str,
         context: str,
-        conversation_history: List[Dict] = None
+        conversation_history: List[Dict] = None,
+        language: str = "English"
     ) -> str:
         """
-        Attempts to call local Ollama (Mistral / Llama) first.
+        Attempts to call local Ollama (Mistral / Llama) first with language instructions.
         Falls back to contextual knowledge extraction if Ollama is loading or unavailable.
         """
-        import requests
-
         if not context:
             context = "General syllabus knowledge and foundational systems principles."
 
+        lang_instruction = f"IMPORTANT: You MUST write your entire answer in {language}.\n" if language and language != "English" else ""
+
         # Prompt engineering for grounded RAG response
         prompt = (
-            "You are AARVA / TenderIQ, an expert academic tutor and document intelligence assistant.\n"
+            "You are AARVA, an expert academic tutor and document intelligence assistant.\n"
+            f"{lang_instruction}"
             "Answer the user's question accurately using ONLY the provided verified context where applicable.\n"
             "Cite relevant pages, sheets, or sections if mentioned in the context.\n"
             "Format your answer with clear markdown headings, bullet points, and bold key terms.\n\n"
@@ -193,25 +184,25 @@ class LlamaService:
             "ANSWER:"
         )
 
-        # Try Ollama endpoint
-        for model in ["mistral:latest", "llama3:latest", "llama3.2:1b"]:
-            try:
-                res = requests.post(
-                    "http://localhost:11434/api/generate",
-                    json={
-                        "model": model,
-                        "prompt": prompt,
-                        "stream": False,
-                        "options": {"temperature": 0.3, "top_p": 0.9}
-                    },
-                    timeout=5.0
-                )
-                if res.status_code == 200:
-                    ans = res.json().get("response", "").strip()
-                    if ans:
-                        return ans
-            except Exception:
-                continue
+        # Call Ollama with primary LLM (Qwen3 8B)
+        try:
+            res = requests.post(
+                f"{settings.OLLAMA_BASE_URL}/api/generate",
+                json={
+                    "model": settings.LLM_MODEL,
+                    "prompt": prompt,
+                    "stream": False,
+                    "options": {"temperature": settings.LLM_TEMPERATURE, "top_p": 0.9}
+                },
+                timeout=float(settings.LLM_TIMEOUT_SECONDS)
+            )
+            if res.status_code == 200:
+                ans = res.json().get("response", "").strip()
+                if ans:
+                    return ans
+        except Exception as e:
+            print(f"[OLLAMA] Error querying {settings.LLM_MODEL}: {e}")
+            pass
 
         # Intelligent contextual fallback
         return self._generate_contextual_answer(query, context)

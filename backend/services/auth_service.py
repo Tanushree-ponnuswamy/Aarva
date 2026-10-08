@@ -1,16 +1,7 @@
-"""
-Authentication & JWT Security Service for AARVA / Knowledge Base.
-
-Handles:
-- Bcrypt password hashing & verification (with seed compatibility)
-- JWT token generation (HS256) with configurable expiration
-- JWT token validation and payload decoding
-- FastAPI dependency for extracting current authenticated user
-"""
-
 import os
 from datetime import datetime, timedelta
 from typing import Optional, Dict, Any
+import uuid
 import bcrypt
 from jose import jwt, JWTError
 from fastapi import Depends, HTTPException, status
@@ -61,19 +52,22 @@ class AuthService:
     def create_access_token(
         data: Dict[str, Any],
         expires_delta: Optional[timedelta] = None
-    ) -> str:
-        """Generate a signed JWT token."""
+    ) -> tuple[str, str]:
+        """Generate a signed JWT token. Returns (token, jti)."""
         to_encode = data.copy()
         if expires_delta:
             expire = datetime.utcnow() + expires_delta
         else:
             expire = datetime.utcnow() + timedelta(hours=ACCESS_TOKEN_EXPIRE_HOURS)
 
+        jti = str(uuid.uuid4())
         to_encode.update({
             "exp": expire,
-            "iat": datetime.utcnow()
+            "iat": datetime.utcnow(),
+            "jti": jti
         })
-        return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+        token = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+        return token, jti
 
     @staticmethod
     def decode_token(token: str) -> Optional[Dict[str, Any]]:

@@ -26,6 +26,8 @@ class User(Base):
     progress = relationship("LearningProgress", back_populates="user", uselist=False, cascade="all, delete-orphan")
     textbooks = relationship("Textbook", back_populates="user", cascade="all, delete-orphan")
     quiz_results = relationship("QuizResult", back_populates="user", cascade="all, delete-orphan")
+    user_sessions = relationship("UserSession", back_populates="user", cascade="all, delete-orphan")
+    chat_sessions = relationship("ChatSession", back_populates="user", cascade="all, delete-orphan")
 
 
 class StudentProfile(Base):
@@ -143,3 +145,55 @@ class QuizResult(Base):
 
     user = relationship("User", back_populates="quiz_results")
     textbook = relationship("Textbook", back_populates="quiz_results")
+
+
+# ── Session Tables ─────────────────────────────────────────────────────────
+
+class UserSession(Base):
+    """Tracks authenticated login sessions for students (one per login)."""
+    __tablename__ = "user_sessions"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    token_jti = Column(String(255), unique=True, nullable=False, index=True)  # JWT ID (jti claim)
+    ip_address = Column(String(50), nullable=True)
+    user_agent = Column(String(300), nullable=True)
+    device_info = Column(String(150), default="Web Browser")
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    last_seen_at = Column(DateTime, default=datetime.utcnow)
+    expires_at = Column(DateTime, nullable=True)
+    logged_out_at = Column(DateTime, nullable=True)
+
+    user = relationship("User", back_populates="user_sessions")
+
+
+class ChatSession(Base):
+    """Groups a series of messages between a student and the AI for a specific book."""
+    __tablename__ = "chat_sessions"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    textbook_id = Column(Integer, ForeignKey("textbooks.id", ondelete="SET NULL"), nullable=True, index=True)
+    session_title = Column(String(255), nullable=True)  # auto-derived from first message
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    message_count = Column(Integer, default=0)
+
+    user = relationship("User", back_populates="chat_sessions")
+    messages = relationship("ChatMessage", back_populates="chat_session", cascade="all, delete-orphan")
+
+
+class ChatMessage(Base):
+    """Individual message within a ChatSession."""
+    __tablename__ = "chat_messages"
+
+    id = Column(Integer, primary_key=True, index=True)
+    chat_session_id = Column(Integer, ForeignKey("chat_sessions.id", ondelete="CASCADE"), nullable=False, index=True)
+    role = Column(String(20), nullable=False)  # "user" or "assistant"
+    content = Column(Text, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    tokens_used = Column(Integer, nullable=True)
+
+    chat_session = relationship("ChatSession", back_populates="messages")

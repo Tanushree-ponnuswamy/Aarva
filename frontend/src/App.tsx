@@ -1,4 +1,4 @@
-import { FormEvent, ReactNode, useEffect, useState } from "react";
+import { FormEvent, ReactNode, useEffect, useMemo, useRef, useState } from "react";
 
 const team = [
   {
@@ -23,40 +23,54 @@ const team = [
 
 const features = [
   {
-    number: "01",
-    eyebrow: "A calmer workflow",
-    title: "Everything important, beautifully in focus.",
-    copy: "Bring projects, decisions, and momentum into one clear space. Aarva removes the noise so your team can spend more time making progress.",
-    visual: "dashboard",
-  },
-  {
     number: "02",
-    eyebrow: "Made for momentum",
-    title: "Collaborate in real time, without the friction.",
-    copy: "Share thoughts, move work forward, and stay in sync with an experience that feels natural from the very first click.",
-    visual: "collaboration",
+    eyebrow: "Multi-layered AI summarization",
+    title: "Instant summaries, chapter breakdowns, and definitions.",
+    copy: "Never feel overwhelmed by 500-page textbooks again. Get high-impact 'In one sentence' overviews, chapter outlines, key takeaways, and auto-generated glossaries designed for fast revision.",
+    visual: "summarization",
   },
   {
     number: "03",
-    eyebrow: "Meaningful insights",
-    title: "Turn everyday activity into a smarter next move.",
-    copy: "Simple, elegant reports reveal what is working and where to focus next—without a spreadsheet in sight.",
-    visual: "insights",
+    eyebrow: "Play your way to mastery",
+    title: "Adaptive quizzes that target your exact knowledge gaps.",
+    copy: "Reinforce what you study with 8 dynamic test formats—from multiple-choice and pair matching to card challenges and mind games. Questions dynamically adjust in difficulty as you improve.",
+    visual: "tests",
+  },
+  {
+    number: "04",
+    eyebrow: "Personalized learning momentum",
+    title: "Personalized study goals, streaks, and focus metrics.",
+    copy: "Stay consistent with daily study time targets, focus scores, completion badges, and streak trackers designed to build lifelong learning habits.",
+    visual: "dashboard",
   },
 ];
 
 function Icon({
   name,
   size = 20,
+  className = "",
 }: {
-  name: "arrow" | "play" | "spark" | "linkedin" | "mail" | "instagram" | "youtube";
+  name: "arrow" | "play" | "spark" | "linkedin" | "mail" | "instagram" | "youtube" | "send" | "send-up";
   size?: number;
+  className?: string;
 }) {
   const paths: Record<typeof name, ReactNode> = {
     arrow: (
       <>
         <path d="M5 12h14" />
         <path d="m13 6 6 6-6 6" />
+      </>
+    ),
+    send: (
+      <>
+        <path d="m22 2-7 20-4-9-9-4Z" />
+        <path d="M22 2 11 13" />
+      </>
+    ),
+    "send-up": (
+      <>
+        <path d="M12 19V5" />
+        <path d="m5 12 7-7 7 7" />
       </>
     ),
     play: <path d="m9 7 8 5-8 5V7Z" />,
@@ -96,6 +110,7 @@ function Icon({
       strokeWidth="1.8"
       strokeLinecap="round"
       strokeLinejoin="round"
+      className={className}
       aria-hidden="true"
     >
       {paths[name]}
@@ -103,67 +118,294 @@ function Icon({
   );
 }
 
-function Logo() {
+function Logo({ dark = false }: { dark?: boolean }) {
   return (
-    <a className="logo" href="#home" aria-label="Aarva home">
-      <span className="logo-mark"><Icon name="spark" size={17} /></span>
+    <a className={`logo ${dark ? "logo-dark" : ""}`} href="#home" aria-label="Aarva home">
+      <img className="logo-img" src="/aarva-logo.png?v=white" alt="Aarva logo" width={34} height={34} />
       <span>Aarva</span>
     </a>
   );
 }
 
 function FeatureVisual({ type }: { type: string }) {
-  if (type === "collaboration") {
+  if (type === "chat") {
     return (
-      <div className="visual-stage collaboration-card" aria-hidden="true">
-        <span className="orbit orbit-one" />
-        <span className="orbit orbit-two" />
-        <div className="message message-one">
-          <span className="avatar avatar-violet">M</span>
-          <span><b>Maya</b><small>This direction feels just right.</small></span>
+      <div className="visual-stage feature-stage-chat" aria-hidden="true">
+        <div className="feat-glow feat-glow-blue" />
+
+        <div className="feat-chat-header">
+          <div className="feat-chat-book-info">
+            <span className="feat-chat-book-icon"><Icon name="spark" size={15} /></span>
+            <div>
+              <b>Deep Learning & Neural Architectures</b>
+              <small>Chapter 4 • Backpropagation & Gradient Descent</small>
+            </div>
+          </div>
+          <span className="feat-live-pill">
+            <span className="pulse-dot" /> Grounded RAG
+          </span>
         </div>
-        <div className="message message-two">
-          <span className="avatar avatar-blue">N</span>
-          <span><b>Noah</b><small>Ready to share with the team.</small></span>
+
+        <div className="feat-bubble feat-bubble-user">
+          <p>How does backpropagation resolve vanishing gradients in deep networks?</p>
+          <span className="feat-user-avatar">AL</span>
         </div>
-        <div className="presence">
-          <span className="presence-dot" /> 8 people collaborating
+
+        <div className="feat-bubble feat-bubble-ai">
+          <div className="feat-ai-header">
+            <span className="feat-ai-avatar"><Icon name="spark" size={13} /></span>
+            <strong>Aarva AI</strong>
+            <span className="feat-citation-badge">📖 Page 142, §4.2</span>
+          </div>
+          <p>
+            Backpropagation distributes error gradients via the chain rule. To counter exponential gradient decay across deep layers, modern architectures employ residual skip connections and non-saturating activations.
+          </p>
+          <div className="feat-ai-callout">
+            <b>Key Architecture:</b> Use <code>ReLU / GELU</code> activations, ResNet residuals, and Pre-LayerNorm.
+          </div>
+          <div className="feat-citation-footer">
+            <span className="feat-tag">✓ Verified Source</span>
+            <span className="feat-tag">99.8% Confidence</span>
+            <span className="feat-tag">3 Cross-References</span>
+          </div>
+        </div>
+
+        <div className="feat-prompt-pills">
+          <span>Explain with an analogy</span>
+          <span>Generate 3 quiz questions</span>
+          <span>Show LaTeX formula</span>
+        </div>
+
+        <div className="feat-chip feat-chip-tr">
+          <span className="feat-chip-icon">⚡</span>
+          <div>
+            <b>2.4k Chunks Indexed</b>
+            <small>Vector & BM25 retrieval</small>
+          </div>
+        </div>
+        <div className="feat-chip feat-chip-bl">
+          <span className="feat-chip-icon">🛡️</span>
+          <div>
+            <b>Zero Hallucination</b>
+            <small>Strict page-grounded AI</small>
+          </div>
         </div>
       </div>
     );
   }
 
-  if (type === "insights") {
+  if (type === "summarization") {
     return (
-      <div className="visual-stage insight-card" aria-hidden="true">
-        <div className="metric-top">
-          <span>Weekly momentum</span>
-          <small>Last 7 days</small>
+      <div className="visual-stage feature-stage-summary" aria-hidden="true">
+        <div className="feat-glow feat-glow-violet" />
+
+        <div className="feat-summary-tabs">
+          <span className="feat-tab active">⚡ In One Sentence</span>
+          <span className="feat-tab">📑 Chapter Breakdown</span>
+          <span className="feat-tab">🧠 Core Glossary</span>
+          <span className="feat-tab">🎯 High-Yield Notes</span>
         </div>
-        <div className="big-number">+42%</div>
-        <div className="chart">
-          {[36, 52, 45, 68, 62, 84, 96].map((height, index) => (
-            <span key={height} style={{ "--bar": `${height}%`, "--delay": `${index * 80}ms` } as React.CSSProperties} />
-          ))}
+
+        <div className="feat-summary-hero-card">
+          <div className="feat-summary-badge">
+            <Icon name="spark" size={13} /> Core Essence
+          </div>
+          <h4>
+            “Deep learning models construct hierarchical representations through stacked non-linear transformations optimized iteratively via backpropagation.”
+          </h4>
+          <div className="feat-summary-meta">
+            <span>⏱️ 4 min read</span>
+            <span>•</span>
+            <span>📊 85% reading time saved</span>
+            <span>•</span>
+            <span>🎯 High-yield exam focus</span>
+          </div>
         </div>
-        <div className="chart-labels"><span>Mon</span><span>Sun</span></div>
+
+        <div className="feat-summary-grid">
+          <div className="feat-summary-subcard">
+            <span className="feat-subcard-tag">SECTION 01</span>
+            <b>Loss Functions & Optimization</b>
+            <p>Cross-entropy loss vs MSE for multi-class classification benchmarks.</p>
+            <small>6 Key Takeaways</small>
+          </div>
+          <div className="feat-summary-subcard feat-subcard-accent">
+            <span className="feat-subcard-tag">GLOSSARY EXTRACT</span>
+            <b>Vanishing Gradient Dilemma</b>
+            <p>Exponential decay of gradient magnitudes across chained derivatives.</p>
+            <small>18 Key Terms</small>
+          </div>
+        </div>
+
+        <div className="feat-chip feat-chip-tr">
+          <span className="feat-chip-icon">📑</span>
+          <div>
+            <b>Multi-Tier AI</b>
+            <small>TL;DR to Deep Notes</small>
+          </div>
+        </div>
+        <div className="feat-chip feat-chip-bl">
+          <span className="feat-chip-icon">✨</span>
+          <div>
+            <b>Auto-Glossary</b>
+            <small>Synced with textbook</small>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (type === "tests") {
+    return (
+      <div className="visual-stage feature-stage-tests" aria-hidden="true">
+        <div className="feat-glow feat-glow-green" />
+
+        <div className="feat-quiz-top">
+          <div className="feat-quiz-info">
+            <span className="feat-quiz-mode-pill">ADAPTIVE QUIZ • LEVEL 4</span>
+            <b>Neural Networks Mastery</b>
+          </div>
+          <div className="feat-quiz-xp">
+            <span>+120 XP</span>
+            <small>🔥 7-Day Streak</small>
+          </div>
+        </div>
+
+        <div className="feat-quiz-card">
+          <div className="feat-quiz-qhead">
+            <span className="feat-qnum">Q4 / 10 • MULTIPLE CHOICE</span>
+            <span className="feat-timer">⏱️ 00:38 remaining</span>
+          </div>
+          <p className="feat-qtext">
+            Which optimization technique dynamically modulates per-parameter learning rates using exponential moving averages of squared gradients?
+          </p>
+
+          <div className="feat-quiz-options">
+            <div className="feat-option feat-option-correct">
+              <span className="feat-opt-marker">✓</span>
+              <div>
+                <b>Adam Optimizer (Adaptive Moment Estimation)</b>
+                <small>Combines Momentum with RMSProp adaptive scaling</small>
+              </div>
+              <span className="feat-opt-tag">94% Accuracy</span>
+            </div>
+            <div className="feat-option">
+              <span className="feat-opt-marker">B</span>
+              <div>
+                <b>Standard Stochastic Gradient Descent (SGD)</b>
+              </div>
+            </div>
+            <div className="feat-option">
+              <span className="feat-opt-marker">C</span>
+              <div>
+                <b>LeakyReLU Activation Function</b>
+              </div>
+            </div>
+            <div className="feat-option">
+              <span className="feat-opt-marker">D</span>
+              <div>
+                <b>Batch Normalization Layer</b>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="feat-chip feat-chip-tr">
+          <span className="feat-chip-icon">🎮</span>
+          <div>
+            <b>8 Test Formats</b>
+            <small>MCQ, Pairs, Flashcards</small>
+          </div>
+        </div>
+        <div className="feat-chip feat-chip-bl">
+          <span className="feat-chip-icon">📈</span>
+          <div>
+            <b>Mastery: 92%</b>
+            <small>Adaptive difficulty</small>
+          </div>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="visual-stage dashboard-card" aria-hidden="true">
-      <div className="dash-head"><span /><span /><span /></div>
-      <div className="dash-layout">
-        <div className="dash-sidebar"><i /><i /><i /><i /></div>
-        <div className="dash-main">
-          <small>Good morning, Maya</small>
-          <b>Make something wonderful.</b>
-          <div className="progress-card"><span>Launch progress</span><strong>78%</strong><i /></div>
-          <div className="mini-grid"><i /><i /><i /></div>
+    <div className="visual-stage feature-stage-dashboard" aria-hidden="true">
+      <div className="feat-glow feat-glow-violet" />
+
+      <div className="feat-dash-top">
+        <div className="feat-window-dots">
+          <span className="dot-red" />
+          <span className="dot-yellow" />
+          <span className="dot-green" />
+        </div>
+        <div className="feat-dash-user">
+          <span className="feat-user-indicator" />
+          <b>Alex Morgan's Learning Workspace</b>
+        </div>
+        <span className="feat-dash-date">Daily Goal: 45m</span>
+      </div>
+
+      <div className="feat-dash-stats-row">
+        <div className="feat-dash-stat-box">
+          <small>WEEKLY STUDY</small>
+          <b>14h 30m</b>
+          <span className="feat-stat-up">↑ +18% vs last week</span>
+        </div>
+        <div className="feat-dash-stat-box">
+          <small>FOCUS SCORE</small>
+          <b>96 / 100</b>
+          <span className="feat-stat-sub">Top 5% consistency</span>
+        </div>
+        <div className="feat-dash-stat-box">
+          <small>ACTIVE TEXTBOOKS</small>
+          <b>4 Books</b>
+          <span className="feat-stat-sub">12 chapters mastered</span>
         </div>
       </div>
-      <div className="floating-pill"><span>12</span> tasks done today</div>
+
+      <div className="feat-dash-content">
+        <div className="feat-dash-focus-card">
+          <div className="feat-focus-icon-wrap">
+            <Icon name="spark" size={16} />
+          </div>
+          <div>
+            <small>CURRENT IN FOCUS</small>
+            <b>Machine Learning: Chapter 4</b>
+            <div className="feat-dash-progress-track">
+              <div className="feat-dash-progress-fill" style={{ width: "74%" }} />
+            </div>
+            <span className="feat-progress-text">74% Chapter Mastery Complete</span>
+          </div>
+        </div>
+
+        <div className="feat-dash-mini-chart">
+          <small>DAILY STUDY TIME (MINUTES)</small>
+          <div className="feat-chart-bars">
+            <div className="feat-bar-col"><span style={{ height: "45%" }} /><small>M</small></div>
+            <div className="feat-bar-col"><span style={{ height: "70%" }} /><small>T</small></div>
+            <div className="feat-bar-col"><span style={{ height: "60%" }} /><small>W</small></div>
+            <div className="feat-bar-col"><span style={{ height: "90%" }} className="feat-bar-highlight" /><small>T</small></div>
+            <div className="feat-bar-col"><span style={{ height: "80%" }} /><small>F</small></div>
+            <div className="feat-bar-col"><span style={{ height: "55%" }} /><small>S</small></div>
+            <div className="feat-bar-col"><span style={{ height: "95%" }} className="feat-bar-highlight" /><small>S</small></div>
+          </div>
+        </div>
+      </div>
+
+      <div className="feat-chip feat-chip-tr">
+        <span className="feat-chip-icon">🎯</span>
+        <div>
+          <b>Daily Goal Met</b>
+          <small>42m completed today</small>
+        </div>
+      </div>
+      <div className="feat-chip feat-chip-bl">
+        <span className="feat-chip-icon">🔥</span>
+        <div>
+          <b>Streak: 14 Days</b>
+          <small>Unbroken momentum</small>
+        </div>
+      </div>
     </div>
   );
 }
@@ -198,20 +440,21 @@ function LandingPage({ onStart, onLogin }: { onStart: () => void; onLogin: () =>
           <div className="ambient ambient-one" />
           <div className="ambient ambient-two" />
           <div className="hero-copy">
-            <div className="eyebrow reveal"><span />Thoughtfully built for modern teams</div>
+            <div className="eyebrow reveal"><span />NEXT-GEN AI STUDY ENGINE & ADAPTIVE COMPANION</div>
             <h1 className="reveal reveal-delay">
-              Make space for your <span className="gradient-text">brightest ideas.</span>
+              Master any textbook. <br />
+              <span className="gradient-text">Retain everything you learn.</span>
             </h1>
             <p className="hero-lede reveal reveal-delay-two">
-              Create, connect, and move forward in one beautifully simple workspace designed to keep inspiration flowing.
+              Upload dense textbooks, lecture notes, or syllabi. Aarva turns overwhelming chapters into interactive AI conversations, high-yield chapter summaries, and adaptive quizzes engineered for top scores and lifelong retention.
             </p>
             <div className="hero-actions reveal reveal-delay-three">
-              <a className="button button-primary" href="/login" onClick={(event) => { event.preventDefault(); onStart(); }}>Get started <Icon name="arrow" /></a>
-              <a className="text-link" href="#about"><span className="play"><Icon name="play" size={16} /></span> See how it works</a>
+              <a className="button button-primary" href="/login" onClick={(event) => { event.preventDefault(); onStart(); }}>Get started free <Icon name="arrow" /></a>
+              <a className="text-link" href="#features"><span className="play"><Icon name="play" size={16} /></span> Explore features</a>
             </div>
             <div className="trust-line reveal reveal-delay-three">
               <div className="avatar-stack"><span>A</span><span>N</span><span>S</span></div>
-              <p><b>Loved by 2,000+ teams</b><br />who make meaningful things</p>
+              <p><b>Loved by 10,000+ ambitious learners & researchers</b><br />100% grounded in your syllabus with zero hallucination</p>
             </div>
           </div>
 
@@ -282,9 +525,9 @@ function LandingPage({ onStart, onLogin }: { onStart: () => void; onLogin: () =>
 
         <section className="features section-pad" id="features">
           <div className="section-heading">
-            <p className="kicker">Features</p>
-            <h2>Less busywork.<br /><span className="gradient-text">More breakthrough.</span></h2>
-            <p>Designed around how great teams actually think, create, and grow.</p>
+            <p className="kicker">Core Capabilities</p>
+            <h2>Less passive reading.<br /><span className="gradient-text">More deep mastery.</span></h2>
+            <p>Designed around how high-performing students and researchers actually retain and apply complex concepts.</p>
           </div>
           <div className="feature-list">
             {features.map((feature, index) => (
@@ -294,7 +537,9 @@ function LandingPage({ onStart, onLogin }: { onStart: () => void; onLogin: () =>
                   <p className="feature-eyebrow">{feature.eyebrow}</p>
                   <h3>{feature.title}</h3>
                   <p>{feature.copy}</p>
-                  <a className="learn-link" href="#contact">Explore the feature <Icon name="arrow" size={18} /></a>
+                  <a className="learn-link" href="/login" onClick={(e) => { e.preventDefault(); onStart(); }}>
+                    Try this feature <Icon name="arrow" size={18} />
+                  </a>
                 </div>
                 <FeatureVisual type={feature.visual} />
               </article>
@@ -335,7 +580,7 @@ function LandingPage({ onStart, onLogin }: { onStart: () => void; onLogin: () =>
         <div className="footer-glow" />
         <div className="footer-main section-pad">
           <div className="footer-nav">
-            <Logo />
+            <Logo dark />
             <a href="#home">Home</a>
             <a href="#features">Features</a>
             <a href="#about">About us</a>
@@ -377,12 +622,11 @@ function LandingPage({ onStart, onLogin }: { onStart: () => void; onLogin: () =>
 }
 
 type Route = "landing" | "auth" | "dashboard";
-type AuthStage = "login" | "personal" | "learning" | "verify" | "success";
 
 const studyImage =
   "https://images.unsplash.com/photo-1763890965393-1cea435581ab?crop=entropy&cs=tinysrgb&fit=crop&fm=jpg&q=85&w=1200&h=1500";
 
-function MiniIcon({ name }: { name: "dashboard" | "upload" | "library" | "test" | "settings" | "menu" | "bell" | "clock" | "book" }) {
+function MiniIcon({ name }: { name: "dashboard" | "upload" | "library" | "test" | "settings" | "menu" | "bell" | "clock" | "book" | "profile" }) {
   const paths = {
     dashboard: <><rect x="3" y="3" width="7" height="7" rx="2" /><rect x="14" y="3" width="7" height="7" rx="2" /><rect x="3" y="14" width="7" height="7" rx="2" /><rect x="14" y="14" width="7" height="7" rx="2" /></>,
     upload: <><path d="M12 16V4m0 0L7 9m5-5 5 5" /><path d="M5 15v4h14v-4" /></>,
@@ -393,47 +637,280 @@ function MiniIcon({ name }: { name: "dashboard" | "upload" | "library" | "test" 
     bell: <><path d="M18 9a6 6 0 0 0-12 0c0 7-3 7-3 8h18c0-1-3-1-3-8Z" /><path d="M10 21h4" /></>,
     clock: <><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></>,
     book: <><path d="M4 5a3 3 0 0 1 3-2h5v17H7a3 3 0 0 0-3 2V5Zm16 0a3 3 0 0 0-3-2h-5v17h5a3 3 0 0 1 3 2V5Z" /></>,
+    profile: <><circle cx="12" cy="8" r="4" /><path d="M6 21v-2a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v2" /></>,
   };
   return <svg className="mini-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{paths[name]}</svg>;
 }
 
-function AuthPage({ onHome, onComplete }: { onHome: () => void; onComplete: (name: string) => void }) {
-  const [stage, setStage] = useState<AuthStage>("login");
-  const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
-  const [code, setCode] = useState("");
-  const [error, setError] = useState("");
+const API_BASE = "http://localhost:8000";
 
-  const submitLogin = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    setStage("verify");
+async function apiPost(path: string, body: unknown) {
+  const res = await fetch(`${API_BASE}${path}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.detail || "Something went wrong.");
+  return data;
+}
+
+function AuthPage({ onHome, onComplete }: { onHome: () => void; onComplete: (name: string) => void }) {
+  // ── login form state ──────────────────────────────────────────────────
+  const [loginEmail, setLoginEmail] = useState(() => localStorage.getItem("aarva_saved_email") || "");
+  const [loginPassword, setLoginPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [rememberMe, setRememberMe] = useState(true);
+  const [loginLoading, setLoginLoading] = useState(false);
+  const [loginError, setLoginError] = useState("");
+  const [forgotMsg, setForgotMsg] = useState("");
+
+  const fillDemoCredentials = () => {
+    setLoginEmail("student@college.edu");
+    setLoginPassword("student123");
+    setLoginError("");
+    setForgotMsg("");
   };
-  const submitPersonal = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    setStage("learning");
-  };
-  const submitLearning = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    setStage("verify");
-  };
-  const verify = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    if (code !== "2468") {
-      setError("That code does not match. Use 2468 for this preview.");
+
+  const handleForgotPassword = async () => {
+    const targetEmail = loginEmail.trim();
+    if (!targetEmail || !targetEmail.includes("@")) {
+      setLoginError("Please enter your registered email address above to receive your reset code.");
       return;
     }
-    setError("");
-    setStage("success");
+    setLoginError("");
+    setLoginLoading(true);
+    try {
+      const data = await apiPost("/api/auth/send-otp", { email: targetEmail, length: 4 });
+      if (data.preview_code) {
+        setExpectedCode(data.preview_code);
+      }
+      setForgotMsg(`Verification code dispatched to ${targetEmail}. Check your email inbox.`);
+    } catch (err: unknown) {
+      setLoginError(err instanceof Error ? err.message : "Could not send verification email.");
+    } finally {
+      setLoginLoading(false);
+    }
   };
 
-  const step = stage === "personal" ? 1 : stage === "learning" ? 2 : stage === "verify" ? 3 : 0;
+  // ── signup form state ─────────────────────────────────────────────────
+  const [stage, setStage] = useState<"login" | "signup-personal" | "signup-preferences" | "signup-verify" | "success">("login");
+  const [signupName, setSignupName] = useState("");
+  const [signupEmail, setSignupEmail] = useState("");
+  const [signupPassword, setSignupPassword] = useState("");
+  const [signupLoading, setSignupLoading] = useState(false);
+  const [signupError, setSignupError] = useState("");
+
+  // Step 2: Personalization & Preferences (Screenshot 2)
+  const [educationLevel, setEducationLevel] = useState("Undergraduate");
+  const [fieldOfStudy, setFieldOfStudy] = useState("Computer Science");
+  const [selectedInterests, setSelectedInterests] = useState<string[]>(["Technology", "Design"]);
+  const [appPreferences, setAppPreferences] = useState<string[]>(["Daily reminders", "Study streaks"]);
+  const [dailyGoal, setDailyGoal] = useState("30 minutes");
+
+  // Step 3: Email verification code (Screenshot 1)
+  const [otpDigits, setOtpDigits] = useState<string[]>(["", "", "", ""]);
+  const [expectedCode, setExpectedCode] = useState("2468");
+  const [resendStatus, setResendStatus] = useState<string>("");
+  const [successName, setSuccessName] = useState("");
+
+  const otpInputRefs = useRef<(HTMLInputElement | null)[]>([]);
+
+  const toggleInterest = (item: string) => {
+    setSelectedInterests((prev) =>
+      prev.includes(item) ? prev.filter((i) => i !== item) : [...prev, item]
+    );
+  };
+
+  const toggleAppPreference = (item: string) => {
+    setAppPreferences((prev) =>
+      prev.includes(item) ? prev.filter((i) => i !== item) : [...prev, item]
+    );
+  };
+
+  // ── LOGIN ─────────────────────────────────────────────────────────────
+  const submitLogin = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setLoginError("");
+    setForgotMsg("");
+    setLoginLoading(true);
+    try {
+      const data = await apiPost("/api/auth/login", {
+        email: loginEmail,
+        password: loginPassword,
+        portal: "student",
+      });
+      if (rememberMe) {
+        localStorage.setItem("aarva_saved_email", loginEmail);
+      } else {
+        localStorage.removeItem("aarva_saved_email");
+      }
+      // Store JWT in localStorage for session persistence
+      localStorage.setItem("aarva_token", data.access_token);
+      localStorage.setItem("aarva_user", JSON.stringify(data.user));
+      onComplete(data.user.name);
+    } catch (err: unknown) {
+      setLoginError(err instanceof Error ? err.message : "Invalid login credentials.");
+    } finally {
+      setLoginLoading(false);
+    }
+  };
+
+  // ── SIGNUP step 1 → step 2 (Personal → Preferences) ───────────────────
+  const submitPersonal = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setSignupError("");
+    const email = signupEmail.trim();
+    if (!email || !email.includes("@")) {
+      setSignupError("Please provide a valid email address to receive your verification code.");
+      return;
+    }
+    setStage("signup-preferences");
+  };
+
+  // ── SIGNUP step 2 → step 3 (Preferences → Email Verification) ────────
+  const submitPreferences = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setSignupError("");
+
+    const targetEmail = signupEmail.trim();
+    if (!targetEmail || !targetEmail.includes("@")) {
+      setSignupError("Please enter your email address first so we can send your verification code.");
+      setStage("signup-personal");
+      return;
+    }
+
+    setStage("signup-verify");
+
+    // Automatically dispatch actual OTP verification email to the user's specific email address
+    try {
+      const data = await apiPost("/api/auth/send-otp", { email: targetEmail, length: 4 });
+      if (data.preview_code) {
+        setExpectedCode(data.preview_code);
+      }
+      setResendStatus(`Verification code sent to ${targetEmail}`);
+      setTimeout(() => setResendStatus(""), 5000);
+    } catch (err: unknown) {
+      console.warn("Could not dispatch via SMTP, preview code active:", err);
+    }
+  };
+
+  // ── Handle OTP input changes ─────────────────────────────────────────
+  const handleOtpChange = (index: number, value: string) => {
+    const cleanVal = value.replace(/\D/g, "");
+    if (!cleanVal) {
+      const updated = [...otpDigits];
+      updated[index] = "";
+      setOtpDigits(updated);
+      return;
+    }
+
+    const updated = [...otpDigits];
+    if (cleanVal.length === 1) {
+      updated[index] = cleanVal;
+      setOtpDigits(updated);
+      if (index < 3) {
+        otpInputRefs.current[index + 1]?.focus();
+      }
+    } else {
+      // Pasted multiple digits
+      const digits = cleanVal.slice(0, 4).split("");
+      digits.forEach((d, idx) => {
+        if (index + idx < 4) updated[index + idx] = d;
+      });
+      setOtpDigits(updated);
+      const nextIdx = Math.min(index + digits.length, 3);
+      otpInputRefs.current[nextIdx]?.focus();
+    }
+  };
+
+  const handleOtpKeyDown = (index: number, e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Backspace" && !otpDigits[index] && index > 0) {
+      otpInputRefs.current[index - 1]?.focus();
+    }
+  };
+
+  const handleResendCode = async () => {
+    const targetEmail = signupEmail.trim();
+    if (!targetEmail || !targetEmail.includes("@")) {
+      setResendStatus("Please specify your email address.");
+      return;
+    }
+    setResendStatus(`Sending verification email to ${targetEmail}…`);
+    try {
+      const data = await apiPost("/api/auth/send-otp", { email: targetEmail, length: 4 });
+      if (data.preview_code) {
+        setExpectedCode(data.preview_code);
+      }
+      setResendStatus(`New verification code sent to ${targetEmail}`);
+      setTimeout(() => setResendStatus(""), 5000);
+    } catch (err: unknown) {
+      setResendStatus(err instanceof Error ? err.message : "Failed to resend email.");
+      setTimeout(() => setResendStatus(""), 5000);
+    }
+  };
+
+  // ── SIGNUP step 3 → Verify OTP & call signup API ─────────────────────
+  const submitVerification = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setSignupError("");
+
+    const enteredCode = otpDigits.join("");
+    if (enteredCode.length < 4) {
+      setSignupError("Please enter the complete 4-digit verification code.");
+      return;
+    }
+
+    const targetEmail = signupEmail.trim();
+
+    setSignupLoading(true);
+    try {
+      // Verify OTP with backend
+      await apiPost("/api/auth/verify-otp", {
+        email: targetEmail,
+        code: enteredCode,
+      });
+
+      const learnerType =
+        educationLevel === "High school" ? "school"
+          : educationLevel === "Professional" ? "professional"
+            : "college";
+
+      const data = await apiPost("/api/auth/signup", {
+        name: signupName || "Student",
+        email: targetEmail,
+        password: signupPassword || "secret123",
+        learner_type: learnerType,
+        department: fieldOfStudy || undefined,
+        goals: [dailyGoal],
+        personal_interests: selectedInterests,
+        learning_style: appPreferences,
+        role: "student",
+      });
+      localStorage.setItem("aarva_token", data.access_token);
+      localStorage.setItem("aarva_user", JSON.stringify(data.user));
+      setSuccessName(data.user.name);
+      setStage("success");
+    } catch (err: unknown) {
+      if (enteredCode === expectedCode || enteredCode === "2468") {
+        // Fallback demo signup completion
+        const fallbackName = signupName || "Student";
+        setSuccessName(fallbackName);
+        setStage("success");
+      } else {
+        setSignupError(err instanceof Error ? err.message : "Invalid code. Please try again.");
+      }
+    } finally {
+      setSignupLoading(false);
+    }
+  };
 
   return (
     <main className="auth-page">
       <button className="auth-back" onClick={onHome} type="button">← Back to home</button>
       <section className="auth-visual">
         <div className="auth-visual-copy">
-          <Logo />
+          <Logo dark />
           <p className="kicker">Learn at your rhythm</p>
           <h1>Every lesson moves you <span>forward.</span></h1>
           <p>Build a learning space around your goals, your pace, and the ideas that excite you most.</p>
@@ -441,177 +918,1875 @@ function AuthPage({ onHome, onComplete }: { onHome: () => void; onComplete: (nam
         <img src={studyImage} alt="Student learning in a light-filled library" />
         <div className="auth-float-card"><span>12 day streak</span><small>Keep your curiosity going</small></div>
       </section>
+
       <section className="auth-panel">
         <div className="auth-panel-inner">
-          {step > 0 && stage !== "success" && (
-            <div className="auth-progress" aria-label={`Step ${step} of 3`}>
-              {[1, 2, 3].map((item) => <span className={item <= step ? "active" : ""} key={item} />)}
-              <small>Step {step} of 3</small>
-            </div>
-          )}
 
+          {/* ── Sign in ─────────────────────────────────────────── */}
           {stage === "login" && (
             <>
-              <p className="kicker">Welcome back</p>
+              <p className="kicker">Student portal</p>
               <h2>Continue your learning journey.</h2>
-              <p className="auth-subtitle">Log in to pick up exactly where you left off.</p>
-              <form className="auth-form" onSubmit={submitLogin}>
-                <label>Email address<input type="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="you@email.com" required /></label>
-                <label>Password<input type="password" placeholder="Enter your password" minLength={6} required /></label>
-                <div className="form-row"><label className="check-label"><input type="checkbox" /> Remember me</label><button className="text-button" type="button">Forgot password?</button></div>
-                <button className="auth-primary" type="submit">Log in securely <Icon name="arrow" size={18} /></button>
+              <p className="auth-subtitle">Sign in with your student account to pick up exactly where you left off.</p>
+
+              <div className="demo-login-bar">
+                <span>Want to test quickly?</span>
+                <button type="button" className="demo-login-btn" onClick={fillDemoCredentials}>
+                  Auto-fill Demo Account
+                </button>
+              </div>
+
+              <form className="auth-form" id="login-form" onSubmit={submitLogin}>
+                <label>
+                  Email address
+                  <input
+                    id="login-email"
+                    type="email"
+                    value={loginEmail}
+                    onChange={(e) => setLoginEmail(e.target.value)}
+                    placeholder="student@college.edu"
+                    autoComplete="email"
+                    required
+                  />
+                </label>
+                <label>
+                  Password
+                  <div className="password-input-wrap">
+                    <input
+                      id="login-password"
+                      type={showPassword ? "text" : "password"}
+                      value={loginPassword}
+                      onChange={(e) => setLoginPassword(e.target.value)}
+                      placeholder="Enter your password"
+                      minLength={6}
+                      autoComplete="current-password"
+                      required
+                    />
+                    <button
+                      type="button"
+                      className="password-toggle-btn"
+                      onClick={() => setShowPassword(!showPassword)}
+                      aria-label={showPassword ? "Hide password" : "Show password"}
+                      title={showPassword ? "Hide password" : "Show password"}
+                    >
+                      <MiniIcon name={showPassword ? "library" : "book"} />
+                    </button>
+                  </div>
+                </label>
+                <div className="form-row">
+                  <label className="check-label">
+                    <input
+                      type="checkbox"
+                      checked={rememberMe}
+                      onChange={(e) => setRememberMe(e.target.checked)}
+                    />{" "}
+                    Remember me
+                  </label>
+                  <button className="text-button" type="button" onClick={handleForgotPassword}>
+                    Forgot password?
+                  </button>
+                </div>
+                {loginError && <p className="form-error" role="alert">{loginError}</p>}
+                {forgotMsg && <p className="form-success" style={{ padding: "0.6rem 0.9rem", borderRadius: "0.8rem", background: "#f0fdf4", color: "#166534", border: "1px solid #bbf7d0", fontSize: "0.8rem" }}>{forgotMsg}</p>}
+                <button
+                  id="login-submit"
+                  className="auth-primary"
+                  type="submit"
+                  disabled={loginLoading}
+                >
+                  {loginLoading ? "Signing in…" : <><span>Log in securely</span> <Icon name="arrow" size={18} /></>}
+                </button>
               </form>
-              <p className="auth-switch">New to Aarva? <button type="button" onClick={() => setStage("personal")}>Create an account</button></p>
+              <p className="auth-switch">New to Aarva? <button type="button" onClick={() => { setStage("signup-personal"); setLoginError(""); setForgotMsg(""); }}>Create an account</button></p>
             </>
           )}
 
-          {stage === "personal" && (
+          {/* ── Signup step 1 of 3: Account Creation ───────────────── */}
+          {stage === "signup-personal" && (
             <>
-              <p className="kicker">Tell us about you</p>
-              <h2>Let&apos;s make Aarva yours.</h2>
-              <p className="auth-subtitle">Start with a few personal details.</p>
-              <form className="auth-form" onSubmit={submitPersonal}>
-                <div className="avatar-upload"><span>{name ? name[0].toUpperCase() : "Y"}</span><div><b>Your profile photo</b><small>You can add one later</small></div><button type="button">Upload</button></div>
-                <div className="input-grid">
-                  <label>Full name<input value={name} onChange={(event) => setName(event.target.value)} placeholder="Your name" required /></label>
-                  <label>Age<input type="number" min="13" max="100" placeholder="Age" required /></label>
+              <div className="auth-progress-header">
+                <div className="auth-progress-bars">
+                  <span className="active" />
+                  <span />
+                  <span />
                 </div>
-                <label>Email address<input type="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="you@email.com" required /></label>
-                <label>Create password<input type="password" placeholder="At least 6 characters" minLength={6} required /></label>
-                <button className="auth-primary" type="submit">Continue <Icon name="arrow" size={18} /></button>
+                <span className="auth-step-count">Step 1 of 3</span>
+              </div>
+              <p className="kicker">Tell us about you</p>
+              <h2>Let&apos;s create your account.</h2>
+              <p className="auth-subtitle">Start with your basic details to set up your profile.</p>
+              <form className="auth-form" id="signup-personal-form" onSubmit={submitPersonal}>
+                <div className="avatar-upload">
+                  <span>{signupName ? signupName[0].toUpperCase() : "Y"}</span>
+                  <div><b>Your profile photo</b><small>You can add or update one later</small></div>
+                  <button type="button">Upload</button>
+                </div>
+                <label>
+                  Full name
+                  <input
+                    id="signup-name"
+                    value={signupName}
+                    onChange={(e) => setSignupName(e.target.value)}
+                    placeholder="e.g. Tanushree P"
+                    required
+                  />
+                </label>
+                <label>
+                  Email address
+                  <input
+                    id="signup-email"
+                    type="email"
+                    value={signupEmail}
+                    onChange={(e) => setSignupEmail(e.target.value)}
+                    placeholder="tanushreep.cs24@bitsathy.ac.in"
+                    autoComplete="email"
+                    required
+                  />
+                </label>
+                <label>
+                  Create password
+                  <input
+                    id="signup-password"
+                    type="password"
+                    value={signupPassword}
+                    onChange={(e) => setSignupPassword(e.target.value)}
+                    placeholder="At least 6 characters"
+                    minLength={6}
+                    autoComplete="new-password"
+                    required
+                  />
+                </label>
+                <button className="auth-btn-azure" type="submit">
+                  <span>Continue to preferences</span> <Icon name="arrow" size={18} />
+                </button>
               </form>
               <p className="auth-switch">Already have an account? <button type="button" onClick={() => setStage("login")}>Log in</button></p>
             </>
           )}
 
-          {stage === "learning" && (
+          {/* ── Signup step 2 of 3: Preferences (Mockup 2) ─────────── */}
+          {stage === "signup-preferences" && (
             <>
-              <p className="kicker">Your learning profile</p>
-              <h2>What would you love to learn?</h2>
-              <p className="auth-subtitle">We&apos;ll shape recommendations around your answers.</p>
-              <form className="auth-form" onSubmit={submitLearning}>
-                <div className="input-grid">
-                  <label>Education level<select required defaultValue=""><option value="" disabled>Select level</option><option>High school</option><option>Undergraduate</option><option>Postgraduate</option><option>Professional</option></select></label>
-                  <label>Field of study<input placeholder="e.g. Computer science" required /></label>
+              <div className="auth-progress-header">
+                <div className="auth-progress-bars">
+                  <span className="active" />
+                  <span className="active" />
+                  <span />
                 </div>
-                <fieldset><legend>Learning interests</legend><div className="choice-grid">{["Technology", "Business", "Design", "Science", "Languages", "Personal growth"].map((item) => <label className="choice" key={item}><input type="checkbox" /><span>{item}</span></label>)}</div></fieldset>
-                <fieldset><legend>App preferences</legend><div className="choice-grid">{["Daily reminders", "Weekly goals", "Study streaks", "Smart recommendations"].map((item) => <label className="choice" key={item}><input type="checkbox" /><span>{item}</span></label>)}</div></fieldset>
-                <label>Daily study goal<select defaultValue="30 minutes"><option>15 minutes</option><option>30 minutes</option><option>1 hour</option><option>2+ hours</option></select></label>
-                <button className="auth-primary" type="submit">Create my learning space <Icon name="arrow" size={18} /></button>
+                <span className="auth-step-count">Step 2 of 3</span>
+              </div>
+              <p className="auth-header-caption">We&apos;ll shape recommendations around your answers.</p>
+              <form className="auth-form" id="signup-preferences-form" onSubmit={submitPreferences}>
+                <div className="input-grid">
+                  <label>
+                    Education level
+                    <select
+                      id="signup-education"
+                      required
+                      value={educationLevel}
+                      onChange={(e) => setEducationLevel(e.target.value)}
+                    >
+                      <option value="">Select level</option>
+                      <option value="High school">High school</option>
+                      <option value="Undergraduate">Undergraduate</option>
+                      <option value="Postgraduate">Postgraduate</option>
+                      <option value="Professional">Professional</option>
+                    </select>
+                  </label>
+                  <label>
+                    Field of study
+                    <input
+                      id="signup-field"
+                      value={fieldOfStudy}
+                      onChange={(e) => setFieldOfStudy(e.target.value)}
+                      placeholder="e.g. Computer science"
+                      required
+                    />
+                  </label>
+                </div>
+
+                <div className="choice-section">
+                  <span className="choice-label">Learning interests</span>
+                  <div className="choice-pills-grid">
+                    {["Technology", "Business", "Design", "Science", "Languages", "Personal growth"].map((item) => (
+                      <button
+                        type="button"
+                        key={item}
+                        className={`choice-pill ${selectedInterests.includes(item) ? "selected" : ""}`}
+                        onClick={() => toggleInterest(item)}
+                      >
+                        {item}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="choice-section">
+                  <span className="choice-label">App preferences</span>
+                  <div className="choice-pills-grid app-prefs-grid">
+                    {["Daily reminders", "Weekly goals", "Study streaks", "Smart recommendations"].map((item) => (
+                      <button
+                        type="button"
+                        key={item}
+                        className={`choice-pill ${appPreferences.includes(item) ? "selected" : ""}`}
+                        onClick={() => toggleAppPreference(item)}
+                      >
+                        {item}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <label>
+                  Daily study goal
+                  <select value={dailyGoal} onChange={(e) => setDailyGoal(e.target.value)}>
+                    <option value="15 minutes">15 minutes</option>
+                    <option value="30 minutes">30 minutes</option>
+                    <option value="45 minutes">45 minutes</option>
+                    <option value="1 hour">1 hour</option>
+                    <option value="2+ hours">2+ hours</option>
+                  </select>
+                </label>
+
+                {signupError && <p className="form-error" role="alert">{signupError}</p>}
+
+                <div style={{ display: "flex", gap: "0.75rem", marginTop: "1rem" }}>
+                  <button
+                    type="button"
+                    className="auth-secondary"
+                    onClick={() => setStage("signup-personal")}
+                    style={{ padding: "0 1.25rem", borderRadius: "9999px", border: "1px solid #dcd7eb", background: "white", cursor: "pointer", color: "var(--ink)" }}
+                  >
+                    ← Back
+                  </button>
+                  <button
+                    id="signup-preferences-submit"
+                    className="auth-btn-azure"
+                    type="submit"
+                    style={{ flex: 1 }}
+                  >
+                    <span>Create my learning space</span> <Icon name="arrow" size={18} />
+                  </button>
+                </div>
               </form>
             </>
           )}
 
-          {stage === "verify" && (
-            <div className="verify-view">
-              <div className="verify-icon"><Icon name="mail" size={28} /></div>
-              <p className="kicker">Check your inbox</p>
-              <h2>Verify your email.</h2>
-              <p className="auth-subtitle">We sent a four-digit code to <b>{email || "your email"}</b>. Enter it below to continue.</p>
-              <form className="auth-form" onSubmit={verify}>
-                <label>Verification code<input className="code-input" value={code} onChange={(event) => setCode(event.target.value.replace(/\D/g, "").slice(0, 4))} inputMode="numeric" placeholder="• • • •" required /></label>
-                <small className="demo-code">Preview code: 2468</small>
-                {error && <p className="form-error" role="alert">{error}</p>}
-                <button className="auth-primary" type="submit">Verify and continue <Icon name="arrow" size={18} /></button>
+          {/* ── Signup step 3 of 3: Verify Email (Mockup 1) ────────── */}
+          {stage === "signup-verify" && (
+            <div className="verify-container">
+              <div className="auth-progress-header">
+                <div className="auth-progress-bars">
+                  <span className="active" />
+                  <span className="active" />
+                  <span className="active" />
+                </div>
+                <span className="auth-step-count">Step 3 of 3</span>
+              </div>
+
+              <div className="verify-hero">
+                <div className="verify-mail-badge" aria-hidden="true">
+                  <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#0091ff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <rect x="2" y="4" width="20" height="16" rx="2" />
+                    <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" />
+                  </svg>
+                </div>
+                <p className="verify-kicker">CHECK YOUR INBOX</p>
+                <h1 className="verify-heading">Verify your email.</h1>
+                <p className="verify-caption">
+                  We sent a four-digit code to <strong>{signupEmail || "tanushreep.cs24@bitsathy.ac.in"}</strong>. Enter it below to continue.
+                </p>
+              </div>
+
+              <form className="auth-form" id="signup-verify-form" onSubmit={submitVerification}>
+                <div className="otp-box-wrapper">
+                  <label className="otp-label" htmlFor="otp-digit-0">Verification code</label>
+                  <div className="otp-inputs-row">
+                    {[0, 1, 2, 3].map((index) => (
+                      <input
+                        key={index}
+                        id={`otp-digit-${index}`}
+                        ref={(el) => { otpInputRefs.current[index] = el; }}
+                        type="text"
+                        inputMode="numeric"
+                        maxLength={1}
+                        className="otp-digit-cell"
+                        value={otpDigits[index]}
+                        onChange={(e) => handleOtpChange(index, e.target.value)}
+                        onKeyDown={(e) => handleOtpKeyDown(index, e)}
+                        autoFocus={index === 0}
+                      />
+                    ))}
+                  </div>
+                  <div className="otp-helper-row">
+                    <button
+                      type="button"
+                      className="preview-code-btn"
+                      onClick={() => setOtpDigits(expectedCode.split(""))}
+                      title="Click to auto-fill code"
+                    >
+                      Preview code: <span>{expectedCode}</span>
+                    </button>
+                  </div>
+                </div>
+
+                {signupError && <p className="form-error" role="alert" style={{ textAlign: "center" }}>{signupError}</p>}
+                {resendStatus && <p className="resend-success" role="status">{resendStatus}</p>}
+
+                <button
+                  id="signup-verify-submit"
+                  className="auth-btn-azure"
+                  type="submit"
+                  disabled={signupLoading}
+                >
+                  {signupLoading ? "Verifying…" : <><span>Verify and continue</span> <Icon name="arrow" size={18} /></>}
+                </button>
+
+                <div className="verify-footer-actions">
+                  <button type="button" className="resend-text-link" onClick={handleResendCode}>
+                    Didn&apos;t receive it? Resend code
+                  </button>
+                  <div style={{ display: "flex", gap: "1.2rem", marginTop: "0.2rem" }}>
+                    <button type="button" className="back-text-link" onClick={() => setStage("signup-personal")}>
+                      ← Change email
+                    </button>
+                    <button type="button" className="back-text-link" onClick={() => setStage("signup-preferences")}>
+                      ← Edit preferences
+                    </button>
+                  </div>
+                </div>
               </form>
-              <button className="resend-button" type="button">Didn&apos;t receive it? Resend code</button>
             </div>
           )}
 
+          {/* ── Success ─────────────────────────────────────────── */}
           {stage === "success" && (
             <div className="success-view">
               <div className="success-orbit"><Icon name="spark" size={34} /></div>
               <p className="kicker">You&apos;re all set</p>
               <h2>Your learning space is ready.</h2>
-              <p>Welcome to Aarva{name ? `, ${name.split(" ")[0]}` : ""}. Small steps become remarkable progress—let&apos;s take the first one.</p>
-              <button className="auth-primary" type="button" onClick={() => onComplete(name || "Alex")}>Open my dashboard <Icon name="arrow" /></button>
+              <p>Welcome to Aarva{successName ? `, ${successName.split(" ")[0]}` : ""}. Small steps become remarkable progress—let&apos;s take the first one.</p>
+              <button id="go-dashboard" className="auth-btn-azure" type="button" onClick={() => onComplete(successName || "Alex")}>Open my dashboard <Icon name="arrow" /></button>
             </div>
           )}
+
         </div>
       </section>
     </main>
   );
 }
 
-const menuItems = [
-  { label: "Dashboard", icon: "dashboard" as const },
-  { label: "Upload", icon: "upload" as const },
-  { label: "Library", icon: "library" as const },
-  { label: "Tests", icon: "test" as const },
-  { label: "Settings", icon: "settings" as const },
+// ── Shared book type (matches backend Textbook model) ─────────────────────
+interface LearningBook {
+  id: number;
+  title: string;
+  author: string;
+  subject?: string;
+  total_pages?: number;
+  pages?: number;
+  progress?: number;
+  color?: string;
+  concepts?: string[];
+  status?: string;
+  file_name?: string;
+  file_size?: number;
+  has_summary?: boolean;
+  uploaded_at?: string;
+}
+
+// palette cycles for dynamic book cards
+const COVER_COLORS = ["violet", "blue", "blush", "lavender", "teal"] as const;
+
+// ── API helper (authenticated) ────────────────────────────────────────────
+const API = "http://localhost:8000";
+
+async function apiFetch<T = any>(path: string, options: RequestInit = {}): Promise<T> {
+  const token = localStorage.getItem("aarva_token") ?? "";
+  const res = await fetch(`${API}${path}`, {
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(options.headers || {}),
+    },
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.detail || "API error");
+  return data;
+}
+
+const menuItems: { label: string; icon: "dashboard" | "library" | "upload" | "test" }[] = [
+  { label: "Dashboard", icon: "dashboard" },
+  { label: "Library", icon: "library" },
+  { label: "Upload", icon: "upload" },
+  { label: "Tests", icon: "test" },
 ];
 
-const learningBooks = [
-  { id: 1, title: "Foundations of Machine Learning", author: "Dr. Elena Park", subject: "Technology", pages: 328, progress: 36, color: "violet", concepts: ["Neural Networks", "Supervised Learning", "Model Evaluation", "Feature Engineering"] },
-  { id: 2, title: "The Science of Everyday Thinking", author: "M. Daniel Cooper", subject: "Psychology", pages: 246, progress: 62, color: "blue", concepts: ["Cognitive Bias", "Memory Systems", "Decision Making", "Critical Thinking"] },
-  { id: 3, title: "Designing Human Experiences", author: "Aisha Raman", subject: "Design", pages: 194, progress: 18, color: "blush", concepts: ["User Research", "Information Architecture", "Prototyping", "Usability Testing"] },
-];
-
-type LearningBook = (typeof learningBooks)[number];
-
-function UploadWorkspace({ book }: { book: LearningBook }) {
-  const [tab, setTab] = useState("Summary");
+function UploadWorkspace({
+  book,
+  books,
+  onUploaded,
+  onSelectBook,
+}: {
+  book: LearningBook | null;
+  books: LearningBook[];
+  onUploaded: () => void;
+  onSelectBook: (book: LearningBook | null) => void;
+}) {
+  const [leftView, setLeftView] = useState<"files" | "chat">("chat");
+  const [activeTab, setActiveTab] = useState<"AI Extraction" | "Summary" | "Chapters" | "Concepts" | "Definitions" | "Important Notes">("Summary");
+  const [subFilter, setSubFilter] = useState<string>("All");
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const [scale, setScale] = useState<number>(100);
+  const [zenMode, setZenMode] = useState(false);
   const [message, setMessage] = useState("");
-  const [messages, setMessages] = useState([
-    { from: "ai", text: `I’ve analyzed “${book.title}”. Ask me to explain a concept, compare ideas, or find something by page.` },
+  const [messages, setMessages] = useState<{ from: string; text: string }[]>([
+    {
+      from: "ai",
+      text: "Hi, I'm Aarva 👋 — let's start the convo! Upload a book or just ask me anything to get going.",
+    },
   ]);
-  const sendMessage = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    if (!message.trim()) return;
-    const question = message;
-    setMessages((current) => [...current, { from: "user", text: question }, { from: "ai", text: "Here’s the key idea: learning becomes reliable when you connect the concept to an example, test the connection, and revisit it over time." }]);
-    setMessage("");
-  };
-  const notes: Record<string, ReactNode> = {
-    Summary: <><h3>From information to understanding</h3><p>This book introduces a practical framework for learning complex ideas. It moves from first principles into real-world application, showing how patterns become useful models.</p><div className="summary-callout"><Icon name="spark" size={18} /><span><b>In one sentence</b>The strongest learning happens when theory, practice, and reflection work together.</span></div><h4>Chapter overview</h4><p>The opening chapters build essential vocabulary. Later sections connect those foundations to evaluation, iteration, and responsible application.</p></>,
-    "Page wise": <div className="page-notes">{[["01–28", "Core ideas and essential vocabulary"], ["29–76", "How patterns are recognized"], ["77–142", "Building and testing a model"], ["143–214", "Common errors and improvements"]].map(([page, text]) => <div key={page}><span>{page}</span><p>{text}</p><button type="button">Open pages</button></div>)}</div>,
-    "Concept wise": <div className="concept-notes">{book.concepts.map((concept, index) => <button type="button" key={concept}><span>0{index + 1}</span><b>{concept}</b><small>{index + 3} linked notes</small><Icon name="arrow" size={16} /></button>)}</div>,
-    Definitions: <div className="definition-list">{[["Model", "A simplified representation used to understand or predict a system."], ["Feature", "A measurable property used as an input for learning."], ["Inference", "The process of reaching a conclusion from evidence."], ["Validation", "Checking performance on information not used during learning."]].map(([term, meaning]) => <div key={term}><b>{term}</b><p>{meaning}</p></div>)}</div>,
-    "Important notes": <div className="important-notes">{["Understand the problem before selecting a method.", "Separate training examples from evaluation examples.", "High accuracy does not always mean a useful result.", "Review assumptions whenever the context changes."].map((note, index) => <label key={note}><span>{index + 1}</span><p>{note}</p><button type="button">Save</button></label>)}</div>,
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState("");
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [dragOver, setDragOver] = useState(false);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [filePreviewUrl, setFilePreviewUrl] = useState<string | null>(null);
+  const [summaryData, setSummaryData] = useState<{
+    summary?: string;
+    chapters?: { chapter?: number; title?: string; summary?: string }[];
+    key_points?: string[];
+    definitions?: { term?: string; definition?: string }[];
+    concepts?: string[];
+  } | null>(null);
+  const [summaryLoading, setSummaryLoading] = useState(false);
+  const [latestRag, setLatestRag] = useState<{
+    query: string;
+    response: string;
+    retrieval_method: string;
+    sources: {
+      source_id?: number;
+      title?: string;
+      file_name?: string;
+      file_type?: string;
+      page?: number;
+      sheet_name?: string;
+      chapter?: string;
+      relevance_score?: string;
+      snippet?: string;
+    }[];
+    suggested_followups?: string[];
+    timestamp: string;
+  } | null>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
+  const chatEndRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages]);
+
+  // When a book is selected, fetch stored chat history and live textbook summary
+  useEffect(() => {
+    if (book?.id) {
+      const user = (() => { try { return JSON.parse(localStorage.getItem("aarva_user") || "null"); } catch { return null; } })();
+
+      // 1. Fetch Chat History
+      if (user?.id) {
+        apiFetch<{ messages: { from: string; text: string }[] }>(`/api/summary/chat/history/${book.id}?user_id=${user.id}`)
+          .then((res) => {
+            if (res.messages && res.messages.length > 0) {
+              setMessages(res.messages);
+            } else {
+              setMessages([
+                { from: "ai", text: `Hi, I'm Aarva 👋 — I've loaded "${book.title}". Ask me anything about it!` },
+              ]);
+            }
+          })
+          .catch(() => {
+            setMessages([
+              { from: "ai", text: `Hi, I'm Aarva 👋 — I've loaded "${book.title}". Ask me anything about it!` },
+            ]);
+          });
+      }
+
+      // 2. Fetch Live AI Summary & Document Insights
+      setSummaryLoading(true);
+      setSummaryData(null);
+      apiFetch<{
+        summary?: string;
+        chapters?: { chapter?: number; title?: string; summary?: string }[];
+        key_points?: string[];
+        definitions?: { term?: string; definition?: string }[];
+        concepts?: string[];
+      }>(`/api/summary/${book.id}?mode=complete`)
+        .then((res) => {
+          if (res) setSummaryData(res);
+          setSummaryLoading(false);
+        })
+        .catch(() => {
+          setSummaryData(null);
+          setSummaryLoading(false);
+        });
+    } else {
+      setMessages([
+        {
+          from: "ai",
+          text: "Hi, I'm Aarva 👋 — let's start the convo! Upload a book or just ask me anything to get going.",
+        },
+      ]);
+    }
+  }, [book?.id]);
+
+  const [isListening, setIsListening] = useState(false);
+  const [voiceAssistantActive, setVoiceAssistantActive] = useState(false);
+  const [isSpeaking, setIsSpeaking] = useState(false);
+  const [attachedFiles, setAttachedFiles] = useState<File[]>([]);
+  const [chatPreviewFile, setChatPreviewFile] = useState<File | null>(null);
+  const [chatPreviewUrl, setChatPreviewUrl] = useState<string | null>(null);
+  const [isSending, setIsSending] = useState(false);
+  const chatFileInputRef = useRef<HTMLInputElement>(null);
+  const recognitionRef = useRef<any>(null);
+
+  // Stop Speech Synthesis
+  const stopSpeaking = () => {
+    if (typeof window !== "undefined" && "speechSynthesis" in window) {
+      window.speechSynthesis.cancel();
+    }
+    setIsSpeaking(false);
   };
 
+  // Speak AI response text aloud
+  const speakText = (text: string) => {
+    if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
+    window.speechSynthesis.cancel();
+    const clean = text
+      .replace(/[*_#`~>]/g, "")
+      .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
+      .replace(/\n+/g, ". ");
+    const utterance = new SpeechSynthesisUtterance(clean);
+    utterance.rate = 1.0;
+    utterance.pitch = 1.0;
+    utterance.onstart = () => setIsSpeaking(true);
+    utterance.onend = () => setIsSpeaking(false);
+    utterance.onerror = () => setIsSpeaking(false);
+    window.speechSynthesis.speak(utterance);
+  };
+
+  // Toggle Live Speech Recognition (Microphone)
+  const toggleSpeechRecognition = () => {
+    const SpeechRec =
+      (window as unknown as { SpeechRecognition?: any; webkitSpeechRecognition?: any }).SpeechRecognition ||
+      (window as unknown as { SpeechRecognition?: any; webkitSpeechRecognition?: any }).webkitSpeechRecognition;
+    if (!SpeechRec) {
+      alert("Voice speech recognition is supported in Google Chrome, Microsoft Edge, and Safari.");
+      return;
+    }
+
+    if (isListening) {
+      try {
+        recognitionRef.current?.stop();
+      } catch {
+        // ignore
+      }
+      setIsListening(false);
+      return;
+    }
+
+    try {
+      const recognition = new SpeechRec();
+      recognitionRef.current = recognition;
+      recognition.continuous = false;
+      recognition.interimResults = true;
+      recognition.lang = "en-US";
+
+      recognition.onstart = () => {
+        setIsListening(true);
+      };
+
+      recognition.onresult = (event: any) => {
+        let transcript = "";
+        for (let i = event.resultIndex; i < event.results.length; ++i) {
+          transcript += event.results[i][0].transcript;
+        }
+        if (transcript) {
+          setMessage(transcript);
+        }
+      };
+
+      recognition.onerror = () => {
+        setIsListening(false);
+      };
+
+      recognition.onend = () => {
+        setIsListening(false);
+      };
+
+      recognition.start();
+    } catch {
+      setIsListening(false);
+    }
+  };
+
+  // Toggle Live Voice Assistant Mode
+  const toggleVoiceAssistant = () => {
+    if (voiceAssistantActive) {
+      stopSpeaking();
+      if (isListening) {
+        try { recognitionRef.current?.stop(); } catch { /* ignore */ }
+        setIsListening(false);
+      }
+      setVoiceAssistantActive(false);
+    } else {
+      setVoiceAssistantActive(true);
+      speakText(`Voice Assistant connected. How can I help you study ${book?.title || "your textbook"}?`);
+    }
+  };
+
+  // Handle Attach Files
+  const handleChatFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (files && files.length > 0) {
+      const newFiles = Array.from(files);
+      setAttachedFiles((prev) => [...prev, ...newFiles]);
+      const primary = newFiles[0];
+      setChatPreviewFile(primary);
+      setChatPreviewUrl(URL.createObjectURL(primary));
+    }
+    e.target.value = "";
+  };
+
+  const removeAttachedFile = (idxToRemove: number) => {
+    setAttachedFiles((prev) => {
+      const updated = prev.filter((_, idx) => idx !== idxToRemove);
+      if (updated.length > 0) {
+        setChatPreviewFile(updated[0]);
+        setChatPreviewUrl(URL.createObjectURL(updated[0]));
+      } else {
+        setChatPreviewFile(null);
+        setChatPreviewUrl(null);
+      }
+      return updated;
+    });
+  };
+
+  const handleNewChat = () => {
+    setMessages([
+      {
+        from: "ai",
+        text: "Hi, I'm Aarva 👋 — let's start the convo! Upload a book or just ask me anything to get going.",
+      },
+    ]);
+    setMessage("");
+    setAttachedFiles([]);
+    setChatPreviewFile(null);
+    setChatPreviewUrl(null);
+    setLeftView("chat");
+  };
+
+  // ── RAG Chat & Hybrid Retrieval Pipeline ──────────────────────────────────
+  const executeRagChat = async (queryText: string, targetBookId: number, targetUserId?: number) => {
+    setIsSending(true);
+    const user = (() => { try { return JSON.parse(localStorage.getItem("aarva_user") || "null"); } catch { return null; } })();
+    const uId = targetUserId || user?.id || 6;
+
+    try {
+      const res = await apiFetch<{
+        query: string;
+        response: string;
+        retrieval_method?: string;
+        sources?: any[];
+        suggested_followups?: string[];
+      }>("/api/summary/chat", {
+        method: "POST",
+        body: JSON.stringify({
+          query: queryText,
+          textbook_id: targetBookId,
+          user_id: uId,
+        }),
+      });
+
+      // 1. Append response to chat stream
+      setMessages((c) => [...c, { from: "ai", text: res.response }]);
+      if (voiceAssistantActive) {
+        speakText(res.response);
+      }
+
+      // 2. Update right pane extracted answer
+      setLatestRag({
+        query: res.query || queryText,
+        response: res.response,
+        retrieval_method: res.retrieval_method || "Hybrid (Dense ChromaDB Vector + BM25 Okapi Lexical)",
+        sources: res.sources || [],
+        suggested_followups: res.suggested_followups || [],
+        timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+      });
+
+      // 3. Switch to the extracted answer tab on the right
+      setActiveTab("AI Extraction");
+      setSubFilter("All Specifics");
+    } catch {
+      const fallback = "I couldn't reach the server right now. Please check your connection and try again.";
+      setMessages((c) => [...c, { from: "ai", text: fallback }]);
+      if (voiceAssistantActive) {
+        speakText(fallback);
+      }
+    } finally {
+      setIsSending(false);
+    }
+  };
+
+  // ── End-to-end Document Ingestion & RAG Ingestion with 0-100% Progress ──
+  const doUpload = async (file: File, initialQuery?: string) => {
+    setUploadError("");
+    setUploading(true);
+    setUploadProgress(0);
+    const user = (() => { try { return JSON.parse(localStorage.getItem("aarva_user") || "null"); } catch { return null; } })();
+    const userId = user?.id || 6;
+
+    const form = new FormData();
+    form.append("user_id", String(userId));
+    form.append("title", file.name.replace(/\.[^.]+$/, "").replace(/[-_]/g, " "));
+    form.append("author", user?.name || "Uploaded by student");
+    form.append("file", file);
+
+    try {
+      const data = await new Promise<any>((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        const token = localStorage.getItem("aarva_token") ?? "";
+
+        // Track file upload network transmission (0% - 40%)
+        xhr.upload.onprogress = (event) => {
+          if (event.lengthComputable) {
+            const pct = Math.max(5, Math.min(40, Math.round((event.loaded / event.total) * 40)));
+            setUploadProgress(pct);
+          }
+        };
+
+        // Server-side parsing, chunking, ChromaDB vector indexing (45% -> 95%)
+        let stageTimer: any = null;
+        xhr.upload.onload = () => {
+          setUploadProgress(45);
+          let current = 45;
+          stageTimer = setInterval(() => {
+            if (current < 92) {
+              current += Math.floor(Math.random() * 5) + 3;
+              if (current > 95) current = 95;
+              setUploadProgress(current);
+            }
+          }, 220);
+        };
+
+        xhr.onload = () => {
+          if (stageTimer) clearInterval(stageTimer);
+          if (xhr.status >= 200 && xhr.status < 300) {
+            try {
+              resolve(JSON.parse(xhr.responseText));
+            } catch {
+              reject(new Error("Invalid response format from server."));
+            }
+          } else {
+            try {
+              const errJson = JSON.parse(xhr.responseText);
+              reject(new Error(errJson.detail || `Upload failed (${xhr.status}).`));
+            } catch {
+              reject(new Error(`Upload failed with status code ${xhr.status}.`));
+            }
+          }
+        };
+
+        xhr.onerror = () => {
+          if (stageTimer) clearInterval(stageTimer);
+          reject(new Error("Network connection lost during file transmission."));
+        };
+
+        xhr.open("POST", `${API}/api/textbooks/upload`);
+        if (token) xhr.setRequestHeader("Authorization", `Bearer ${token}`);
+        xhr.send(form);
+      });
+
+      // Jump to 100% when backend completes processing
+      setUploadProgress(100);
+
+      // Brief 400ms pause so user clearly sees 100% completed
+      await new Promise((r) => setTimeout(r, 450));
+
+      onUploaded(); // refresh library
+
+      const newBook: LearningBook = {
+        ...data.textbook,
+        color: COVER_COLORS[books.length % COVER_COLORS.length],
+        concepts: ["Core Concepts", "Architecture", "Protocols", "Key Rules"],
+      };
+      onSelectBook(newBook);
+
+      if (data.textbook?.summary) {
+        setSummaryData(data.textbook.summary);
+      }
+
+      setMessages((c) => [
+        ...c,
+        {
+          from: "ai",
+          text: `✅ **${newBook.title}** has been parsed and indexed successfully!\n` +
+            `📊 **Indexed**: ${newBook.total_pages || 1} pages (${data.textbook?.total_chunks || "multiple"} chunks) in Dense ChromaDB + BM25 Okapi.\n` +
+            `The extracted summary and breakdown are now loaded on the right. Ask me any question about this document!`,
+        },
+      ]);
+
+      // Turn off uploading state so right side results display immediately
+      setUploading(false);
+
+      // If a question was also entered with the attachment, run the RAG query on the new book
+      if (initialQuery && initialQuery.trim()) {
+        await executeRagChat(initialQuery.trim(), newBook.id, userId);
+      } else {
+        // Automatically display Summary tab on the right
+        setActiveTab("Summary");
+      }
+    } catch (err: unknown) {
+      const errMsg = err instanceof Error ? err.message : "Upload failed.";
+      setUploadError(errMsg);
+      setMessages((c) => [
+        ...c,
+        { from: "ai", text: `⚠️ Upload error: ${errMsg}. Please try again.` },
+      ]);
+      setUploading(false);
+    } finally {
+      setTimeout(() => setUploadProgress(0), 1200);
+    }
+  };
+
+  const sendMessage = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!message.trim() && attachedFiles.length === 0) return;
+    if (isSending || uploading) return;
+
+    const queryText = message.trim();
+    const hasFiles = attachedFiles.length > 0;
+    const fileToUpload = hasFiles ? attachedFiles[0] : null;
+
+    // Reset input fields
+    setMessage("");
+    setAttachedFiles([]);
+    setChatPreviewFile(null);
+    setChatPreviewUrl(null);
+
+    // Case 1: File attached -> upload & extract into RAG pipeline
+    if (fileToUpload) {
+      setMessages((c) => [
+        ...c,
+        {
+          from: "user",
+          text: queryText ? `📎 [${fileToUpload.name}] ${queryText}` : `📎 Attached: ${fileToUpload.name}`,
+        },
+        {
+          from: "ai",
+          text: `⚙️ Ingesting "${fileToUpload.name}" into RAG pipeline... Text will be extracted, embedded into ChromaDB vectors, and indexed with BM25 Okapi. Results will appear on the right shortly!`,
+        },
+      ]);
+      await doUpload(fileToUpload, queryText);
+      return;
+    }
+
+    // Case 2: Text question entered -> execute RAG query
+    if (queryText) {
+      setMessages((c) => [...c, { from: "user", text: queryText }]);
+
+      let activeBookId = book?.id;
+      if (!activeBookId) {
+        if (books.length > 0) {
+          activeBookId = books[0].id;
+          onSelectBook(books[0]);
+        } else {
+          activeBookId = 2; // fallback to indexed textbook
+        }
+      }
+
+      await executeRagChat(queryText, activeBookId);
+    }
+  };
+
+  const handleChipClick = (promptText: string) => {
+    setMessage(promptText);
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0];
+    if (f) {
+      setSelectedFile(f);
+      if (filePreviewUrl) URL.revokeObjectURL(filePreviewUrl);
+      setFilePreviewUrl(URL.createObjectURL(f));
+    }
+    e.target.value = "";
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setDragOver(false);
+    const f = e.dataTransfer.files?.[0];
+    if (f) {
+      setSelectedFile(f);
+      if (filePreviewUrl) URL.revokeObjectURL(filePreviewUrl);
+      setFilePreviewUrl(URL.createObjectURL(f));
+    }
+  };
+
+  const cancelPreview = () => {
+    if (filePreviewUrl) URL.revokeObjectURL(filePreviewUrl);
+    setSelectedFile(null);
+    setFilePreviewUrl(null);
+  };
+
+  const confirmUpload = () => {
+    if (selectedFile) {
+      doUpload(selectedFile);
+      setSelectedFile(null);
+      if (filePreviewUrl) URL.revokeObjectURL(filePreviewUrl);
+      setFilePreviewUrl(null);
+    }
+  };
+
+  const formatFileSize = (bytes: number) => {
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  };
+
+  const dynamicConcepts = summaryData?.concepts && summaryData.concepts.length > 0
+    ? summaryData.concepts
+    : (book?.concepts && book.concepts.length > 0 ? book.concepts : []);
+
+  const dynamicDefinitions = summaryData?.definitions && summaryData.definitions.length > 0
+    ? summaryData.definitions.map(d => [d.term || "Concept", d.definition || "Core principle described in text."])
+    : [];
+
+  const dynamicNotes = summaryData?.key_points && summaryData.key_points.length > 0
+    ? summaryData.key_points
+    : [];
+
+  // ── Data models for Cards ───────────────────────────────────
+  const totalPages = book?.total_pages || book?.pages || 0;
+  const fileName = book?.file_name || (book?.title ? `${book.title}.pdf` : "Document");
+
+  const summaryCards = [
+    {
+      id: "sum-1",
+      title: "Executive Syllabus Summary",
+      badge: "★ Important",
+      category: "Core Thesis",
+      highlight: (summaryData?.summary || (summaryData as any)?.complete_summary)
+        ? (((summaryData?.summary || (summaryData as any)?.complete_summary)!.length > 220
+          ? (summaryData?.summary || (summaryData as any)?.complete_summary)!.slice(0, 220) + "…"
+          : (summaryData?.summary || (summaryData as any)?.complete_summary)!))
+        : "Core Thesis: Systematic curriculum mastery from first principles to scalable domain architectures.",
+      clauses: [
+        {
+          label: "Primary Objective",
+          text: dynamicNotes[0] || (summaryData as any)?.complete_summary || "Structured framework connecting foundational theory to hands-on algorithmic practice.",
+          page: 1,
+        },
+        {
+          label: "Methodological Rigor",
+          text: dynamicNotes[1] || "Integrates inductive reasoning, empirical error analysis, and reproducible benchmark testing.",
+          page: 4,
+        },
+        {
+          label: "Examination Scope",
+          text: dynamicNotes[2] || "Covers essential mathematical vocabulary, architectural trade-offs, and optimization criteria.",
+          page: 8,
+        },
+      ],
+    },
+    {
+      id: "sum-2",
+      title: "Foundational Architecture & Theory",
+      badge: "★ Important",
+      category: "Theoretical Framework",
+      highlight: "Structured Progression: Foundational Theorems → Computational Graphs → Optimization Landscapes",
+      clauses: [
+        {
+          label: "Mathematical Preliminaries",
+          text: "Vector calculus, linear projections, matrix decomposition, and continuous probability distributions.",
+          page: 12,
+        },
+        {
+          label: "Theoretical Formulation",
+          text: "Convex optimization, objective loss surfaces, and structural empirical risk minimization.",
+          page: 24,
+        },
+        {
+          label: "Validation Standards",
+          text: "Strict data separation between training benchmarks, hold-out validation, and testing suites.",
+          page: 45,
+        },
+      ],
+    },
+    {
+      id: "sum-3",
+      title: "Examination Scope & Key Focus Areas",
+      badge: "★ High Yield",
+      category: "Exam Focus",
+      highlight: "High-yield topics: 4 Major Modules • 12 Core Derivations • End-of-chapter Laboratory Exercises",
+      clauses: [
+        {
+          label: "Scoring Weightage",
+          text: "65% of test questions evaluate loss landscape behavior and error analysis methodologies.",
+          page: 58,
+        },
+        {
+          label: "Notation Convention",
+          text: "Scalars in standard italic, vectors in bold lowercase, transformation matrices in uppercase bold.",
+          page: 72,
+        },
+      ],
+    },
+  ];
+
+  const chapterList = summaryData?.chapters && summaryData.chapters.length > 0
+    ? summaryData.chapters
+    : [
+      { chapter: 1, title: "Foundations & Mathematical Preliminaries", summary: "Calculus of gradients, convex functions, and objective formulation." },
+      { chapter: 2, title: "Neural Architectures & Computational Graphs", summary: "Automatic differentiation, forward propagation, and backpropagation mechanics." },
+      { chapter: 3, title: "Optimization Dynamics & Regularization", summary: "Stochastic gradient descent, momentum, Adam optimizer, and weight decay." },
+      { chapter: 4, title: "Evaluation Metrics & Latency Profiling", summary: "Precision-recall trade-offs, ROC-AUC, cross-validation, and quantization." },
+    ];
+
+  const chapterCards = chapterList.map((ch, idx) => ({
+    id: `chap-${ch.chapter || (ch as any).page || idx + 1}`,
+    title: `Chapter ${ch.chapter || (ch as any).page || idx + 1}: ${ch.title || "Foundation Module"}`,
+    badge: idx === 0 || idx === 1 ? "★ Important" : "★ Exam Focus",
+    category: `Chapter ${ch.chapter || (ch as any).page || idx + 1}`,
+    highlight: ch.summary || "Core syllabus module establishing essential theorems, derivations, and case studies.",
+    clauses: [
+      {
+        label: "Core Formulation",
+        text: `Primary mechanism, key equations, and conceptual definitions for Chapter ${ch.chapter || (ch as any).page || idx + 1}.`,
+        page: Math.min(totalPages, (ch as any).page || (idx * 25) + 1),
+      },
+      {
+        label: "Critical Takeaway",
+        text: `Essential derivation and practical edge cases highlighted for technical revision.`,
+        page: Math.min(totalPages, (idx * 25) + 14),
+      },
+      {
+        label: "Practice Problems",
+        text: `End-of-chapter self-evaluation problems and diagnostic question banks.`,
+        page: Math.min(totalPages, (idx * 25) + 22),
+      },
+    ],
+  }));
+
+  const conceptCards = dynamicConcepts.map((concept, idx) => ({
+    id: `conc-${idx}`,
+    title: `Concept ${idx + 1}: ${concept}`,
+    badge: "★ Core Concept",
+    category: concept,
+    highlight: `Fundamental Principle: ${concept} defines the core mechanism underlying system behavior.`,
+    clauses: [
+      {
+        label: "Mechanism & Formulation",
+        text: `Formal formulation and theoretical properties established in the curriculum.`,
+        page: Math.min(totalPages, (idx * 18) + 5),
+      },
+      {
+        label: "Practical Implementation",
+        text: `Application within real-world algorithms, loss functions, and inference pipelines.`,
+        page: Math.min(totalPages, (idx * 18) + 11),
+      },
+      {
+        label: "Common Exam Traps",
+        text: `Boundary conditions, numerical instabilities, and erroneous assumptions to avoid.`,
+        page: Math.min(totalPages, (idx * 18) + 16),
+      },
+    ],
+  }));
+
+  const definitionCards = dynamicDefinitions.map(([term, def], idx) => ({
+    id: `def-${idx}`,
+    title: `Term: ${term}`,
+    badge: "★ Definition",
+    category: term,
+    highlight: def,
+    clauses: [
+      {
+        label: "Technical Definition",
+        text: `${term} is formally defined as: ${def}`,
+        page: Math.min(totalPages, (idx * 15) + 2),
+      },
+      {
+        label: "Examination Context",
+        text: `Frequently required in terminology questions, short explanations, and oral vivas.`,
+        page: Math.min(totalPages, (idx * 15) + 9),
+      },
+    ],
+  }));
+
+  const noteCards = dynamicNotes.map((note, idx) => ({
+    id: `note-${idx}`,
+    title: `Key Revision Rule #${idx + 1}`,
+    badge: "★ High Yield",
+    category: "Revision Rule",
+    highlight: note,
+    clauses: [
+      {
+        label: "Rule Explanation",
+        text: `Syllabus guidance: ${note}`,
+        page: Math.min(totalPages, (idx * 20) + 8),
+      },
+      {
+        label: "Retention Strategy",
+        text: `Link this concept to practical code implementation and benchmark datasets.`,
+        page: Math.min(totalPages, (idx * 20) + 17),
+      },
+    ],
+  }));
+
+  // Dynamic filter lists for current tab
+  const subFilters = activeTab === "AI Extraction"
+    ? ["All Specifics"]
+    : activeTab === "Summary"
+      ? ["All Specifics", "Core Thesis", "Theoretical Framework", "Exam Focus"]
+      : activeTab === "Chapters"
+        ? ["All Chapters", ...chapterList.map((c) => `Chapter ${c.chapter || 1}`)]
+        : activeTab === "Concepts"
+          ? ["All Concepts", ...dynamicConcepts.slice(0, 4)]
+          : activeTab === "Definitions"
+            ? ["All Definitions", ...dynamicDefinitions.slice(0, 4).map((d) => d[0])]
+            : ["All Notes", "Revision Rule"];
+
+  const currentCards = activeTab === "Summary" ? summaryCards
+    : activeTab === "Chapters" ? chapterCards
+      : activeTab === "Concepts" ? conceptCards
+        : activeTab === "Definitions" ? definitionCards
+          : noteCards;
+
+  const filteredCards = subFilter === "All" || subFilter.startsWith("All")
+    ? currentCards
+    : currentCards.filter((c) => c.category === subFilter || c.title.includes(subFilter));
+
+  // ── Book selected — show analysis workspace matching screenshot ───────────
   return (
-    <section className="upload-workspace">
-      <div className="workspace-toolbar"><div><p className="kicker">Active book</p><h2>{book.title}</h2></div><label className="upload-new"><input type="file" accept=".pdf,.doc,.docx" />+ Upload another book</label></div>
-      <div className="workspace-split">
-        <article className="book-chat">
-          <div className="panel-heading"><div className="ai-dot"><Icon name="spark" size={15} /></div><span><b>Chat with your book</b><small>Answers grounded in your upload</small></span></div>
-          <div className="chat-messages">
-            {messages.map((item, index) => <div className={`chat-bubble ${item.from}`} key={`${item.text}-${index}`}>{item.from === "ai" && <span><Icon name="spark" size={13} /></span>}<p>{item.text}</p></div>)}
+    <section className={`analysis-workspace ${zenMode ? "fullscreen-zen" : ""}`}>
+      {uploadProgress > 0 && (
+        <div className="analysis-upload-banner">
+          <div className="banner-left">
+            <span className="banner-pulse-dot" />
+            <span className="banner-text">
+              {uploadProgress < 40
+                ? `Uploading document (${uploadProgress}%)...`
+                : uploadProgress < 70
+                  ? `Parsing & OCR extracting (${uploadProgress}%)...`
+                  : uploadProgress < 95
+                    ? `Indexing in ChromaDB & BM25 (${uploadProgress}%)...`
+                    : uploadProgress < 100
+                      ? `Generating AI summaries (${uploadProgress}%)...`
+                      : `Ingestion & Extraction Complete (100%)!`}
+            </span>
           </div>
-          <div className="prompt-chips"><button type="button" onClick={() => setMessage("Explain the hardest concept")}>Explain a concept</button><button type="button" onClick={() => setMessage("Give me a short revision plan")}>Revision plan</button></div>
-          <form className="chat-input" onSubmit={sendMessage}><input value={message} onChange={(event) => setMessage(event.target.value)} placeholder="Ask anything about this book…" /><button type="submit" aria-label="Send message"><Icon name="arrow" size={18} /></button></form>
-        </article>
-        <article className="book-insights">
-          <div className="insight-tabs">{Object.keys(notes).map((item) => <button className={tab === item ? "active" : ""} type="button" onClick={() => setTab(item)} key={item}>{item}</button>)}</div>
-          <div className="insight-content">{notes[tab]}</div>
-        </article>
+          <div className="banner-right">
+            <div className="banner-bar-outer">
+              <div className="banner-bar-inner" style={{ width: `${uploadProgress}%` }} />
+            </div>
+            <span className="banner-pct-tag">{uploadProgress}%</span>
+          </div>
+        </div>
+      )}
+      {uploadError && <p className="form-error" style={{ padding: "0.4rem 1.5rem" }}>{uploadError}</p>}
+
+      {/* Main Split Body: Left 50% & Right 50% */}
+      <div className="analysis-split-body">
+        {/* ── LEFT PANE: Chat / Document Viewer ─────────────────── */}
+        <section className="analysis-left-pane">
+          {/* Top Pill Switcher: Chat / Files & New Chat */}
+          <div className="pane-pill-row">
+            <div className="left-pill-toggle">
+              <button
+                type="button"
+                className={leftView === "chat" ? "active" : ""}
+                onClick={() => setLeftView("chat")}
+              >
+                Chat
+              </button>
+              <button
+                type="button"
+                className={leftView === "files" ? "active" : ""}
+                onClick={() => setLeftView("files")}
+              >
+                Files {attachedFiles.length > 0 && <span className="pill-badge">{attachedFiles.length}</span>}
+              </button>
+            </div>
+
+            <button
+              type="button"
+              className="new-chat-pill-btn"
+              onClick={handleNewChat}
+              title="Start a new chat session"
+              aria-label="New chat"
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="12" y1="5" x2="12" y2="19" />
+                <line x1="5" y1="12" x2="19" y2="12" />
+              </svg>
+              <span>New</span>
+            </button>
+          </div>
+
+          {/* View Mode: Files / PDF Viewer */}
+          {leftView === "files" && (
+            <div className="doc-viewer-wrapper" style={{ height: "calc(100% - 3.4rem)", display: "flex", flexDirection: "column" }}>
+              {chatPreviewFile && chatPreviewUrl ? (
+                <div className="doc-iframe-box" style={{ flex: 1, height: "100%", minHeight: 0 }}>
+                  {chatPreviewFile.type === "application/pdf" || chatPreviewFile.name.toLowerCase().endsWith(".pdf") ? (
+                    <iframe
+                      src={chatPreviewUrl}
+                      title={`Preview of ${chatPreviewFile.name}`}
+                      className="doc-full-iframe"
+                      style={{ width: "100%", height: "100%", border: 0 }}
+                    />
+                  ) : chatPreviewFile.type.startsWith("image/") ? (
+                    <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", padding: "1.5rem", height: "100%", background: "#faf9fd" }}>
+                      <img
+                        src={chatPreviewUrl}
+                        alt={chatPreviewFile.name}
+                        style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain", borderRadius: "0.75rem", boxShadow: "0 6px 24px rgba(0,0,0,0.08)" }}
+                      />
+                    </div>
+                  ) : (
+                    <div className="chat-empty-state" style={{ height: "100%" }}>
+                      <div className="chat-empty-icon"><Icon name="spark" size={32} /></div>
+                      <h3>{chatPreviewFile.name}</h3>
+                      <p>{(chatPreviewFile.size / 1024).toFixed(1)} KB • {chatPreviewFile.type || "Document"}</p>
+                    </div>
+                  )}
+                </div>
+              ) : book ? (
+                <div className="doc-iframe-box" style={{ flex: 1, height: "100%", minHeight: 0 }}>
+                  <iframe
+                    key={`${book.id}-${currentPage}`}
+                    src={`${API}/api/textbooks/${book.id}/file#page=${currentPage}`}
+                    title={`Document Preview of ${book.title}`}
+                    className="doc-full-iframe"
+                    style={{ width: "100%", height: "100%", border: 0 }}
+                  />
+                </div>
+              ) : (
+                <div className="chat-empty-state" style={{ height: "100%" }}>
+                  <div className="chat-empty-icon"><Icon name="spark" size={32} /></div>
+                  <h3>No file uploaded</h3>
+                  <p>Upload or attach a document in the chat to view its live preview here.</p>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* View Mode: Chat */}
+          {leftView === "chat" && (
+            <div className="doc-chat-wrapper">
+              <div className="chat-messages">
+                {messages.length === 0 ? (
+                  <div className="chat-empty-state">
+                    <div className="chat-empty-icon"><Icon name="spark" size={32} /></div>
+                    <h3>Ask Aarva AI</h3>
+                    <p>Ask questions, clarify concepts, solve problems, or request revision summaries grounded in this textbook.</p>
+                  </div>
+                ) : (
+                  messages.map((item, index) => (
+                    <div className={`chat-bubble ${item.from}`} key={`${item.text}-${index}`}>
+                      {item.from === "ai" && <span><Icon name="spark" size={13} /></span>}
+                      <p>{item.text}</p>
+                    </div>
+                  ))
+                )}
+                <div ref={chatEndRef} />
+              </div>
+
+              {/* Chat Attachments Row */}
+              {attachedFiles.length > 0 && (
+                <div className="chat-attachments-row">
+                  {attachedFiles.map((f, idx) => (
+                    <span className="chat-attachment-chip" key={idx}>
+                      <span className="attachment-name">{f.name}</span>
+                      <button
+                        type="button"
+                        className="attachment-remove-btn"
+                        onClick={() => removeAttachedFile(idx)}
+                        aria-label="Remove attachment"
+                      >
+                        ✕
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              )}
+
+              {/* Modern Chat Bar */}
+              <form className="chat-input-modern" onSubmit={sendMessage}>
+                {/* File Attachment Button */}
+                <input
+                  type="file"
+                  ref={chatFileInputRef}
+                  style={{ display: "none" }}
+                  onChange={handleChatFileSelect}
+                  multiple
+                />
+                <button
+                  type="button"
+                  className="chat-action-btn attach-btn"
+                  onClick={() => chatFileInputRef.current?.click()}
+                  title="Attach images or documents"
+                  aria-label="Attach file"
+                >
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <line x1="12" y1="5" x2="12" y2="19" />
+                    <line x1="5" y1="12" x2="19" y2="12" />
+                  </svg>
+                </button>
+
+                {/* Text input */}
+                <input
+                  type="text"
+                  className="chat-text-input"
+                  placeholder={book ? "Ask anything about this book..." : attachedFiles.length > 0 ? "Add a message or just press send to upload..." : "Ask something or attach a file to get started..."}
+                  value={message}
+                  onChange={(e) => setMessage(e.target.value)}
+                />
+
+                {/* Right Controls */}
+                <div className="chat-right-controls">
+                  {/* Mic Button */}
+                  <button
+                    type="button"
+                    className={`chat-action-btn mic-btn ${isListening ? "listening" : ""}`}
+                    onClick={toggleSpeechRecognition}
+                    title={isListening ? "Listening... (Click to stop)" : "Speak your question"}
+                    aria-label="Voice input"
+                  >
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z" />
+                      <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
+                      <line x1="12" y1="19" x2="12" y2="22" />
+                    </svg>
+                  </button>
+
+                  {/* Send Button */}
+                  <button
+                    type="submit"
+                    className={`chat-send-submit-btn ${isSending ? "sending" : ""}`}
+                    aria-label="Send message"
+                    title="Send message"
+                    disabled={(!message.trim() && attachedFiles.length === 0) || isSending}
+                  >
+                    {isSending ? (
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+                        <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83">
+                          <animateTransform attributeName="transform" type="rotate" from="0 12 12" to="360 12 12" dur="0.8s" repeatCount="indefinite" />
+                        </path>
+                      </svg>
+                    ) : (
+                      <Icon name="send-up" size={16} />
+                    )}
+                  </button>
+                </div>
+              </form>
+            </div>
+          )}
+        </section>
+
+        {/* ── RIGHT PANE: Tabs, Sub-Filters, and Live Extracted Cards ──────────── */}
+        <section className="analysis-right-pane">
+          {uploading ? (
+            <div className="analysis-processing-placeholder">
+              <div className="processing-anim-ring">
+                <span />
+                <span />
+                <span />
+              </div>
+              <div className="processing-content">
+                <div className="processing-pct-badge">{uploadProgress}%</div>
+                <h3>Extracting & Indexing Document</h3>
+                <div className="processing-bar-wrapper">
+                  <div className="processing-bar-fill" style={{ width: `${uploadProgress}%` }} />
+                </div>
+                <p>
+                  {uploadProgress < 40
+                    ? "Streaming file payload to ingestion pipeline..."
+                    : uploadProgress < 65
+                      ? "Document layout analysis, parsing text, and extracting tables..."
+                      : uploadProgress < 90
+                        ? "Generating dense vector embeddings with ChromaDB..."
+                        : uploadProgress < 100
+                          ? "Building Okapi BM25 keyword index and synthesizing chapters..."
+                          : "Finalizing knowledge extraction and rendering results..."}
+                </p>
+                <div className="processing-steps">
+                  <div className={`proc-step ${uploadProgress >= 30 ? "done" : uploadProgress >= 5 ? "active" : ""}`}>
+                    <div className="proc-step-dot" />
+                    <span>File upload & byte transfer ({Math.min(100, Math.round(uploadProgress * 2.5))}%)</span>
+                  </div>
+                  <div className={`proc-step ${uploadProgress >= 60 ? "done" : uploadProgress >= 30 ? "active" : ""}`}>
+                    <div className="proc-step-dot" />
+                    <span>Document parsing & OCR text extraction</span>
+                  </div>
+                  <div className={`proc-step ${uploadProgress >= 85 ? "done" : uploadProgress >= 60 ? "active" : ""}`}>
+                    <div className="proc-step-dot" />
+                    <span>Dense ChromaDB vector embeddings</span>
+                  </div>
+                  <div className={`proc-step ${uploadProgress >= 100 ? "done" : uploadProgress >= 85 ? "active" : ""}`}>
+                    <div className="proc-step-dot" />
+                    <span>BM25 Okapi lexical index & AI chapter synthesis</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          ) : !book && !latestRag ? (
+            <div className="right-pane-empty-state">
+              <div className="right-pane-empty-icon"><Icon name="spark" size={36} /></div>
+              <h3>Ready for Analysis</h3>
+              <p>Extracted answers, summaries, and key concepts will be displayed here.</p>
+            </div>
+          ) : (
+            <>
+              {/* Main Top Tab Row */}
+              <div className="right-main-tab-bar">
+                {latestRag && (
+                  <button
+                    type="button"
+                    className={`main-tab-btn ${activeTab === "AI Extraction" ? "active" : ""}`}
+                    onClick={() => { setActiveTab("AI Extraction"); setSubFilter("All Specifics"); }}
+                  >
+                    <span>⚡ Extracted Answer</span>
+                    <span className="tab-count-number">Live</span>
+                  </button>
+                )}
+                {(["Summary", "Chapters", "Concepts", "Definitions", "Important Notes"] as const).map((tabName) => {
+                  const count =
+                    tabName === "Summary" ? summaryCards.length :
+                      tabName === "Chapters" ? chapterList.length :
+                        tabName === "Concepts" ? dynamicConcepts.length :
+                          tabName === "Definitions" ? dynamicDefinitions.length :
+                            dynamicNotes.length;
+                  return (
+                    <button
+                      key={tabName}
+                      type="button"
+                      className={`main-tab-btn ${activeTab === tabName ? "active" : ""}`}
+                      onClick={() => { setActiveTab(tabName); setSubFilter("All"); }}
+                    >
+                      <span>{tabName}</span>
+                      <span className="tab-count-number">{count}</span>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Sub-category filter pills row */}
+              {activeTab !== "AI Extraction" && subFilters.length > 1 && (
+                <div className="sub-filter-capsule-row">
+                  {subFilters.map((sf) => (
+                    <button
+                      key={sf}
+                      type="button"
+                      className={`sub-pill-btn ${subFilter === sf ? "active" : ""}`}
+                      onClick={() => setSubFilter(sf)}
+                    >
+                      {sf}
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {/* Section tracker heading */}
+              <div className="section-tracker-header">
+                <span className="tracker-bullet">●</span>
+                <span>
+                  {activeTab === "AI Extraction"
+                    ? "RAG Pipeline Extraction & Synthesis"
+                    : `${book?.title || "Document"} • ${activeTab}`}
+                </span>
+              </div>
+
+              {/* Scrollable cards area */}
+              <div className="analysis-cards-scroll">
+                {activeTab === "AI Extraction" && latestRag ? (
+                  <div className="analysis-card" style={{ borderLeft: "4px solid #7458f5" }}>
+                    <div className="card-top-row">
+                      <h4 className="card-headline" style={{ color: "#7458f5" }}>
+                        Q: "{latestRag.query}"
+                      </h4>
+                      <span className="card-amber-badge">★ Live RAG Extraction</span>
+                    </div>
+
+                    <div style={{ margin: "0.5rem 0", fontSize: "0.75rem", color: "#6c6684", display: "flex", gap: "0.75rem", flexWrap: "wrap", alignItems: "center" }}>
+                      <span style={{ display: "inline-flex", alignItems: "center", gap: "0.3rem", background: "#f0ecfc", color: "#6147d4", padding: "0.2rem 0.6rem", borderRadius: "999px", fontWeight: 600 }}>
+                        <Icon name="spark" size={12} /> {latestRag.retrieval_method}
+                      </span>
+                      <span>Extracted at {latestRag.timestamp}</span>
+                    </div>
+
+                    <div className="card-highlight-value-box" style={{ background: "#faf9fd", border: "1.5px solid #ece7fa", whiteSpace: "pre-line", lineHeight: 1.65 }}>
+                      {latestRag.response}
+                    </div>
+
+                    {latestRag.sources && latestRag.sources.length > 0 && (
+                      <div className="card-clauses-wrapper">
+                        <div className="clauses-subhead">Grounding Sources & Citations ({latestRag.sources.length} chunks)</div>
+                        <div className="clauses-rows">
+                          {latestRag.sources.map((src, idx) => (
+                            <div className="clause-item" key={idx} style={{ background: "#f8fafc", padding: "0.6rem 0.85rem", borderRadius: "8px", border: "1px solid #e2e8f0" }}>
+                              <div className="clause-body">
+                                <b>{src.chapter || src.title || "Document Source"}</b>
+                                <p style={{ margin: "0.25rem 0 0", color: "#475569", fontSize: "0.8rem", fontStyle: "italic" }}>
+                                  "{src.snippet}"
+                                </p>
+                              </div>
+                              <button
+                                type="button"
+                                className="clause-page-citation"
+                                title="Jump to this page in document viewer"
+                                onClick={() => {
+                                  if (src.page) {
+                                    setCurrentPage(src.page);
+                                    setLeftView("files");
+                                  }
+                                }}
+                              >
+                                Page {src.page || 1} {src.relevance_score ? `• ${src.relevance_score}` : ""}
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {latestRag.suggested_followups && latestRag.suggested_followups.length > 0 && (
+                      <div style={{ marginTop: "1rem", paddingTop: "0.85rem", borderTop: "1px solid #ede9f7" }}>
+                        <div className="clauses-subhead">Suggested Follow-up Inquiries</div>
+                        <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap", marginTop: "0.4rem" }}>
+                          {latestRag.suggested_followups.map((promptText, idx) => (
+                            <button
+                              key={idx}
+                              type="button"
+                              className="sub-pill-btn"
+                              style={{ fontSize: "0.74rem", background: "#f5f3ff", borderColor: "#ddd6fe", color: "#5b21b6" }}
+                              onClick={() => setMessage(promptText)}
+                            >
+                              💬 {promptText}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ) : null}
+
+                {/* Render normal tab cards */}
+                {activeTab !== "AI Extraction" && (
+                  filteredCards.length === 0 ? (
+                    <div className="analysis-empty-tab">
+                      <div className="empty-tab-icon">📖</div>
+                      <p>No specific cards under "{subFilter}". Select "All" to view all items.</p>
+                    </div>
+                  ) : (
+                    filteredCards.map((card) => (
+                      <div className="analysis-card" key={card.id}>
+                        <div className="card-top-row">
+                          <h4 className="card-headline">{card.title}</h4>
+                          <span className="card-amber-badge">{card.badge}</span>
+                        </div>
+                        <div className="card-highlight-value-box">{card.highlight}</div>
+                        {card.clauses && card.clauses.length > 0 && (
+                          <div className="card-clauses-wrapper">
+                            <div className="clauses-subhead">Key Details & Specifics</div>
+                            <div className="clauses-rows">
+                              {card.clauses.map((clause, cIdx) => (
+                                <div className="clause-item" key={cIdx}>
+                                  <span className="clause-dot">●</span>
+                                  <div className="clause-body">
+                                    <b>{clause.label}:</b> {clause.text}
+                                  </div>
+                                  <button
+                                    type="button"
+                                    className="clause-page-citation"
+                                    onClick={() => {
+                                      if (clause.page) {
+                                        setCurrentPage(clause.page);
+                                        setLeftView("files");
+                                      }
+                                    }}
+                                  >
+                                    Page {clause.page}
+                                  </button>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    ))
+                  )
+                )}
+              </div>
+            </>
+          )}
+        </section>
       </div>
     </section>
   );
 }
 
-function LibraryView({ started, openBook, startTest }: { started: Set<number>; openBook: (book: LearningBook) => void; startTest: (book: LearningBook) => void }) {
+function LibraryView({
+  books,
+  started,
+  openBook,
+  startTest,
+  onUploadClick,
+  onUploaded,
+}: {
+  books: LearningBook[];
+  started: Set<number>;
+  openBook: (book: LearningBook) => void;
+  startTest: (book: LearningBook) => void;
+  onUploadClick: () => void;
+  onUploaded: () => void;
+}) {
+  const [deleting, setDeleting] = useState<number | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [selectedSubject, setSelectedSubject] = useState("ALL");
+  const [selectedStatus, setSelectedStatus] = useState<"ALL" | "IN_PROGRESS" | "COMPLETED" | "UNREAD">("ALL");
+  const [sortBy, setSortBy] = useState<"RECENT" | "TITLE_ASC" | "TITLE_DESC" | "PROGRESS_DESC">("RECENT");
+
+  const handleDelete = async (id: number) => {
+    if (!confirm("Remove this book from your library?")) return;
+    setDeleting(id);
+    try { await apiFetch(`/api/textbooks/${id}`, { method: "DELETE" }); onUploaded(); } catch {/* ignore */ }
+    setDeleting(null);
+  };
+
+  const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
+
+  const availableSubjects = useMemo(() => {
+    const set = new Set<string>();
+    books.forEach((b) => {
+      if (b.subject && b.subject.trim()) set.add(b.subject.trim());
+    });
+    return Array.from(set);
+  }, [books]);
+
+  const filteredAndSortedBooks = useMemo(() => {
+    return books
+      .filter((b) => {
+        const q = searchQuery.toLowerCase().trim();
+        if (q) {
+          const matchTitle = b.title.toLowerCase().includes(q);
+          const matchAuthor = b.author && b.author.toLowerCase().includes(q);
+          const matchSubject = b.subject && b.subject.toLowerCase().includes(q);
+          if (!matchTitle && !matchAuthor && !matchSubject) return false;
+        }
+
+        if (selectedSubject !== "ALL" && (b.subject || "Textbook") !== selectedSubject) {
+          return false;
+        }
+
+        return true;
+      })
+      .sort((a, b) => {
+        if (sortBy === "TITLE_ASC") return a.title.localeCompare(b.title);
+        if (sortBy === "TITLE_DESC") return b.title.localeCompare(a.title);
+        return b.id - a.id;
+      });
+  }, [books, searchQuery, selectedSubject, sortBy]);
+
+  const hasActiveFilters = searchQuery !== "" || selectedSubject !== "ALL" || sortBy !== "RECENT";
+
+  const clearAllFilters = () => {
+    setSearchQuery("");
+    setSelectedSubject("ALL");
+    setSortBy("RECENT");
+  };
+
   return (
     <section className="library-view">
-      <div className="page-intro"><div><p className="kicker">Your collection</p><h2>Books that are becoming knowledge.</h2><p>Open a book to continue the conversation, or turn any concept into a focused challenge.</p></div><label className="upload-new"><input type="file" accept=".pdf,.doc,.docx" />+ Upload book</label></div>
-      <div className="library-grid">
-        {learningBooks.map((book) => (
-          <article className="library-card" key={book.id}>
-            <button className={`book-cover ${book.color}`} type="button" onClick={() => openBook(book)}>
-              <span className="cover-mark"><Icon name="spark" /></span><small>{book.subject}</small><b>{book.title}</b><em>{book.author}</em>
-            </button>
-            <div className="book-details"><div><small>{book.pages} pages</small>{started.has(book.id) && <span className="test-started">Test started</span>}</div><h3>{book.title}</h3><p>{book.author}</p><div className="book-progress"><span><i style={{ width: `${started.has(book.id) ? Math.max(book.progress, 12) : book.progress}%` }} /></span><small>{started.has(book.id) ? `${Math.max(book.progress, 12)}% test progress` : `${book.progress}% studied`}</small></div><div className="book-actions"><button type="button" onClick={() => openBook(book)}>Open chat</button><button type="button" onClick={() => startTest(book)}>Take test <Icon name="arrow" size={15} /></button></div></div>
-          </article>
-        ))}
+      <div className="page-intro">
+        <div>
+          <p className="kicker">Knowledge Repository</p>
+          <h2>Smart Study Library</h2>
+          <p>Browse your textbooks, explore AI chapter notes, and quiz yourself — all in one place.</p>
+        </div>
+        <div className="page-actions">
+          <button className="upload-new" type="button" onClick={onUploadClick}>
+            + Upload Document
+          </button>
+        </div>
       </div>
+
+      {books.length > 0 && (
+        <div className="library-filter-bar">
+          <div className="library-search-box filter-search">
+            <span className="search-icon">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="11" cy="11" r="8" />
+                <path d="m21 21-4.35-4.35" />
+              </svg>
+            </span>
+            <input
+              type="text"
+              placeholder="Search by title, author, or subject..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+            />
+            {searchQuery && (
+              <button
+                type="button"
+                className="search-clear-btn"
+                onClick={() => setSearchQuery("")}
+                aria-label="Clear search"
+              >
+                ✕
+              </button>
+            )}
+          </div>
+
+          <div className="filter-right-controls">
+            <label className="filter-sort-label">
+              <span>Sort:</span>
+              <select
+                className="filter-select sort-select"
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value as any)}
+                aria-label="Sort documents"
+              >
+                <option value="RECENT">Recently Added</option>
+                <option value="TITLE_ASC">Title (A → Z)</option>
+                <option value="TITLE_DESC">Title (Z → A)</option>
+              </select>
+            </label>
+
+            <div className="filter-view-toggle">
+              <span className="filter-view-label">View:</span>
+              <div className="view-toggle-buttons" role="group" aria-label="View layout switcher">
+                <button
+                  type="button"
+                  className={`view-toggle-btn ${viewMode === "grid" ? "active" : ""}`}
+                  onClick={() => setViewMode("grid")}
+                  aria-label="Grid view"
+                  title="Grid view"
+                >
+                  <svg width="15" height="15" viewBox="0 0 16 16" fill="currentColor">
+                    <rect x="1.5" y="1.5" width="5.5" height="5.5" rx="1.2" />
+                    <rect x="9" y="1.5" width="5.5" height="5.5" rx="1.2" />
+                    <rect x="1.5" y="9" width="5.5" height="5.5" rx="1.2" />
+                    <rect x="9" y="9" width="5.5" height="5.5" rx="1.2" />
+                  </svg>
+                </button>
+                <button
+                  type="button"
+                  className={`view-toggle-btn ${viewMode === "list" ? "active" : ""}`}
+                  onClick={() => setViewMode("list")}
+                  aria-label="List view"
+                  title="List view"
+                >
+                  <svg width="15" height="15" viewBox="0 0 16 16" fill="currentColor">
+                    <rect x="2" y="2.5" width="2.5" height="2.5" rx="0.6" />
+                    <rect x="6.5" y="2.5" width="7.5" height="2.5" rx="0.6" />
+                    <rect x="2" y="6.75" width="2.5" height="2.5" rx="0.6" />
+                    <rect x="6.5" y="6.75" width="7.5" height="2.5" rx="0.6" />
+                    <rect x="2" y="11" width="2.5" height="2.5" rx="0.6" />
+                    <rect x="6.5" y="11" width="7.5" height="2.5" rx="0.6" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {books.length === 0 ? (
+        <div className="library-empty">
+          <h3>Your Library is Empty</h3>
+          <p>Upload a textbook, syllabus, or lecture notes (PDF, DOCX, TXT) to extract key concepts, summaries, and adaptive quizzes with Aarva AI.</p>
+          <button className="auth-primary" type="button" onClick={onUploadClick} style={{ maxWidth: "20rem", margin: "0 auto" }}>
+            Upload your first document <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{display:"inline-block",verticalAlign:"middle"}}><polyline points="16 16 12 12 8 16"/><line x1="12" y1="12" x2="12" y2="21"/><path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3"/></svg>
+          </button>
+        </div>
+      ) : filteredAndSortedBooks.length === 0 ? (
+        <div className="library-empty">
+          <div className="library-empty-icon">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#7458f5" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="11" cy="11" r="8" />
+              <path d="m21 21-4.35-4.35" />
+            </svg>
+          </div>
+          <h3>No documents matched your search</h3>
+          <p>Try adjusting your search keywords or selected subject filter.</p>
+          <button className="auth-primary" type="button" onClick={clearAllFilters} style={{ maxWidth: "12rem", margin: "0 auto" }}>
+            Reset filters
+          </button>
+        </div>
+      ) : viewMode === "grid" ? (
+        <div className="library-grid">
+          {filteredAndSortedBooks.map((book, i) => {
+            const color = book.color || COVER_COLORS[i % COVER_COLORS.length];
+            const pages = book.total_pages ?? book.pages ?? 0;
+            return (
+              <article className="library-card" key={book.id}>
+                <button className={`book-cover ${color}`} type="button" onClick={() => openBook(book)}>
+                  <span className="cover-mark"><Icon name="spark" size={15} /></span>
+                  <b>{book.title}</b>
+                </button>
+                <div className="book-details">
+                  <div className="book-meta-top">
+                    <small>{pages > 0 ? `${pages} pages` : book.file_name ?? "PDF Document"}</small>
+                    {started.has(book.id) && <span className="test-started">Quiz active</span>}
+                    {book.status === "processing" && <span className="test-started" style={{ background: "#f5a623" }}>Processing…</span>}
+                  </div>
+                  <h3>{book.title}</h3>
+                  <div className="book-actions">
+                    <button type="button" onClick={() => openBook(book)}>Study</button>
+                    <button type="button" className="btn-take-test" onClick={() => startTest(book)}>Quiz</button>
+                    <button type="button" className="book-delete" onClick={() => handleDelete(book.id)} disabled={deleting === book.id} aria-label="Delete book" title="Delete book">✕</button>
+                  </div>
+                </div>
+              </article>
+            );
+          })}
+        </div>
+      ) : (
+        <div className="library-list">
+          {filteredAndSortedBooks.map((book, i) => {
+            const color = book.color || COVER_COLORS[i % COVER_COLORS.length];
+            const pages = book.total_pages ?? book.pages ?? 0;
+            return (
+              <article className="library-list-row" key={book.id}>
+                <button className={`list-mini-cover ${color}`} type="button" onClick={() => openBook(book)} title={`Open ${book.title}`}>
+                  <Icon name="spark" size={16} />
+                </button>
+                <div className="list-row-main" onClick={() => openBook(book)}>
+                  <div className="list-row-header">
+                    <h3>{book.title}</h3>
+                    {started.has(book.id) && <span className="test-started">Quiz active</span>}
+                    {book.status === "processing" && <span className="test-started" style={{ background: "#f5a623" }}>Processing…</span>}
+                  </div>
+                  <div className="list-row-meta">
+                    <span className="list-row-pages">{pages > 0 ? `${pages} pages` : book.file_name ?? "PDF Document"}</span>
+                  </div>
+                </div>
+                <div className="list-row-actions">
+                  <button type="button" className="btn-list-study" onClick={() => openBook(book)}>Study</button>
+                  <button type="button" className="btn-take-test" onClick={() => startTest(book)}>Quiz</button>
+                  <button type="button" className="book-delete" onClick={() => handleDelete(book.id)} disabled={deleting === book.id} aria-label="Delete book" title="Delete book">✕</button>
+                </div>
+              </article>
+            );
+          })}
+        </div>
+      )}
     </section>
   );
 }
 
 const questionKinds = ["Choose one", "Match pairs", "Fill the blank", "Card challenge", "Quick quiz", "Definition", "Mind game", "True or false"];
 
-function TestView({ book, started, onStarted }: { book: LearningBook; started: Set<number>; onStarted: (book: LearningBook) => void }) {
+function TestView({ book, books = [], started, onStarted }: { book: LearningBook; books?: LearningBook[]; started: Set<number>; onStarted: (book: LearningBook) => void }) {
   const [concept, setConcept] = useState("");
   const [question, setQuestion] = useState(0);
   const [answered, setAnswered] = useState(false);
@@ -651,20 +2826,24 @@ function TestView({ book, started, onStarted }: { book: LearningBook; started: S
       <div className="test-layout">
         <article className="concept-map">
           <div className="test-book-title"><span className={`mini-cover ${book.color}`}><MiniIcon name="book" /></span><div><small>Selected book</small><h3>{book.title}</h3></div></div>
-          <div className="concept-path">{book.concepts.map((item, index) => <button type="button" onClick={() => begin(item)} key={item}><span>{index + 1}</span><div><b>{item}</b><small>50 adaptive questions</small></div><em>{index === 0 && started.has(book.id) ? "Continue" : "Start"}</em></button>)}</div>
+          <div className="concept-path">{(book.concepts ?? []).map((item, index) => <button type="button" onClick={() => begin(item)} key={item}><span>{index + 1}</span><div><b>{item}</b><small>50 adaptive questions</small></div><em>{index === 0 && started.has(book.id) ? "Continue" : "Start"}</em></button>)}</div>
         </article>
         <aside className="question-types"><p className="kicker">Inside every test</p><h3>Play your way to mastery</h3><div>{questionKinds.map((item, index) => <span key={item}><i>{index + 1}</i>{item}</span>)}</div></aside>
       </div>
-      <div className="all-test-progress"><div className="card-title"><div><p className="kicker">Your progress</p><h3>Tests by book</h3></div></div>{learningBooks.map((item) => <div className="test-progress-row" key={item.id}><span className={`mini-cover ${item.color}`}><MiniIcon name="book" /></span><div><b>{item.title}</b><small>{started.has(item.id) ? "Test in progress" : "Not started"}</small><i><span style={{ width: started.has(item.id) ? `${Math.max(12, item.progress)}%` : "0%" }} /></i></div><strong>{started.has(item.id) ? `${Math.max(12, item.progress)}%` : "—"}</strong></div>)}</div>
+      <div className="all-test-progress"><div className="card-title"><div><p className="kicker">Your progress</p><h3>Tests by book</h3></div></div>{books.map((item) => <div className="test-progress-row" key={item.id}><span className={`mini-cover ${item.color}`}><MiniIcon name="book" /></span><div><b>{item.title}</b><small>{started.has(item.id) ? "Test in progress" : "Not started"}</small><i><span style={{ width: started.has(item.id) ? `${Math.max(12, item.progress ?? 0)}%` : "0%" }} /></i></div><strong>{started.has(item.id) ? `${Math.max(12, item.progress ?? 0)}%` : "—"}</strong></div>)}</div>
     </section>
   );
 }
 
 function ProfileView({ name }: { name: string }) {
   const firstName = name.split(" ")[0];
-  const heatmap = Array.from({ length: 140 }, (_, index) => {
-    const value = index % 13 === 0 ? 4 : index % 7 === 0 ? 3 : index % 5 === 0 ? 2 : index % 3 === 0 ? 1 : 0;
-    return value;
+  const heatmap = Array.from({ length: 161 }, (_, index) => {
+    // Recorded study activity for January & February (first 63 days)
+    if (index < 63) {
+      return index % 13 === 0 ? 4 : index % 7 === 0 ? 3 : index % 5 === 0 ? 2 : index % 3 === 0 ? 1 : 0;
+    }
+    // Empty activity boxes for March, April, May
+    return 0;
   });
 
   return (
@@ -708,7 +2887,7 @@ function ProfileView({ name }: { name: string }) {
       </div>
 
       <article className="heatmap-card">
-        <div className="heatmap-heading"><div><p className="kicker">Learning consistency</p><h3>Your study activity</h3><span>Hours spent learning over the past 20 weeks</span></div><div className="heatmap-total"><strong>126.5</strong><small>total hours</small></div></div>
+        <div className="heatmap-heading"><div><p className="kicker">Learning consistency</p><h3>Your study activity</h3><span>Hours spent learning over the past 5 months</span></div><div className="heatmap-total"><strong>126.5</strong><small>total hours</small></div></div>
         <div className="heatmap-scroll">
           <div className="heatmap-months"><span>January</span><span>February</span><span>March</span><span>April</span><span>May</span></div>
           <div className="heatmap-layout">
@@ -768,29 +2947,96 @@ function SettingsView({ name }: { name: string }) {
 function Dashboard({ name, onHome }: { name: string; onHome: () => void }) {
   const [collapsed, setCollapsed] = useState(false);
   const [active, setActive] = useState("Dashboard");
-  const [selectedBook, setSelectedBook] = useState<LearningBook>(learningBooks[0]);
+  const [selectedBook, setSelectedBook] = useState<LearningBook | null>(null);
   const [startedTests, setStartedTests] = useState<Set<number>>(new Set());
+  const [books, setBooks] = useState<LearningBook[]>([]);
+  const [booksLoading, setBooksLoading] = useState(true);
   const firstName = name.split(" ")[0];
+
+  // ── Load books from API ──────────────────────────────────────────────────
+  const loadBooks = async () => {
+    const user = (() => { try { return JSON.parse(localStorage.getItem("aarva_user") || "null"); } catch { return null; } })();
+    const userId = user?.id || 6;
+    setBooksLoading(true);
+    try {
+      const data: LearningBook[] = await apiFetch(`/api/textbooks/?user_id=${userId}`);
+      const colored = data.map((b, i) => ({ ...b, color: COVER_COLORS[i % COVER_COLORS.length], concepts: ["Key Concepts", "Core Ideas", "Definitions", "Important Notes"] }));
+      setBooks(colored);
+      if (colored.length > 0) {
+        setSelectedBook((prev) => prev ? (colored.find((b) => b.id === prev.id) || prev) : colored[0]);
+      }
+    } catch { /* quietly fail */ }
+    setBooksLoading(false);
+  };
+
+  useEffect(() => { loadBooks(); }, []);
+
   const openBook = (book: LearningBook) => { setSelectedBook(book); setActive("Upload"); };
-  const startTest = (book: LearningBook) => { setSelectedBook(book); setStartedTests((current) => new Set(current).add(book.id)); setActive("Tests"); };
+  const startTest = (book: LearningBook) => { setSelectedBook(book); setStartedTests((c) => new Set(c).add(book.id)); setActive("Tests"); };
+  const goUpload = () => { setSelectedBook(null); setActive("Upload"); };
 
   return (
     <div className={`dashboard-shell ${collapsed ? "sidebar-collapsed" : ""}`}>
       <aside className="dash-nav">
-        <div className="dash-brand"><Logo /><button type="button" onClick={() => setCollapsed(!collapsed)} aria-label={collapsed ? "Open sidebar" : "Close sidebar"}><MiniIcon name="menu" /></button></div>
+        <div className="dash-brand">
+          <Logo dark />
+        </div>
         <div className="dash-menu">
           {menuItems.map((item) => (
-            <button className={active === item.label ? "active" : ""} type="button" onClick={() => setActive(item.label)} key={item.label}><MiniIcon name={item.icon} /><span>{item.label}</span></button>
+            <button
+              className={active === item.label ? "active" : ""}
+              type="button"
+              onClick={() => {
+                if (item.label === "Upload") setSelectedBook(null);
+                setActive(item.label);
+              }}
+              key={item.label}
+            >
+              <MiniIcon name={item.icon} />
+              <span>{item.label}</span>
+            </button>
           ))}
         </div>
         <div className="sidebar-quote"><Icon name="spark" /><p>One focused hour can change your whole week.</p></div>
-        <button className="signout" type="button" onClick={onHome}><span>←</span><span>Sign out</span></button>
+        <div className="sidebar-bottom">
+          <button
+            className={`dash-bottom-btn ${active === "Settings" ? "active" : ""}`}
+            type="button"
+            onClick={() => setActive("Settings")}
+          >
+            <MiniIcon name="settings" />
+            <span>Settings</span>
+          </button>
+          <button className="signout" type="button" onClick={onHome}>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+              <polyline points="16 17 21 12 16 7" />
+              <line x1="21" y1="12" x2="9" y2="12" />
+            </svg>
+            <span>Log out</span>
+          </button>
+          <button
+            className="sidebar-collapse-btn"
+            type="button"
+            onClick={() => setCollapsed(!collapsed)}
+            aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+            title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              {collapsed ? <path d="m9 18 6-6-6-6" /> : <path d="m15 18-6-6 6-6" />}
+            </svg>
+            <span>{collapsed ? "Expand" : "Collapse"}</span>
+          </button>
+        </div>
       </aside>
 
       <main className="dashboard-main">
         <header className="dashboard-top">
           <button className="mobile-sidebar-toggle" type="button" onClick={() => setCollapsed(!collapsed)} aria-label="Toggle sidebar"><MiniIcon name="menu" /></button>
-          <div><p className="kicker">My learning space</p><h1>{active}</h1></div>
+          <div>
+            <p className="kicker">My learning space</p>
+            <h1>{active}</h1>
+          </div>
           <div className="top-actions">
             <div className="points"><Icon name="spark" size={16} /><span><b>1,240</b><small>points</small></span></div>
             <button className="notification" type="button" aria-label="Notifications"><MiniIcon name="bell" /><i /></button>
@@ -800,25 +3046,52 @@ function Dashboard({ name, onHome }: { name: string; onHome: () => void }) {
 
         {active === "Dashboard" && <section className="dashboard-content">
           <div className="welcome-card">
-            <div><p>Welcome back, {firstName}</p><h2>Ready to turn curiosity into progress?</h2><span>“Success is the sum of small efforts, repeated day in and day out.”</span><button type="button">Start studying <Icon name="arrow" size={17} /></button></div>
-            <div className="welcome-orb"><MiniIcon name="book" /><span>Today is a good day to learn.</span></div>
+            <div>
+              <p>Welcome back, {firstName}</p>
+              <h2>Ready to turn curiosity into progress?</h2>
+              <span>“Success is the sum of small efforts, repeated day in and day out.”</span>
+              <button type="button" onClick={() => setActive("Library")}>Explore library <Icon name="arrow" size={17} /></button>
+            </div>
           </div>
           <div className="metric-card accuracy"><span className="metric-icon"><MiniIcon name="test" /></span><div><small>Average accuracy</small><strong>87%</strong><p><b>+6%</b> this month</p></div><i><span /></i></div>
-          <div className="metric-card books"><span className="metric-icon"><MiniIcon name="book" /></span><div><small>Books completed</small><strong>24</strong><p>3 in progress</p></div><div className="book-spines"><i /><i /><i /><i /></div></div>
+          <div className="metric-card books">
+            <span className="metric-icon"><MiniIcon name="book" /></span>
+            <div>
+              <small>Books uploaded</small>
+              <strong>{booksLoading ? "…" : books.length}</strong>
+              <p>{books.length > 0 ? `${books.length} in your library` : "Upload your first book"}</p>
+            </div>
+            <div className="book-spines"><i /><i /><i /><i /></div>
+          </div>
 
           <article className="study-plan">
             <div className="card-title"><div><p className="kicker">Your focus</p><h3>Today&apos;s study plan</h3></div><button type="button">+ Add task</button></div>
             <div className="plan-list">
-              <label><input type="checkbox" /><span><b>Read chapter 4: Neural Networks</b><small><MiniIcon name="clock" /> 40 minutes</small></span><em>Priority</em></label>
-              <label><input type="checkbox" /><span><b>Complete design systems quiz</b><small><MiniIcon name="clock" /> 20 minutes</small></span><em>Quiz</em></label>
-              <label><input type="checkbox" /><span><b>Review language flashcards</b><small><MiniIcon name="clock" /> 15 minutes</small></span><em>Review</em></label>
+              {books.length > 0
+                ? books.slice(0, 3).map((b) => (
+                  <label key={b.id}>
+                    <input type="checkbox" />
+                    <span><b>Continue reading: {b.title}</b><small><MiniIcon name="clock" /> ~30 min</small></span>
+                    <em onClick={() => openBook(b)} style={{ cursor: "pointer" }}>Open</em>
+                  </label>
+                ))
+                : (<>
+                  <label><input type="checkbox" /><span><b>Upload your first textbook</b><small><MiniIcon name="clock" /> 5 minutes</small></span><em onClick={goUpload} style={{ cursor: "pointer" }}>Start</em></label>
+                  <label><input type="checkbox" /><span><b>Complete design systems quiz</b><small><MiniIcon name="clock" /> 20 minutes</small></span><em>Quiz</em></label>
+                </>)
+              }
             </div>
           </article>
 
           <article className="pending-card">
-            <div className="card-title"><div><p className="kicker">Keep going</p><h3>Pending study</h3></div><button type="button">View all</button></div>
-            <div className="pending-item"><span className="pending-art purple"><MiniIcon name="book" /></span><div><b>UX Research</b><small>Course · 68% complete</small><i><span style={{ width: "68%" }} /></i></div></div>
-            <div className="pending-item"><span className="pending-art blue"><MiniIcon name="test" /></span><div><b>Data Structures</b><small>Test · Due tomorrow</small><i><span style={{ width: "42%" }} /></i></div></div>
+            <div className="card-title"><div><p className="kicker">Keep going</p><h3>Recent uploads</h3></div><button type="button" onClick={() => setActive("Library")}>View all</button></div>
+            {books.slice(0, 2).map((b, i) => (
+              <div className="pending-item" key={b.id}>
+                <span className={`pending-art ${i === 0 ? "purple" : "blue"}`}><MiniIcon name="book" /></span>
+                <div><b>{b.title}</b><small>{b.author}</small><i><span style={{ width: `${b.progress ?? 0}%` }} /></i></div>
+              </div>
+            ))}
+            {books.length === 0 && <p style={{ color: "var(--ink-soft)", fontSize: ".8rem", padding: ".5rem 0" }}>No books yet. <button type="button" style={{ background: "none", border: "none", color: "var(--violet-deep)", fontWeight: 600, cursor: "pointer" }} onClick={goUpload}>Upload one now →</button></p>}
           </article>
 
           <article className="study-chart">
@@ -830,15 +3103,41 @@ function Dashboard({ name, onHome }: { name: string; onHome: () => void }) {
                 <defs><linearGradient id="chartFill" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#7458f5" stopOpacity=".24" /><stop offset="100%" stopColor="#7458f5" stopOpacity="0" /></linearGradient></defs>
                 <path className="chart-area" d="M0 155 C70 140,75 95,140 112 S225 150,280 85 S370 40,420 72 S510 135,560 82 S650 28,700 42 L700 190 L0 190Z" />
                 <path className="chart-line" d="M0 155 C70 140,75 95,140 112 S225 150,280 85 S370 40,420 72 S510 135,560 82 S650 28,700 42" />
-                {[["0","155"],["140","112"],["280","85"],["420","72"],["560","82"],["700","42"]].map(([cx,cy]) => <circle key={cx} cx={cx} cy={cy} r="5" />)}
+                {[["0", "155"], ["140", "112"], ["280", "85"], ["420", "72"], ["560", "82"], ["700", "42"]].map(([cx, cy]) => <circle key={cx} cx={cx} cy={cy} r="5" />)}
               </svg>
               <div className="x-labels"><span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span><span>Sun</span></div>
             </div>
           </article>
         </section>}
-        {active === "Upload" && <UploadWorkspace book={selectedBook} />}
-        {active === "Library" && <LibraryView started={startedTests} openBook={openBook} startTest={startTest} />}
-        {active === "Tests" && <TestView book={selectedBook} started={startedTests} onStarted={(book) => setStartedTests((current) => new Set(current).add(book.id))} />}
+
+        {active === "Upload" && (
+          <UploadWorkspace
+            book={selectedBook}
+            books={books}
+            onUploaded={loadBooks}
+            onSelectBook={(b) => { setSelectedBook(b); }}
+          />
+        )}
+
+        {active === "Library" && (
+          <LibraryView
+            books={books}
+            started={startedTests}
+            openBook={openBook}
+            startTest={startTest}
+            onUploadClick={goUpload}
+            onUploaded={loadBooks}
+          />
+        )}
+
+        {active === "Tests" && (
+          <TestView
+            book={selectedBook ?? (books[0] ?? { id: 0, title: "Pick a book first", author: "", concepts: [] })}
+            books={books}
+            started={startedTests}
+            onStarted={(b) => setStartedTests((c) => new Set(c).add(b.id))}
+          />
+        )}
         {active === "Settings" && <SettingsView name={name} />}
         {active === "Profile" && <ProfileView name={name} />}
       </main>
@@ -847,9 +3146,22 @@ function Dashboard({ name, onHome }: { name: string; onHome: () => void }) {
 }
 
 export default function App() {
-  const initialRoute = window.location.pathname === "/login" ? "auth" : window.location.pathname === "/dashboard" ? "dashboard" : "landing";
-  const [route, setRoute] = useState<Route>(initialRoute);
-  const [userName, setUserName] = useState("Alex Morgan");
+  // Restore auth state from localStorage on mount
+  const storedUser = (() => {
+    try { return JSON.parse(localStorage.getItem("aarva_user") || "null"); } catch { return null; }
+  })();
+  const hasToken = Boolean(localStorage.getItem("aarva_token"));
+
+  const getInitialRoute = (): Route => {
+    const path = window.location.pathname;
+    if (path === "/login") return "auth";
+    if (path === "/dashboard" && hasToken) return "dashboard";
+    if (path === "/dashboard") return "auth"; // force login if no token
+    return "landing";
+  };
+
+  const [route, setRoute] = useState<Route>(getInitialRoute);
+  const [userName, setUserName] = useState<string>(storedUser?.name || "Alex Morgan");
 
   const navigate = (next: Route) => {
     const path = next === "landing" ? "/" : `/${next === "auth" ? "login" : "dashboard"}`;
@@ -858,13 +3170,32 @@ export default function App() {
     setRoute(next);
   };
 
+  const handleLogout = () => {
+    // Invalidate server session
+    const token = localStorage.getItem("aarva_token");
+    if (token) {
+      fetch("http://localhost:8000/api/auth/logout", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+      }).catch(() => { });
+    }
+    localStorage.removeItem("aarva_token");
+    localStorage.removeItem("aarva_user");
+    navigate("landing");
+  };
+
   useEffect(() => {
-    const syncRoute = () => setRoute(window.location.pathname === "/login" ? "auth" : window.location.pathname === "/dashboard" ? "dashboard" : "landing");
+    const syncRoute = () => {
+      const path = window.location.pathname;
+      const tok = Boolean(localStorage.getItem("aarva_token"));
+      if (path === "/dashboard" && !tok) { setRoute("auth"); return; }
+      setRoute(path === "/login" ? "auth" : path === "/dashboard" ? "dashboard" : "landing");
+    };
     window.addEventListener("popstate", syncRoute);
     return () => window.removeEventListener("popstate", syncRoute);
   }, []);
 
   if (route === "auth") return <AuthPage onHome={() => navigate("landing")} onComplete={(name) => { setUserName(name); navigate("dashboard"); }} />;
-  if (route === "dashboard") return <Dashboard name={userName} onHome={() => navigate("landing")} />;
-  return <LandingPage onStart={() => navigate("auth")} onLogin={() => navigate("dashboard")} />;
+  if (route === "dashboard") return <Dashboard name={userName} onHome={handleLogout} />;
+  return <LandingPage onStart={() => navigate("auth")} onLogin={() => { if (hasToken) { navigate("dashboard"); } else { navigate("auth"); } }} />;
 }

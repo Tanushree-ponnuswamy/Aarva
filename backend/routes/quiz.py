@@ -261,7 +261,7 @@ def get_quiz_leaderboard(db: Session = Depends(get_db)):
         # Fallback mock leaderboard
         return {
             "leaderboard": [
-                {"rank": 1, "name": "Aarav Sharma", "xp": 840, "level": 5, "avg_score": 94.2, "badge_count": 6},
+                {"rank": 1, "name": "Alex Morgan", "xp": 840, "level": 5, "avg_score": 94.2, "badge_count": 6},
                 {"rank": 2, "name": "Priya Patel", "xp": 720, "level": 4, "avg_score": 88.5, "badge_count": 4},
                 {"rank": 3, "name": "Rohan Iyer", "xp": 610, "level": 4, "avg_score": 85.0, "badge_count": 3},
                 {"rank": 4, "name": "Maya Sen", "xp": 480, "level": 3, "avg_score": 79.3, "badge_count": 2},
