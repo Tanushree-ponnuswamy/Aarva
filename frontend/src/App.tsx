@@ -3146,8 +3146,20 @@ function Dashboard({ name, onHome }: { name: string; onHome: () => void }) {
       const data: LearningBook[] = await apiFetch(`/api/textbooks/?user_id=${userId}`);
       const colored = data.map((b, i) => ({ ...b, color: COVER_COLORS[i % COVER_COLORS.length], concepts: ["Key Concepts", "Core Ideas", "Definitions", "Important Notes"] }));
       setBooks(colored);
+      
+      const storedBookId = localStorage.getItem("aarva_active_book_id");
       if (colored.length > 0) {
-        setSelectedBook((prev) => prev ? (colored.find((b) => b.id === prev.id) || prev) : colored[0]);
+        setSelectedBook((prev) => {
+          if (prev) {
+            const updated = colored.find((b) => b.id === prev.id);
+            return updated || prev;
+          }
+          if (storedBookId) {
+            const found = colored.find((b) => String(b.id) === storedBookId);
+            if (found) return found;
+          }
+          return colored[0];
+        });
       }
     } catch { /* quietly fail */ }
     setBooksLoading(false);
@@ -3155,9 +3167,16 @@ function Dashboard({ name, onHome }: { name: string; onHome: () => void }) {
 
   useEffect(() => { loadBooks(); }, []);
 
-  const openBook = (book: LearningBook) => { setSelectedBook(book); setActive("Upload"); };
-  const startTest = (book: LearningBook) => { setSelectedBook(book); setStartedTests((c) => new Set(c).add(book.id)); setActive("Tests"); };
-  const goUpload = () => { setSelectedBook(null); setActive("Upload"); };
+  const selectBookAndSave = (b: LearningBook | null) => {
+    setSelectedBook(b);
+    if (b?.id) {
+      localStorage.setItem("aarva_active_book_id", String(b.id));
+    }
+  };
+
+  const openBook = (book: LearningBook) => { selectBookAndSave(book); setActive("Upload"); };
+  const startTest = (book: LearningBook) => { selectBookAndSave(book); setStartedTests((c) => new Set(c).add(book.id)); setActive("Tests"); };
+  const goUpload = () => { setActive("Upload"); };
 
   return (
     <div className={`dashboard-shell ${collapsed ? "sidebar-collapsed" : ""}`}>
@@ -3171,7 +3190,6 @@ function Dashboard({ name, onHome }: { name: string; onHome: () => void }) {
               className={active === item.label ? "active" : ""}
               type="button"
               onClick={() => {
-                if (item.label === "Upload") setSelectedBook(null);
                 setActive(item.label);
               }}
               key={item.label}
@@ -3294,14 +3312,15 @@ function Dashboard({ name, onHome }: { name: string; onHome: () => void }) {
           </article>
         </section>}
 
-        {active === "Upload" && (
+        {/* ── Persistent Upload Workspace ── */}
+        <div style={{ display: active === "Upload" ? "block" : "none", flex: 1, minHeight: 0, height: "calc(100% - 4.5rem)" }}>
           <UploadWorkspace
             book={selectedBook}
             books={books}
             onUploaded={loadBooks}
-            onSelectBook={(b) => { setSelectedBook(b); }}
+            onSelectBook={selectBookAndSave}
           />
-        )}
+        </div>
 
         {active === "Library" && (
           <LibraryView
