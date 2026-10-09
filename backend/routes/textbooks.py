@@ -102,7 +102,7 @@ async def upload_textbook(
         ai_msg = ChatMessage(
             chat_session_id=session.id,
             role="assistant",
-            content=f"✅ **{result['title']}** has been parsed and indexed successfully!\n📊 **Indexed**: {result['total_pages']} pages ({result['total_chunks']} chunks) in Dense ChromaDB + BM25 Okapi.\nThe extracted summary and breakdown are now loaded on the right. Ask me any question about this document!"
+            content=f"✅ **{result['title']}** has been uploaded successfully!\n\nThe extracted summary and breakdown are now loaded on the right. Ask me any question about this document!"
         )
         db.add(user_msg)
         db.add(ai_msg)

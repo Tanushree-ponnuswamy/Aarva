@@ -1648,7 +1648,7 @@ function UploadWorkspace({
       setLatestRag({
         query: res.query || queryText,
         response: res.response,
-        retrieval_method: res.retrieval_method || "Hybrid (Dense ChromaDB Vector + BM25 Okapi Lexical)",
+        retrieval_method: res.retrieval_method || "Hybrid Search",
         sources: res.sources || [],
         suggested_followups: res.suggested_followups || [],
         timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
@@ -1760,8 +1760,7 @@ function UploadWorkspace({
         ...c,
         {
           from: "ai",
-          text: `✅ **${newBook.title}** has been parsed and indexed successfully!\n` +
-            `📊 **Indexed**: ${newBook.total_pages || 1} pages (${data.textbook?.total_chunks || "multiple"} chunks) in Dense ChromaDB + BM25 Okapi.\n` +
+          text: `✅ **${newBook.title}** has been uploaded successfully!\n` +
             `The extracted summary and breakdown are now loaded on the right. Ask me any question about this document!`,
         },
       ]);
@@ -1814,7 +1813,7 @@ function UploadWorkspace({
         },
         {
           from: "ai",
-          text: `⚙️ Ingesting "${fileToUpload.name}" into RAG pipeline... Text will be extracted, embedded into ChromaDB vectors, and indexed with BM25 Okapi. Results will appear on the right shortly!`,
+          text: `⚙️ Ingesting "${fileToUpload.name}"... Results will appear on the right shortly!`,
         },
       ]);
       await doUpload(fileToUpload, queryText);
@@ -2145,9 +2144,9 @@ function UploadWorkspace({
                             : uploadProgress < 65
                               ? "Parsing & OCR text extraction..."
                               : uploadProgress < 85
-                                ? "Generating ChromaDB vector embeddings..."
+                                ? "Generating vector embeddings..."
                                 : uploadProgress < 100
-                                  ? "Building BM25 index & AI summaries..."
+                                  ? "Building AI summaries..."
                                   : "Finalising knowledge extraction..."}
                         </span>
                       </div>
