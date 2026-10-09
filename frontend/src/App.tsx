@@ -1591,7 +1591,7 @@ function FilePreviewPane({ src, fileName, fileType }: { src: string; fileName: s
       </div>
 
       {/* Document Body Area */}
-      <div style={{ flex: 1, height: "calc(100% - 2.8rem)", overflow: "auto", position: "relative" }}>
+      <div style={{ flex: 1, height: "calc(100% - 2.8rem)", overflowY: "auto", overflowX: "hidden", position: "relative" }}>
         {loading && (
           <div style={{ height:'100%', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:'1rem', background:'#faf9fd' }}>
             <div style={{ width:'2.5rem', height:'2.5rem', border:'3px solid #ede9f7', borderTop:'3px solid #7458f5', borderRadius:'50%', animation:'spin 0.8s linear infinite' }} />
@@ -1623,7 +1623,7 @@ function FilePreviewPane({ src, fileName, fileType }: { src: string; fileName: s
             )}
 
             {isImage && (
-              <div style={{ height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: '#f8f7fc', padding: '1.25rem', overflow: 'auto' }}>
+              <div style={{ minHeight: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: '#f8f7fc', padding: '1.25rem', overflow: 'visible' }}>
                 <div style={{ background: '#ffffff', padding: '0.75rem', borderRadius: '1rem', boxShadow: '0 10px 30px rgba(0,0,0,0.08)', maxWidth: '100%', maxHeight: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
                   <img
                     src={src}
@@ -1636,7 +1636,7 @@ function FilePreviewPane({ src, fileName, fileType }: { src: string; fileName: s
             )}
 
             {(isDocx || isText) && docHtml !== null && (
-              <div style={{ width: '100%', height: '100%', overflow: 'auto', background: '#f3f2f8', padding: '1rem 0.5rem' }}>
+              <div style={{ width: '100%', minHeight: '100%', overflow: 'visible', background: '#f3f2f8', padding: '1rem 0.5rem' }}>
                 <style>{`
                   .doc-paper > *:first-child { margin-top: 0 !important; }
                   .doc-paper p:first-child { margin-top: 0 !important; }
@@ -1666,7 +1666,7 @@ function FilePreviewPane({ src, fileName, fileType }: { src: string; fileName: s
             )}
 
             {isXlsx && xlsxHtml !== null && (
-              <div style={{ width: '100%', height: '100%', overflow: 'auto', background: '#f8f7fc', padding: '1rem' }}>
+              <div style={{ width: '100%', minHeight: '100%', overflow: 'visible', background: '#f8f7fc', padding: '1rem' }}>
                 <style>{`
                   .xlsx-sheet table { border-collapse: collapse; width: 100%; background: #fff; border: 1px solid #cbd5e1; }
                   .xlsx-sheet th { background: #f1f5f9; color: #334155; font-weight: 700; border: 1px solid #cbd5e1; padding: 0.5rem 0.75rem; font-size: 0.82rem; text-align: left; }
