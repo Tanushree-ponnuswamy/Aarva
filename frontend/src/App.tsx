@@ -2329,8 +2329,8 @@ function UploadWorkspace({
 
         {/* ── RIGHT PANE: Tabs, Sub-Filters, and Live Extracted Cards ──────────── */}
         {/* Only show right pane after upload is complete */}
-        <section className={`analysis-right-pane ${uploading ? "right-pane-hidden" : ""}`}>
-          {!book && !latestRag && !uploading ? (
+        <section className="analysis-right-pane">
+          {!book && !latestRag ? (
             <div className="right-pane-empty-state">
               <div className="right-pane-empty-icon"><Icon name="spark" size={36} /></div>
               <h3>Ready for Analysis</h3>
