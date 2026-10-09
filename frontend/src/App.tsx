@@ -1322,6 +1322,112 @@ const menuItems: { label: string; icon: "dashboard" | "library" | "upload" | "te
   { label: "Tests", icon: "test" },
 ];
 
+// ── FilePreviewPane: renders all file types inline in the browser ─────────
+function FilePreviewPane({ src, fileName, fileType }: { src: string; fileName: string; fileType: string }) {
+  const [docHtml, setDocHtml] = useState<string | null>(null);
+  const [xlsxHtml, setXlsxHtml] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const ext = fileName.split('.').pop()?.toLowerCase() || fileType;
+  const isPdf = ext === 'pdf';
+  const isImage = ['png','jpg','jpeg','bmp','tiff','tif','webp'].includes(ext);
+  const isDocx = ext === 'docx' || ext === 'doc';
+  const isXlsx = ext === 'xlsx' || ext === 'xls';
+  const isText = ['txt','md','rst','csv','log'].includes(ext);
+
+  useEffect(() => {
+    if (!src) return;
+    setDocHtml(null); setXlsxHtml(null); setError(null);
+
+    if (isDocx) {
+      setLoading(true);
+      fetch(src)
+        .then(r => r.arrayBuffer())
+        .then(buf => import('mammoth').then(mammoth => mammoth.convertToHtml({ arrayBuffer: buf })))
+        .then(({ value }) => { setDocHtml(value); setLoading(false); })
+        .catch(e => { setError(`Could not render document: ${e.message}`); setLoading(false); });
+    } else if (isXlsx) {
+      setLoading(true);
+      fetch(src)
+        .then(r => r.arrayBuffer())
+        .then(buf => {
+          return import('xlsx').then(XLSX => {
+            const wb = XLSX.read(buf, { type: 'array' });
+            const sheets = wb.SheetNames.map(name => {
+              const ws = wb.Sheets[name];
+              const html = XLSX.utils.sheet_to_html(ws, { id: `sheet-${name}`, editable: false });
+              return `<div class="xlsx-sheet"><h3 style="padding:0.5rem 1rem;background:#f0ecfc;margin:0;font-size:0.9rem;color:#7458f5;font-weight:700;">📊 Sheet: ${name}</h3>${html}</div>`;
+            });
+            return sheets.join('<hr style="border:none;border-top:2px solid #ede9f7;margin:0"/>');
+          });
+        })
+        .then(html => { setXlsxHtml(html); setLoading(false); })
+        .catch(e => { setError(`Could not render spreadsheet: ${e.message}`); setLoading(false); });
+    } else if (isText) {
+      setLoading(true);
+      fetch(src)
+        .then(r => r.text())
+        .then(text => {
+          const escaped = text.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+          setDocHtml(`<pre style="white-space:pre-wrap;word-break:break-word;font-family:monospace;font-size:0.85rem;line-height:1.7;padding:1.5rem;color:#2e2a48">${escaped}</pre>`);
+          setLoading(false);
+        })
+        .catch(e => { setError(`Could not load text: ${e.message}`); setLoading(false); });
+    }
+  }, [src, ext]);
+
+  const wrapStyle: React.CSSProperties = { width:'100%', height:'100%', overflow:'auto', background:'#fff' };
+
+  if (loading) return (
+    <div style={{ height:'100%', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:'1rem', background:'#faf9fd' }}>
+      <div style={{ width:'2.5rem', height:'2.5rem', border:'3px solid #ede9f7', borderTop:'3px solid #7458f5', borderRadius:'50%', animation:'spin 0.8s linear infinite' }} />
+      <span style={{ color:'#7458f5', fontWeight:600, fontSize:'0.9rem' }}>Loading preview…</span>
+    </div>
+  );
+
+  if (error) return (
+    <div style={{ height:'100%', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:'1rem', background:'#faf9fd', padding:'2rem', textAlign:'center' }}>
+      <span style={{ fontSize:'2.5rem' }}>⚠️</span>
+      <p style={{ color:'#e05252', fontWeight:600 }}>{error}</p>
+    </div>
+  );
+
+  if (isPdf) return (
+    <iframe src={src} title={fileName} style={{ width:'100%', height:'100%', border:0 }} />
+  );
+
+  if (isImage) return (
+    <div style={{ height:'100%', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:'0.75rem', background:'#faf9fd', padding:'1.5rem' }}>
+      <img src={src} alt={fileName} style={{ maxWidth:'100%', maxHeight:'88%', objectFit:'contain', borderRadius:'0.75rem', boxShadow:'0 8px 28px rgba(0,0,0,0.1)' }} />
+      <span style={{ fontSize:'0.78rem', color:'#999', fontStyle:'italic' }}>{fileName}</span>
+    </div>
+  );
+
+  if ((isDocx || isText) && docHtml !== null) return (
+    <div style={wrapStyle}>
+      <div style={{ maxWidth:'800px', margin:'0 auto', padding:'2rem', fontFamily:'Georgia,serif', lineHeight:1.7, fontSize:'0.95rem', color:'#2e2a48' }}
+        dangerouslySetInnerHTML={{ __html: docHtml }} />
+    </div>
+  );
+
+  if (isXlsx && xlsxHtml !== null) return (
+    <div style={{ ...wrapStyle, fontFamily:'system-ui,sans-serif' }}>
+      <style>{`.xlsx-sheet table{border-collapse:collapse;width:100%}.xlsx-sheet td,.xlsx-sheet th{border:1px solid #e2e8f0;padding:0.4rem 0.7rem;font-size:0.82rem;white-space:nowrap}.xlsx-sheet tr:nth-child(even){background:#f8f7fd}`}</style>
+      <div dangerouslySetInnerHTML={{ __html: xlsxHtml }} />
+    </div>
+  );
+
+  // Fallback: generic unsupported
+  return (
+    <div style={{ height:'100%', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:'1rem', background:'#faf9fd', padding:'2rem', textAlign:'center' }}>
+      <span style={{ fontSize:'2.5rem' }}>📄</span>
+      <h3 style={{ margin:0, fontWeight:700, color:'#2e2a48' }}>{fileName}</h3>
+      <p style={{ color:'#999', fontSize:'0.85rem' }}>Preview not available for this file type.</p>
+    </div>
+  );
+}
+
 function UploadWorkspace({
   book,
   books,
@@ -2056,97 +2162,21 @@ function UploadWorkspace({
             </button>
           </div>
 
-          {/* View Mode: Files / PDF Viewer */}
+          {/* View Mode: Files / Document Viewer */}
           {leftView === "files" && (
             <div className="doc-viewer-wrapper" style={{ height: "calc(100% - 3.4rem)", display: "flex", flexDirection: "column" }}>
               {chatPreviewFile && chatPreviewUrl ? (
-                <div className="doc-iframe-box" style={{ flex: 1, height: "100%", minHeight: 0 }}>
-                  {chatPreviewFile.type === "application/pdf" || chatPreviewFile.name.toLowerCase().endsWith(".pdf") ? (
-                    <iframe
-                      src={chatPreviewUrl}
-                      title={`Preview of ${chatPreviewFile.name}`}
-                      className="doc-full-iframe"
-                      style={{ width: "100%", height: "100%", border: 0 }}
-                    />
-                  ) : chatPreviewFile.type.startsWith("image/") ? (
-                    <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "1.5rem", height: "100%", background: "#faf9fd", gap: "1rem" }}>
-                      <img
-                        src={chatPreviewUrl}
-                        alt={chatPreviewFile.name}
-                        style={{ maxWidth: "100%", maxHeight: "85%", objectFit: "contain", borderRadius: "0.75rem", boxShadow: "0 6px 24px rgba(0,0,0,0.08)" }}
-                      />
-                      <span style={{ fontSize: "0.8rem", color: "#888", fontStyle: "italic" }}>{chatPreviewFile.name} • {(chatPreviewFile.size / 1024).toFixed(1)} KB</span>
-                    </div>
-                  ) : chatPreviewFile.name.toLowerCase().endsWith(".docx") || chatPreviewFile.name.toLowerCase().endsWith(".doc") ? (
-                    <div style={{ height: "100%", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: "1.2rem", background: "#faf9fd" }}>
-                      <div style={{ fontSize: "3rem" }}>📄</div>
-                      <div style={{ textAlign: "center" }}>
-                        <h3 style={{ margin: 0, fontWeight: 700, color: "#2e2a48" }}>{chatPreviewFile.name}</h3>
-                        <p style={{ color: "#888", fontSize: "0.85rem", marginTop: "0.4rem" }}>{(chatPreviewFile.size / 1024).toFixed(1)} KB • Word Document</p>
-                      </div>
-                      <a
-                        href={chatPreviewUrl}
-                        download={chatPreviewFile.name}
-                        style={{ padding: "0.6rem 1.4rem", background: "linear-gradient(135deg, #7458f5, #6366f1)", color: "white", borderRadius: "0.75rem", textDecoration: "none", fontWeight: 600, fontSize: "0.875rem" }}
-                      >
-                        ⬇ Download to Preview
-                      </a>
-                      <p style={{ color: "#aaa", fontSize: "0.78rem" }}>Word documents can be opened with Microsoft Office or Google Docs</p>
-                    </div>
-                  ) : (
-                    <div className="chat-empty-state" style={{ height: "100%" }}>
-                      <div className="chat-empty-icon"><Icon name="spark" size={32} /></div>
-                      <h3>{chatPreviewFile.name}</h3>
-                      <p>{(chatPreviewFile.size / 1024).toFixed(1)} KB • {chatPreviewFile.type || "Document"}</p>
-                    </div>
-                  )}
-                </div>
+                <FilePreviewPane
+                  src={chatPreviewUrl}
+                  fileName={chatPreviewFile.name}
+                  fileType={chatPreviewFile.type}
+                />
               ) : book ? (
-                (() => {
-                  const fileUrl = `${API}/api/textbooks/${book.id}/file`;
-                  const fname = (book.file_name || book.title || "").toLowerCase();
-                  const isImage = /\.(png|jpg|jpeg|bmp|tiff|webp)$/i.test(fname);
-                  const isDocx = /\.(docx|doc)$/i.test(fname);
-                  const isPdf = /\.pdf$/i.test(fname) || (!isImage && !isDocx);
-                  return (
-                    <div className="doc-iframe-box" style={{ flex: 1, height: "100%", minHeight: 0 }}>
-                      {isPdf ? (
-                        <iframe
-                          key={`${book.id}-${currentPage}`}
-                          src={`${fileUrl}#page=${currentPage}`}
-                          title={`Document Preview of ${book.title}`}
-                          className="doc-full-iframe"
-                          style={{ width: "100%", height: "100%", border: 0 }}
-                        />
-                      ) : isImage ? (
-                        <div style={{ height: "100%", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "1.5rem", background: "#faf9fd", gap: "1rem" }}>
-                          <img
-                            src={fileUrl}
-                            alt={book.title}
-                            style={{ maxWidth: "100%", maxHeight: "85%", objectFit: "contain", borderRadius: "0.75rem", boxShadow: "0 6px 24px rgba(0,0,0,0.08)" }}
-                          />
-                          <span style={{ fontSize: "0.8rem", color: "#888", fontStyle: "italic" }}>{book.file_name}</span>
-                        </div>
-                      ) : isDocx ? (
-                        <div style={{ height: "100%", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: "1.2rem", background: "#faf9fd" }}>
-                          <div style={{ fontSize: "3rem" }}>📄</div>
-                          <div style={{ textAlign: "center" }}>
-                            <h3 style={{ margin: 0, fontWeight: 700, color: "#2e2a48" }}>{book.title}</h3>
-                            <p style={{ color: "#888", fontSize: "0.85rem", marginTop: "0.4rem" }}>{book.file_size || ""} • Word Document</p>
-                          </div>
-                          <a
-                            href={fileUrl}
-                            download={book.file_name}
-                            style={{ padding: "0.6rem 1.4rem", background: "linear-gradient(135deg, #7458f5, #6366f1)", color: "white", borderRadius: "0.75rem", textDecoration: "none", fontWeight: 600, fontSize: "0.875rem" }}
-                          >
-                            ⬇ Download to View
-                          </a>
-                          <p style={{ color: "#aaa", fontSize: "0.78rem" }}>Word documents can be opened with Microsoft Office or Google Docs</p>
-                        </div>
-                      ) : null}
-                    </div>
-                  );
-                })()
+                <FilePreviewPane
+                  src={`${API}/api/textbooks/${book.id}/file`}
+                  fileName={book.file_name || book.title || ""}
+                  fileType={(book as any).file_type || "pdf"}
+                />
               ) : (
                 <div className="chat-empty-state" style={{ height: "100%" }}>
                   <div className="chat-empty-icon"><Icon name="spark" size={32} /></div>
