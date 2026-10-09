@@ -1447,6 +1447,39 @@ function UploadWorkspace({
   const chatFileInputRef = useRef<HTMLInputElement>(null);
   const recognitionRef = useRef<any>(null);
 
+  // Simple inline markdown renderer: **bold**, ### headings, \n line breaks, emojis
+  const renderMarkdown = (text: string): ReactNode => {
+    const lines = text.split('\n');
+    return lines.map((line, lineIdx) => {
+      // Headings
+      const h3Match = line.match(/^###\s+(.*)/);
+      if (h3Match) return <h4 key={lineIdx} style={{ margin: '0.4rem 0 0.2rem', fontSize: '0.88rem', fontWeight: 700 }}>{renderInline(h3Match[1])}</h4>;
+      const h2Match = line.match(/^##\s+(.*)/);
+      if (h2Match) return <h3 key={lineIdx} style={{ margin: '0.5rem 0 0.2rem', fontSize: '0.95rem', fontWeight: 700 }}>{renderInline(h2Match[1])}</h3>;
+      // Numbered list items
+      const listMatch = line.match(/^(\d+)\.\s+(.*)/);
+      if (listMatch) return <div key={lineIdx} style={{ display: 'flex', gap: '0.4rem', margin: '0.15rem 0' }}><span style={{ fontWeight: 600, minWidth: '1.2rem' }}>{listMatch[1]}.</span><span>{renderInline(listMatch[2])}</span></div>;
+      // Bullet list items
+      const bulletMatch = line.match(/^[-•]\s+(.*)/);
+      if (bulletMatch) return <div key={lineIdx} style={{ display: 'flex', gap: '0.4rem', margin: '0.15rem 0' }}><span>•</span><span>{renderInline(bulletMatch[1])}</span></div>;
+      // Empty lines as spacing
+      if (line.trim() === '') return <div key={lineIdx} style={{ height: '0.3rem' }} />;
+      // Normal text
+      return <div key={lineIdx}>{renderInline(line)}</div>;
+    });
+  };
+
+  const renderInline = (text: string): ReactNode => {
+    // Bold: **text**
+    const parts = text.split(/(\*\*[^*]+\*\*)/);
+    return parts.map((part, i) => {
+      if (part.startsWith('**') && part.endsWith('**')) {
+        return <strong key={i}>{part.slice(2, -2)}</strong>;
+      }
+      return <span key={i}>{part}</span>;
+    });
+  };
+
   // Stop Speech Synthesis
   const stopSpeaking = () => {
     if (typeof window !== "undefined" && "speechSynthesis" in window) {
@@ -2088,7 +2121,7 @@ function UploadWorkspace({
                   messages.map((item, index) => (
                     <div className={`chat-bubble ${item.from}`} key={`${item.text}-${index}`}>
                       {item.from === "ai" && <span><Icon name="spark" size={13} /></span>}
-                      <p>{item.text}</p>
+                      <div className="chat-bubble-content">{renderMarkdown(item.text)}</div>
                     </div>
                   ))
                 )}
@@ -2126,28 +2159,7 @@ function UploadWorkspace({
                       <div className="cup-bar-glow" style={{ left: `${uploadProgress}%` }} />
                     </div>
 
-                    <div className="cup-steps">
-                      <div className={`cup-step ${uploadProgress >= 5 ? (uploadProgress >= 40 ? "done" : "active") : ""}`}>
-                        <div className="cup-step-dot" />
-                        <span>File upload & transfer</span>
-                        {uploadProgress >= 40 && <span className="cup-step-check">✓</span>}
-                      </div>
-                      <div className={`cup-step ${uploadProgress >= 40 ? (uploadProgress >= 65 ? "done" : "active") : ""}`}>
-                        <div className="cup-step-dot" />
-                        <span>Document parsing & OCR</span>
-                        {uploadProgress >= 65 && <span className="cup-step-check">✓</span>}
-                      </div>
-                      <div className={`cup-step ${uploadProgress >= 65 ? (uploadProgress >= 85 ? "done" : "active") : ""}`}>
-                        <div className="cup-step-dot" />
-                        <span>Dense vector embeddings</span>
-                        {uploadProgress >= 85 && <span className="cup-step-check">✓</span>}
-                      </div>
-                      <div className={`cup-step ${uploadProgress >= 85 ? (uploadProgress >= 100 ? "done" : "active") : ""}`}>
-                        <div className="cup-step-dot" />
-                        <span>BM25 index & AI synthesis</span>
-                        {uploadProgress >= 100 && <span className="cup-step-check">✓</span>}
-                      </div>
-                    </div>
+
                   </div>
                 )}
 

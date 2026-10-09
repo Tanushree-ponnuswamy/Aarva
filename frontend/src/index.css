@@ -5801,7 +5801,8 @@ form button:hover {
   border: 1px solid #ede9f7;
 }
 
-.chat-bubble p {
+.chat-bubble p,
+.chat-bubble .chat-bubble-content {
   margin: 0;
   padding: 1rem 1.25rem;
   border-radius: 0.4rem 1.2rem 1.2rem 1.2rem;
@@ -5817,12 +5818,21 @@ form button:hover {
   margin-left: auto;
 }
 
-.chat-bubble.user p {
+.chat-bubble.user p,
+.chat-bubble.user .chat-bubble-content {
   border-radius: 1.2rem 0.4rem 1.2rem 1.2rem;
   color: white;
   background: linear-gradient(135deg, #7458f5, #6366f1);
   box-shadow: 0 4px 14px rgba(116, 88, 245, 0.25);
   border: 0;
+}
+
+.chat-bubble-content strong {
+  font-weight: 700;
+}
+
+.chat-bubble.user .chat-bubble-content strong {
+  color: #fff;
 }
 
 /* ── In-Chat Upload Progress Card ───────────────────────────── */
