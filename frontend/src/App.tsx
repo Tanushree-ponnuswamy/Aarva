@@ -1322,6 +1322,163 @@ const menuItems: { label: string; icon: "dashboard" | "library" | "upload" | "te
   { label: "Tests", icon: "test" },
 ];
 
+// ── PDF.js Canvas Viewer with Page Navigation & Zoom ────────────────────────
+function PdfJsViewer({ src, fileName }: { src: string; fileName: string }) {
+  const [numPages, setNumPages] = useState<number>(0);
+  const [pageNumber, setPageNumber] = useState<number>(1);
+  const [zoom, setZoom] = useState<number>(1.1);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
+  const [pdfDoc, setPdfDoc] = useState<any>(null);
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+
+  useEffect(() => {
+    if (!src) return;
+    setLoading(true);
+    setError(null);
+
+    import("pdfjs-dist").then((pdfjsLib) => {
+      pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version || "4.10.38"}/pdf.worker.min.mjs`;
+
+      const loadingTask = pdfjsLib.getDocument({
+        url: src,
+        withCredentials: false
+      });
+
+      loadingTask.promise
+        .then((doc) => {
+          setPdfDoc(doc);
+          setNumPages(doc.numPages);
+          setPageNumber(1);
+          setLoading(false);
+        })
+        .catch((err) => {
+          setError(err.message || "Failed to load PDF via PDF.js");
+          setLoading(false);
+        });
+    }).catch(() => {
+      setError("PDF.js library failed to load");
+      setLoading(false);
+    });
+  }, [src]);
+
+  useEffect(() => {
+    if (!pdfDoc || !canvasRef.current) return;
+
+    pdfDoc.getPage(pageNumber).then((page: any) => {
+      const canvas = canvasRef.current;
+      if (!canvas) return;
+
+      const viewport = page.getViewport({ scale: zoom });
+      const context = canvas.getContext("2d");
+      if (!context) return;
+
+      const outputScale = window.devicePixelRatio || 1;
+      canvas.width = Math.floor(viewport.width * outputScale);
+      canvas.height = Math.floor(viewport.height * outputScale);
+      canvas.style.width = Math.floor(viewport.width) + "px";
+      canvas.style.height = Math.floor(viewport.height) + "px";
+
+      const transform = outputScale !== 1 ? [outputScale, 0, 0, outputScale, 0, 0] : null;
+
+      const renderContext = {
+        canvasContext: context,
+        transform: transform,
+        viewport: viewport,
+      };
+
+      page.render(renderContext);
+    });
+  }, [pdfDoc, pageNumber, zoom]);
+
+  if (loading) return (
+    <div style={{ height: "100%", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: "1rem", background: "#323639", color: "#f8fafc" }}>
+      <div style={{ width: "2.5rem", height: "2.5rem", border: "3px solid #475569", borderTop: "3px solid #7458f5", borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
+      <span style={{ color: "#a5b4fc", fontWeight: 600, fontSize: "0.9rem" }}>Loading PDF.js Canvas Viewer…</span>
+    </div>
+  );
+
+  if (error) return (
+    <iframe src={`${src}#toolbar=1`} title={fileName} style={{ width: "100%", height: "100%", border: 0 }} />
+  );
+
+  return (
+    <div style={{ width: "100%", height: "100%", display: "flex", flexDirection: "column", background: "#525659" }}>
+      {/* PDF.js Viewer Toolbar */}
+      <div style={{
+        height: "2.6rem",
+        background: "#323639",
+        color: "#f1f5f9",
+        padding: "0 0.85rem",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-between",
+        fontSize: "0.82rem",
+        boxShadow: "0 2px 6px rgba(0,0,0,0.3)",
+        flexShrink: 0,
+        zIndex: 10
+      }}>
+        {/* Left Title */}
+        <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", fontWeight: 600 }}>
+          <span>📄</span>
+          <span style={{ maxWidth: "200px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{fileName}</span>
+        </div>
+
+        {/* Center Page Navigation */}
+        <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+          <button
+            type="button"
+            disabled={pageNumber <= 1}
+            onClick={() => setPageNumber((p) => Math.max(1, p - 1))}
+            style={{ padding: "0.2rem 0.55rem", borderRadius: "0.3rem", background: pageNumber <= 1 ? "#475569" : "#7458f5", color: "#fff", border: "none", cursor: pageNumber <= 1 ? "not-allowed" : "pointer", fontSize: "0.78rem", fontWeight: 600 }}
+          >
+            ◀ Prev
+          </button>
+          <span style={{ fontSize: "0.8rem" }}>
+            Page <b>{pageNumber}</b> / <b>{numPages}</b>
+          </span>
+          <button
+            type="button"
+            disabled={pageNumber >= numPages}
+            onClick={() => setPageNumber((p) => Math.min(numPages, p + 1))}
+            style={{ padding: "0.2rem 0.55rem", borderRadius: "0.3rem", background: pageNumber >= numPages ? "#475569" : "#7458f5", color: "#fff", border: "none", cursor: pageNumber >= numPages ? "not-allowed" : "pointer", fontSize: "0.78rem", fontWeight: 600 }}
+          >
+            Next ▶
+          </button>
+        </div>
+
+        {/* Right Zoom Controls */}
+        <div style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}>
+          <button
+            type="button"
+            onClick={() => setZoom((z) => Math.max(0.5, z - 0.15))}
+            style={{ padding: "0.2rem 0.5rem", borderRadius: "0.3rem", background: "#475569", color: "#fff", border: "none", cursor: "pointer", fontSize: "0.78rem", fontWeight: 700 }}
+            title="Zoom Out"
+          >
+            ➖
+          </button>
+          <span style={{ fontSize: "0.78rem", fontWeight: 600, minWidth: "3rem", textAlign: "center" }}>{Math.round(zoom * 100)}%</span>
+          <button
+            type="button"
+            onClick={() => setZoom((z) => Math.min(2.5, z + 0.15))}
+            style={{ padding: "0.2rem 0.5rem", borderRadius: "0.3rem", background: "#475569", color: "#fff", border: "none", cursor: "pointer", fontSize: "0.78rem", fontWeight: 700 }}
+            title="Zoom In"
+          >
+            ➕
+          </button>
+        </div>
+      </div>
+
+      {/* Canvas Scroll View Area */}
+      <div style={{ flex: 1, height: "calc(100% - 2.6rem)", overflow: "auto", display: "flex", justifyContent: "center", padding: "1.25rem 0.75rem", background: "#525659" }}>
+        <div style={{ boxShadow: "0 10px 30px rgba(0,0,0,0.5)", background: "#ffffff", borderRadius: "4px", height: "max-content" }}>
+          <canvas ref={canvasRef} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── FilePreviewPane: renders all file types inline in the browser ─────────
 function FilePreviewPane({ src, fileName, fileType }: { src: string; fileName: string; fileType: string }) {
   const [docHtml, setDocHtml] = useState<string | null>(null);
@@ -1389,6 +1546,10 @@ function FilePreviewPane({ src, fileName, fileType }: { src: string; fileName: s
         .catch(e => { setError(`Could not load text: ${e.message}`); setLoading(false); });
     }
   }, [src, ext]);
+
+  if (isPdf) {
+    return <PdfJsViewer src={src} fileName={fileName} />;
+  }
 
   return (
     <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', background: '#f5f4fb', overflow: 'hidden' }}>
