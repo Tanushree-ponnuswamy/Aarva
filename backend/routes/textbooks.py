@@ -137,7 +137,24 @@ def get_textbook_file(textbook_id: int, db: Session = Depends(get_db)):
     # Check disk for saved file
     for p in UPLOADS_DIR.glob(f"{textbook_id}_*"):
         ext = p.suffix.lower()
-        media_type = "application/pdf" if ext == ".pdf" else "text/plain"
+        mime_map = {
+            ".pdf":  "application/pdf",
+            ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            ".doc":  "application/msword",
+            ".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            ".xls":  "application/vnd.ms-excel",
+            ".png":  "image/png",
+            ".jpg":  "image/jpeg",
+            ".jpeg": "image/jpeg",
+            ".bmp":  "image/bmp",
+            ".tiff": "image/tiff",
+            ".tif":  "image/tiff",
+            ".webp": "image/webp",
+            ".txt":  "text/plain",
+            ".md":   "text/plain",
+            ".csv":  "text/csv",
+        }
+        media_type = mime_map.get(ext, "application/octet-stream")
         return FileResponse(path=p, media_type=media_type, filename=book.file_name, content_disposition_type="inline")
 
     # Fallback response if file was created before disk persistence

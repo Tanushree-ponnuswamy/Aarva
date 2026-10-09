@@ -124,11 +124,23 @@ def _parse_pdf(data: bytes, filename: str) -> ParseResult:
         for i, page in enumerate(doc, start=1):
             raw = page.get_text("text")  # type: ignore[attr-defined]
             cleaned = _clean_text(raw)
-            _safe_print(f"   [Page {i}/{total}] Read {len(cleaned.split())} words | Section: '{_guess_chapter(cleaned, i)}'")
 
-            # Scanned page fallback — very little text extracted
+            # Scanned / handwritten page fallback — very little text extracted
             if len(cleaned.split()) < 15 and total <= 300:
-                warnings.append(f"Page {i}: low text yield — may be scanned; consider image OCR.")
+                warnings.append(f"Page {i}: low text yield — attempting OCR on rendered page image.")
+                try:
+                    # Render page to image at 2x scale for better OCR accuracy
+                    mat = fitz.Matrix(2, 2)  # type: ignore[attr-defined]
+                    pix = page.get_pixmap(matrix=mat, alpha=False)  # type: ignore[attr-defined]
+                    img_bytes = pix.tobytes("png")
+                    ocr_result = _parse_image(img_bytes, f"page_{i}.png")
+                    if not ocr_result.is_empty:
+                        cleaned = ocr_result.full_text
+                        warnings.append(f"Page {i}: OCR text extracted ({len(cleaned.split())} words).")
+                except Exception as ocr_err:
+                    warnings.append(f"Page {i}: OCR fallback failed — {ocr_err}")
+
+            _safe_print(f"   [Page {i}/{total}] Read {len(cleaned.split())} words | Section: '{_guess_chapter(cleaned, i)}'")
 
             pages.append(PageChunk(
                 page_number=i,

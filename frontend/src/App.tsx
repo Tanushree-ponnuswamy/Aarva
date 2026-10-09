@@ -2069,12 +2069,29 @@ function UploadWorkspace({
                       style={{ width: "100%", height: "100%", border: 0 }}
                     />
                   ) : chatPreviewFile.type.startsWith("image/") ? (
-                    <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", padding: "1.5rem", height: "100%", background: "#faf9fd" }}>
+                    <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "1.5rem", height: "100%", background: "#faf9fd", gap: "1rem" }}>
                       <img
                         src={chatPreviewUrl}
                         alt={chatPreviewFile.name}
-                        style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain", borderRadius: "0.75rem", boxShadow: "0 6px 24px rgba(0,0,0,0.08)" }}
+                        style={{ maxWidth: "100%", maxHeight: "85%", objectFit: "contain", borderRadius: "0.75rem", boxShadow: "0 6px 24px rgba(0,0,0,0.08)" }}
                       />
+                      <span style={{ fontSize: "0.8rem", color: "#888", fontStyle: "italic" }}>{chatPreviewFile.name} • {(chatPreviewFile.size / 1024).toFixed(1)} KB</span>
+                    </div>
+                  ) : chatPreviewFile.name.toLowerCase().endsWith(".docx") || chatPreviewFile.name.toLowerCase().endsWith(".doc") ? (
+                    <div style={{ height: "100%", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: "1.2rem", background: "#faf9fd" }}>
+                      <div style={{ fontSize: "3rem" }}>📄</div>
+                      <div style={{ textAlign: "center" }}>
+                        <h3 style={{ margin: 0, fontWeight: 700, color: "#2e2a48" }}>{chatPreviewFile.name}</h3>
+                        <p style={{ color: "#888", fontSize: "0.85rem", marginTop: "0.4rem" }}>{(chatPreviewFile.size / 1024).toFixed(1)} KB • Word Document</p>
+                      </div>
+                      <a
+                        href={chatPreviewUrl}
+                        download={chatPreviewFile.name}
+                        style={{ padding: "0.6rem 1.4rem", background: "linear-gradient(135deg, #7458f5, #6366f1)", color: "white", borderRadius: "0.75rem", textDecoration: "none", fontWeight: 600, fontSize: "0.875rem" }}
+                      >
+                        ⬇ Download to Preview
+                      </a>
+                      <p style={{ color: "#aaa", fontSize: "0.78rem" }}>Word documents can be opened with Microsoft Office or Google Docs</p>
                     </div>
                   ) : (
                     <div className="chat-empty-state" style={{ height: "100%" }}>
@@ -2085,20 +2102,56 @@ function UploadWorkspace({
                   )}
                 </div>
               ) : book ? (
-                <div className="doc-iframe-box" style={{ flex: 1, height: "100%", minHeight: 0 }}>
-                  <iframe
-                    key={`${book.id}-${currentPage}`}
-                    src={`${API}/api/textbooks/${book.id}/file#page=${currentPage}`}
-                    title={`Document Preview of ${book.title}`}
-                    className="doc-full-iframe"
-                    style={{ width: "100%", height: "100%", border: 0 }}
-                  />
-                </div>
+                (() => {
+                  const fileUrl = `${API}/api/textbooks/${book.id}/file`;
+                  const fname = (book.file_name || book.title || "").toLowerCase();
+                  const isImage = /\.(png|jpg|jpeg|bmp|tiff|webp)$/i.test(fname);
+                  const isDocx = /\.(docx|doc)$/i.test(fname);
+                  const isPdf = /\.pdf$/i.test(fname) || (!isImage && !isDocx);
+                  return (
+                    <div className="doc-iframe-box" style={{ flex: 1, height: "100%", minHeight: 0 }}>
+                      {isPdf ? (
+                        <iframe
+                          key={`${book.id}-${currentPage}`}
+                          src={`${fileUrl}#page=${currentPage}`}
+                          title={`Document Preview of ${book.title}`}
+                          className="doc-full-iframe"
+                          style={{ width: "100%", height: "100%", border: 0 }}
+                        />
+                      ) : isImage ? (
+                        <div style={{ height: "100%", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "1.5rem", background: "#faf9fd", gap: "1rem" }}>
+                          <img
+                            src={fileUrl}
+                            alt={book.title}
+                            style={{ maxWidth: "100%", maxHeight: "85%", objectFit: "contain", borderRadius: "0.75rem", boxShadow: "0 6px 24px rgba(0,0,0,0.08)" }}
+                          />
+                          <span style={{ fontSize: "0.8rem", color: "#888", fontStyle: "italic" }}>{book.file_name}</span>
+                        </div>
+                      ) : isDocx ? (
+                        <div style={{ height: "100%", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: "1.2rem", background: "#faf9fd" }}>
+                          <div style={{ fontSize: "3rem" }}>📄</div>
+                          <div style={{ textAlign: "center" }}>
+                            <h3 style={{ margin: 0, fontWeight: 700, color: "#2e2a48" }}>{book.title}</h3>
+                            <p style={{ color: "#888", fontSize: "0.85rem", marginTop: "0.4rem" }}>{book.file_size || ""} • Word Document</p>
+                          </div>
+                          <a
+                            href={fileUrl}
+                            download={book.file_name}
+                            style={{ padding: "0.6rem 1.4rem", background: "linear-gradient(135deg, #7458f5, #6366f1)", color: "white", borderRadius: "0.75rem", textDecoration: "none", fontWeight: 600, fontSize: "0.875rem" }}
+                          >
+                            ⬇ Download to View
+                          </a>
+                          <p style={{ color: "#aaa", fontSize: "0.78rem" }}>Word documents can be opened with Microsoft Office or Google Docs</p>
+                        </div>
+                      ) : null}
+                    </div>
+                  );
+                })()
               ) : (
                 <div className="chat-empty-state" style={{ height: "100%" }}>
                   <div className="chat-empty-icon"><Icon name="spark" size={32} /></div>
                   <h3>No file uploaded</h3>
-                  <p>Upload or attach a document in the chat to view its live preview here.</p>
+                  <p>Upload a document in the chat to view its preview here.</p>
                 </div>
               )}
             </div>
