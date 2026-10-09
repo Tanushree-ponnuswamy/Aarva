@@ -1714,6 +1714,7 @@ function UploadWorkspace({
   };
 
   const handleNewChat = () => {
+    // 1. Reset Left Pane (Chat, Input & Attached Files)
     setMessages([
       {
         from: "ai",
@@ -1723,8 +1724,20 @@ function UploadWorkspace({
     setMessage("");
     setAttachedFiles([]);
     setChatPreviewFile(null);
+    if (chatPreviewUrl) {
+      try { URL.revokeObjectURL(chatPreviewUrl); } catch { /* ignore */ }
+    }
     setChatPreviewUrl(null);
     setLeftView("chat");
+
+    // 2. Reset Right Pane (Active Book, Summaries, RAG Extraction & Tab states)
+    onSelectBook(null);
+    localStorage.removeItem("aarva_active_book_id");
+    setSummaryData(null);
+    setLatestRag(null);
+    setSelectedScope("Entire Book");
+    setActiveTab("Summary");
+    setSubFilter("All");
   };
 
   // ── RAG Chat & Hybrid Retrieval Pipeline ──────────────────────────────────
