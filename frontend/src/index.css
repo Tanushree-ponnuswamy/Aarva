@@ -8592,3 +8592,16 @@ button {
     overflow-x: auto;
   }
 }
+
+.analysis-right-pane {
+  flex: 1;
+  height: 100%;
+  overflow-y: auto;
+  background: #fbfaff;
+  display: flex;
+  flex-direction: column;
+}
+
+.analysis-right-pane.right-pane-hidden {
+  display: none;
+}

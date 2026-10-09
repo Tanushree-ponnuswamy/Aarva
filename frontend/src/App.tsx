@@ -642,7 +642,7 @@ function MiniIcon({ name }: { name: "dashboard" | "upload" | "library" | "test" 
   return <svg className="mini-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{paths[name]}</svg>;
 }
 
-const API_BASE = "http://localhost:8000";
+const API_BASE = "http://127.0.0.1:8000";
 
 async function apiPost(path: string, body: unknown) {
   const res = await fetch(`${API_BASE}${path}`, {
@@ -1298,7 +1298,7 @@ interface LearningBook {
 const COVER_COLORS = ["violet", "blue", "blush", "lavender", "teal"] as const;
 
 // ── API helper (authenticated) ────────────────────────────────────────────
-const API = "http://localhost:8000";
+const API = "http://127.0.0.1:8000";
 
 async function apiFetch<T = any>(path: string, options: RequestInit = {}): Promise<T> {
   const token = localStorage.getItem("aarva_token") ?? "";
@@ -3166,7 +3166,7 @@ export default function App() {
     // Invalidate server session
     const token = localStorage.getItem("aarva_token");
     if (token) {
-      fetch("http://localhost:8000/api/auth/logout", {
+      fetch("http://127.0.0.1:8000/api/auth/logout", {
         method: "POST",
         headers: { Authorization: `Bearer ${token}` },
       }).catch(() => { });
