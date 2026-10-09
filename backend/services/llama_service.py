@@ -146,7 +146,7 @@ class LlamaService:
         return {
             "query": query,
             "response": raw_answer,
-            "retrieval_method": "Hybrid (Dense ChromaDB Vector + BM25 Okapi Lexical)",
+            "retrieval_method": "Hybrid Search",
             "sources": sources,
             "language": language,
             "suggested_followups": [
@@ -178,7 +178,7 @@ class LlamaService:
             f"{lang_instruction}"
             "Answer the user's question accurately using ONLY the provided verified context where applicable.\n"
             "Cite relevant pages, sheets, or sections if mentioned in the context.\n"
-            "Format your answer with clear markdown headings, bullet points, and bold key terms.\n\n"
+            "Provide a conversational, natural response similar to ChatGPT. Use paragraphs and bold text for emphasis where appropriate, rather than rigid headings.\n\n"
             f"VERIFIED CONTEXT:\n{context}\n\n"
             f"USER QUESTION: {query}\n\n"
             "ANSWER:"
@@ -219,32 +219,24 @@ class LlamaService:
 
         if "emd" in q_lower or "deposit" in q_lower or "cost" in q_lower or "fee" in q_lower:
             return (
-                f"### Financial Requirements Breakdown\n\n"
-                f"Based on the analyzed document records:\n"
-                f"- **Financial Scope**: Specific fee and deposit clauses have been parsed from the attached materials.\n"
-                f"- **Verified Records**: Context indicates key financial stipulations regarding payment guarantees, mandatory deposits, and estimated cost schedules.\n\n"
-                f"> **Relevant Excerpt from Source**:\n> *\"{context_sentences[0] if context_sentences else 'Standard EMD and tender fee requirements apply.'}\"*\n\n"
-                f"Would you like me to extract the full payment terms and penalty conditions?"
+                f"Based on the document, there are specific financial requirements mentioned.\n\n"
+                f"The text outlines stipulations regarding payment guarantees, mandatory deposits, and estimated cost schedules. "
+                f"For example, the document states: \"{context_sentences[0] if context_sentences else 'Standard EMD and tender fee requirements apply.'}\"\n\n"
+                f"Would you like me to extract the full payment terms and penalty conditions for you?"
             )
         elif "sliding window" in q_lower or "window" in q_lower:
             return (
-                "### Sliding Window Protocol Architecture\n\n"
                 "The **Sliding Window Protocol** is a foundational data-link and transport mechanism designed to achieve "
                 "both reliable, ordered packet delivery and optimal channel utilization.\n\n"
-                "**Key Operational Highlights**:\n"
-                "- **Window Sizing**: The sender maintains a buffer of unacknowledged frames (sliding window) governed by the Bandwidth-Delay Product (BDP).\n"
-                "- **Cumulative ACKs**: As the receiver confirms receipt, the sender's window slides forward, releasing capacity for subsequent packets.\n"
-                "- **Flow & Congestion Control**: Prevents receiver buffer overflow through advertised window throttling."
+                "Essentially, the sender maintains a buffer of unacknowledged frames (the sliding window) governed by the Bandwidth-Delay Product. "
+                "As the receiver confirms receipt with cumulative ACKs, the sender's window slides forward, releasing capacity for subsequent packets. "
+                "This also acts as a flow and congestion control mechanism to prevent receiver buffer overflow."
             )
         elif "tcp" in q_lower or "udp" in q_lower:
             return (
-                "### Transport Layer Comparison: TCP vs UDP\n\n"
-                "- **TCP (Transmission Control Protocol)**:\n"
-                "  - Connection-oriented with 3-Way Handshake (SYN, SYN-ACK, ACK).\n"
-                "  - Guarantees in-order delivery via sequence numbers and retransmission timers.\n\n"
-                "- **UDP (User Datagram Protocol)**:\n"
-                "  - Connectionless, low-overhead datagram transport.\n"
-                "  - Optimized for low-latency streaming, DNS queries, and real-time multiplayer telemetry."
+                "When comparing **TCP** and **UDP** at the transport layer, the main difference is how they handle connections.\n\n"
+                "**TCP (Transmission Control Protocol)** is connection-oriented. It uses a 3-Way Handshake (SYN, SYN-ACK, ACK) and guarantees in-order delivery via sequence numbers and retransmission timers.\n\n"
+                "**UDP (User Datagram Protocol)**, on the other hand, is connectionless with low overhead. It doesn't guarantee delivery, which makes it much faster and optimized for low-latency streaming, DNS queries, and real-time multiplayer gaming."
             )
         else:
             primary_lead = context_sentences[0] if context_sentences else "Standard architectural principles apply."
