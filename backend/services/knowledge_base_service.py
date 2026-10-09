@@ -176,22 +176,22 @@ class KnowledgeBaseService:
         # Key points extraction from first few chunks
         sample_texts = [c.text for c in chunks[:5]]
         key_points = [
-            f"Parsed content from {parse_result.page_count} pages/sheets across {len(chunks)} contextual chunks.",
+            f"This document contains {parse_result.page_count} pages and covers {parse_result.word_count} words of content.",
             f"Primary topics covered: {', '.join([p.chapter for p in parse_result.pages[:4]])}.",
-            "Indexed into ChromaDB with vector embeddings and BM25 lexical keywords for hybrid search."
+            "Content has been fully analyzed and is ready for question answering."
         ]
 
         return {
             "complete_summary": (
-                f"Knowledge document '{title}' ({parse_result.file_type.upper()}). "
-                f"Comprises {parse_result.page_count} pages/sheets and {parse_result.word_count} words. "
-                "Indexed for conversational querying, concept exploration, and targeted hybrid retrieval."
+                f"This is a {parse_result.file_type.upper()} document titled '{title}'. "
+                f"It comprises {parse_result.page_count} pages and contains {parse_result.word_count} words. "
+                "The entire text has been processed so you can easily chat with it, ask questions, and explore key concepts."
             ),
             "chapters": sections,
             "key_points": key_points,
             "definitions": [
-                {"term": "Knowledge Source", "definition": f"Verified document '{title}' ingested into vector store."},
-                {"term": "Retrieval Precision", "definition": "BM25 keyword matching fused with ChromaDB dense semantic vectors."}
+                {"term": "Document Title", "definition": f"The title of this uploaded file is '{title}'."},
+                {"term": "AI Assistant", "definition": "You can ask me questions about this text to quickly find answers without reading the whole document."}
             ]
         }
 
