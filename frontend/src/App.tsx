@@ -1871,75 +1871,24 @@ function UploadWorkspace({
   const summaryCards = [
     {
       id: "sum-1",
-      title: "Executive Syllabus Summary",
-      badge: "★ Important",
-      category: "Core Thesis",
-      highlight: (summaryData?.summary || (summaryData as any)?.complete_summary)
-        ? (((summaryData?.summary || (summaryData as any)?.complete_summary)!.length > 220
-          ? (summaryData?.summary || (summaryData as any)?.complete_summary)!.slice(0, 220) + "…"
-          : (summaryData?.summary || (summaryData as any)?.complete_summary)!))
-        : "Core Thesis: Systematic curriculum mastery from first principles to scalable domain architectures.",
-      clauses: [
-        {
-          label: "Primary Objective",
-          text: dynamicNotes[0] || (summaryData as any)?.complete_summary || "Structured framework connecting foundational theory to hands-on algorithmic practice.",
-          page: 1,
-        },
-        {
-          label: "Methodological Rigor",
-          text: dynamicNotes[1] || "Integrates inductive reasoning, empirical error analysis, and reproducible benchmark testing.",
-          page: 4,
-        },
-        {
-          label: "Examination Scope",
-          text: dynamicNotes[2] || "Covers essential mathematical vocabulary, architectural trade-offs, and optimization criteria.",
-          page: 8,
-        },
-      ],
-    },
-    {
-      id: "sum-2",
-      title: "Foundational Architecture & Theory",
-      badge: "★ Important",
-      category: "Theoretical Framework",
-      highlight: "Structured Progression: Foundational Theorems → Computational Graphs → Optimization Landscapes",
-      clauses: [
-        {
-          label: "Mathematical Preliminaries",
-          text: "Vector calculus, linear projections, matrix decomposition, and continuous probability distributions.",
-          page: 12,
-        },
-        {
-          label: "Theoretical Formulation",
-          text: "Convex optimization, objective loss surfaces, and structural empirical risk minimization.",
-          page: 24,
-        },
-        {
-          label: "Validation Standards",
-          text: "Strict data separation between training benchmarks, hold-out validation, and testing suites.",
-          page: 45,
-        },
-      ],
-    },
-    {
-      id: "sum-3",
-      title: "Examination Scope & Key Focus Areas",
-      badge: "★ High Yield",
-      category: "Exam Focus",
-      highlight: "High-yield topics: 4 Major Modules • 12 Core Derivations • End-of-chapter Laboratory Exercises",
-      clauses: [
-        {
-          label: "Scoring Weightage",
-          text: "65% of test questions evaluate loss landscape behavior and error analysis methodologies.",
-          page: 58,
-        },
-        {
-          label: "Notation Convention",
-          text: "Scalars in standard italic, vectors in bold lowercase, transformation matrices in uppercase bold.",
-          page: 72,
-        },
-      ],
-    },
+      title: "Document Summary",
+      badge: "★ Core Summary",
+      category: "Summary",
+      highlight: (summaryData?.summary || (summaryData as any)?.complete_summary) || "Document summary.",
+      clauses: dynamicNotes.length > 0 
+        ? dynamicNotes.map((note, idx) => ({
+            label: `Key Point ${idx + 1}`,
+            text: note,
+            page: idx + 1,
+          }))
+        : [
+            {
+              label: "Analysis",
+              text: "Summary extracted from document content.",
+              page: 1,
+            }
+          ],
+    }
   ];
 
   const chapterList = summaryData?.chapters && summaryData.chapters.length > 0
@@ -1959,20 +1908,10 @@ function UploadWorkspace({
     highlight: ch.summary || "Core syllabus module establishing essential theorems, derivations, and case studies.",
     clauses: [
       {
-        label: "Core Formulation",
-        text: `Primary mechanism, key equations, and conceptual definitions for Chapter ${ch.chapter || (ch as any).page || idx + 1}.`,
+        label: "Summary",
+        text: ch.summary || `Primary mechanism, key equations, and conceptual definitions for Chapter ${ch.chapter || (ch as any).page || idx + 1}.`,
         page: Math.min(totalPages, (ch as any).page || (idx * 25) + 1),
-      },
-      {
-        label: "Critical Takeaway",
-        text: `Essential derivation and practical edge cases highlighted for technical revision.`,
-        page: Math.min(totalPages, (idx * 25) + 14),
-      },
-      {
-        label: "Practice Problems",
-        text: `End-of-chapter self-evaluation problems and diagnostic question banks.`,
-        page: Math.min(totalPages, (idx * 25) + 22),
-      },
+      }
     ],
   }));
 
@@ -1981,23 +1920,13 @@ function UploadWorkspace({
     title: `Concept ${idx + 1}: ${concept}`,
     badge: "★ Core Concept",
     category: concept,
-    highlight: `Fundamental Principle: ${concept} defines the core mechanism underlying system behavior.`,
+    highlight: `Key Concept: ${concept} is a central theme in this document.`,
     clauses: [
       {
-        label: "Mechanism & Formulation",
-        text: `Formal formulation and theoretical properties established in the curriculum.`,
+        label: "Concept Overview",
+        text: `Analysis and occurrence of ${concept} within the uploaded material.`,
         page: Math.min(totalPages, (idx * 18) + 5),
-      },
-      {
-        label: "Practical Implementation",
-        text: `Application within real-world algorithms, loss functions, and inference pipelines.`,
-        page: Math.min(totalPages, (idx * 18) + 11),
-      },
-      {
-        label: "Common Exam Traps",
-        text: `Boundary conditions, numerical instabilities, and erroneous assumptions to avoid.`,
-        page: Math.min(totalPages, (idx * 18) + 16),
-      },
+      }
     ],
   }));
 
@@ -2009,35 +1938,25 @@ function UploadWorkspace({
     highlight: def,
     clauses: [
       {
-        label: "Technical Definition",
-        text: `${term} is formally defined as: ${def}`,
+        label: "Definition",
+        text: `${term} is defined as: ${def}`,
         page: Math.min(totalPages, (idx * 15) + 2),
-      },
-      {
-        label: "Examination Context",
-        text: `Frequently required in terminology questions, short explanations, and oral vivas.`,
-        page: Math.min(totalPages, (idx * 15) + 9),
-      },
+      }
     ],
   }));
 
   const noteCards = dynamicNotes.map((note, idx) => ({
     id: `note-${idx}`,
-    title: `Key Revision Rule #${idx + 1}`,
-    badge: "★ High Yield",
+    title: `Key Insight #${idx + 1}`,
+    badge: "★ Highlight",
     category: "Revision Rule",
     highlight: note,
     clauses: [
       {
-        label: "Rule Explanation",
-        text: `Syllabus guidance: ${note}`,
+        label: "Details",
+        text: note,
         page: Math.min(totalPages, (idx * 20) + 8),
-      },
-      {
-        label: "Retention Strategy",
-        text: `Link this concept to practical code implementation and benchmark datasets.`,
-        page: Math.min(totalPages, (idx * 20) + 17),
-      },
+      }
     ],
   }));
 
