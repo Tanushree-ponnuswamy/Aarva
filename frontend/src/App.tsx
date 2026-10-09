@@ -1527,7 +1527,7 @@ function UploadWorkspace({
   onUploaded: () => void;
   onSelectBook: (book: LearningBook | null) => void;
 }) {
-  const [leftView, setLeftView] = useState<"files" | "chat">("chat");
+  const [leftView, setLeftView] = useState<"files" | "chat">("files");
   const [activeTab, setActiveTab] = useState<"AI Extraction" | "Summary" | "Chapters" | "Concepts" | "Definitions" | "Important Notes">("Summary");
   const [subFilter, setSubFilter] = useState<string>("All");
   const [currentPage, setCurrentPage] = useState<number>(1);
@@ -1587,6 +1587,7 @@ function UploadWorkspace({
   // When a book is selected, fetch stored chat history and live textbook summary
   useEffect(() => {
     if (book?.id) {
+      setLeftView("files");
       const user = (() => { try { return JSON.parse(localStorage.getItem("aarva_user") || "null"); } catch { return null; } })();
 
       // 1. Fetch Chat History
@@ -2353,10 +2354,20 @@ Generated At: ${new Date().toLocaleString()}
                   fileType={(book as any).file_type || "pdf"}
                 />
               ) : (
-                <div className="chat-empty-state" style={{ height: "100%" }}>
-                  <div className="chat-empty-icon"><Icon name="spark" size={32} /></div>
-                  <h3>No file uploaded</h3>
-                  <p>Upload or attach a document to view its preview here.</p>
+                <div style={{ height: "100%", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "2rem", background: "#faf9fd" }}>
+                  <div style={{ width: "100%", maxWidth: "440px", border: "2px dashed #7458f5", borderRadius: "1.2rem", padding: "2.5rem 1.5rem", background: "#ffffff", textAlign: "center", boxShadow: "0 4px 20px rgba(116, 88, 245, 0.06)" }}>
+                    <div style={{ fontSize: "3rem", marginBottom: "0.5rem" }}>📄</div>
+                    <h3 style={{ margin: "0 0 0.4rem", fontWeight: 700, color: "#2e2a48" }}>Upload a Textbook or Document</h3>
+                    <p style={{ color: "#777", fontSize: "0.85rem", marginBottom: "1.2rem" }}>Support for PDF, DOCX, XLSX, Images, and Text files</p>
+                    <button
+                      type="button"
+                      className="auth-btn-azure"
+                      onClick={() => chatFileInputRef.current?.click()}
+                      style={{ padding: "0.75rem 1.5rem", borderRadius: "0.75rem", fontSize: "0.9rem" }}
+                    >
+                      Select File to Preview & Analyze
+                    </button>
+                  </div>
                 </div>
               )}
             </div>
