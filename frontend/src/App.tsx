@@ -1354,7 +1354,11 @@ function FilePreviewPane({ src, fileName, fileType }: { src: string; fileName: s
       fetch(src)
         .then(r => r.arrayBuffer())
         .then(buf => import('mammoth').then(mammoth => mammoth.convertToHtml({ arrayBuffer: buf })))
-        .then(({ value }) => { setDocHtml(value); setLoading(false); })
+        .then(({ value }) => {
+          const cleaned = (value || '').replace(/^(<p>(\s|&nbsp;|<br\s*\/?>)*<\/p>\s*)+/gi, '');
+          setDocHtml(cleaned || value);
+          setLoading(false);
+        })
         .catch(e => { setError(`Could not render document: ${e.message}`); setLoading(false); });
     } else if (isXlsx) {
       setLoading(true);
@@ -1471,21 +1475,32 @@ function FilePreviewPane({ src, fileName, fileType }: { src: string; fileName: s
             )}
 
             {(isDocx || isText) && docHtml !== null && (
-              <div style={{ width: '100%', height: '100%', overflow: 'auto', background: '#f3f2f8', padding: '2rem 1rem' }}>
-                <div style={{
-                  maxWidth: '820px',
-                  margin: '0 auto',
-                  background: '#ffffff',
-                  padding: '3rem 3.5rem',
-                  borderRadius: '8px',
-                  boxShadow: '0 8px 30px rgba(0,0,0,0.06), 0 2px 4px rgba(0,0,0,0.04)',
-                  minHeight: '800px',
-                  fontFamily: 'Calibri, "Segoe UI", Georgia, serif',
-                  lineHeight: 1.7,
-                  fontSize: '0.98rem',
-                  color: '#1a1a1a'
-                }}
-                dangerouslySetInnerHTML={{ __html: docHtml }} />
+              <div style={{ width: '100%', height: '100%', overflow: 'auto', background: '#f3f2f8', padding: '1rem 0.5rem' }}>
+                <style>{`
+                  .doc-paper > *:first-child { margin-top: 0 !important; }
+                  .doc-paper p:first-child { margin-top: 0 !important; }
+                  .doc-paper h1:first-child, .doc-paper h2:first-child, .doc-paper h3:first-child { margin-top: 0 !important; }
+                  .doc-paper p { margin: 0.5rem 0; }
+                  .doc-paper table { border-collapse: collapse; width: 100%; margin: 1rem 0; }
+                  .doc-paper td, .doc-paper th { border: 1px solid #cbd5e1; padding: 0.5rem 0.75rem; font-size: 0.88rem; }
+                `}</style>
+                <div
+                  className="doc-paper"
+                  style={{
+                    maxWidth: '820px',
+                    margin: '0 auto',
+                    background: '#ffffff',
+                    padding: '1.75rem 2.25rem',
+                    borderRadius: '8px',
+                    boxShadow: '0 4px 20px rgba(0,0,0,0.06), 0 1px 3px rgba(0,0,0,0.04)',
+                    minHeight: '600px',
+                    fontFamily: 'Calibri, "Segoe UI", Arial, sans-serif',
+                    lineHeight: 1.65,
+                    fontSize: '0.95rem',
+                    color: '#1e293b'
+                  }}
+                  dangerouslySetInnerHTML={{ __html: docHtml }}
+                />
               </div>
             )}
 
