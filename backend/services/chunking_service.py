@@ -96,7 +96,29 @@ class ChunkingService:
     def _split_text_into_chunks(self, text: str) -> List[str]:
         """
         Splits text into chunks preserving sentence and paragraph boundaries where possible.
+        Uses Semantic Chunking if chunk_size is set to "auto".
         """
+        if self.chunk_size == "auto":
+            paragraphs = [p.strip() for p in text.split("\n\n") if p.strip()]
+            chunks = []
+            current = ""
+            # Fallback to sensible defaults if max/min are missing
+            max_chars = getattr(settings, "MAX_CHUNK_CHARS", 2000)
+            min_chars = getattr(settings, "MIN_CHUNK_CHARS", 200)
+            
+            for p in paragraphs:
+                if len(current) + len(p) < max_chars:
+                    current = (current + "\n\n" + p).strip()
+                else:
+                    if len(current) > min_chars:
+                        chunks.append(current)
+                        current = p
+                    else:
+                        current = (current + "\n\n" + p).strip()
+            if current:
+                chunks.append(current)
+            return chunks
+
         paragraphs = [p.strip() for p in text.split("\n\n") if p.strip()]
         if not paragraphs:
             paragraphs = [text]

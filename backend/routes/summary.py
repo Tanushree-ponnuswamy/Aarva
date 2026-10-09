@@ -67,12 +67,17 @@ def get_summary(
     if mode == "complete":
         return {
             "textbook_id": book.id,
-            "title": book.title,
+            "title": stored_data.get("title") or book.title,
             "mode": "complete",
-            "summary": stored_data.get("complete_summary", f"Complete summary of {book.title}."),
-            "chapters": stored_data.get("chapters", []),
+            "overview": stored_data.get("overview") or stored_data.get("complete_summary") or f"A comprehensive study overview for {book.title}.",
+            "summary": stored_data.get("overview") or stored_data.get("complete_summary") or f"A comprehensive study overview for {book.title}.",
+            "main_takeaway": stored_data.get("main_takeaway") or f"Core insights and workflow of {book.title}.",
             "key_points": stored_data.get("key_points", []),
-            "definitions": stored_data.get("definitions", [])
+            "topics_covered": stored_data.get("topics_covered", []),
+            "chapters": stored_data.get("chapters", []),
+            "concepts": stored_data.get("concepts", []),
+            "definitions": stored_data.get("definitions", []),
+            "important_notes": stored_data.get("important_notes", [])
         }
     elif mode == "chapter":
         ch_num = chapter or 1
@@ -84,8 +89,8 @@ def get_summary(
                 "title": book.title,
                 "mode": "chapter",
                 "chapter_info": matching,
-                "key_points": stored_data.get("key_points", [])[:2],
-                "definitions": stored_data.get("definitions", [])[:2]
+                "key_points": stored_data.get("key_points", [])[:3],
+                "definitions": stored_data.get("definitions", [])[:3]
             }
         else:
             return llama_service.generate_summary(book.title, mode="chapter", chapter_id=ch_num)

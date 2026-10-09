@@ -1,4 +1,10 @@
 import { FormEvent, ReactNode, useEffect, useMemo, useRef, useState } from "react";
+import * as pdfjsLib from "pdfjs-dist";
+import pdfWorker from "pdfjs-dist/build/pdf.worker.mjs?url";
+
+if (typeof window !== "undefined") {
+  pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorker;
+}
 
 const team = [
   {
@@ -1323,164 +1329,415 @@ const menuItems: { label: string; icon: "dashboard" | "library" | "upload" | "te
 ];
 
 // ── PDF.js Canvas Viewer with Page Navigation & Zoom ────────────────────────
-function PdfJsViewer({ src, fileName }: { src: string; fileName: string }) {
+function PdfJsViewer({
+  src,
+  fileName,
+  pageNumber = 1,
+  onPageChange,
+}: {
+  src: string;
+  fileName: string;
+  pageNumber?: number;
+  onPageChange?: (page: number) => void;
+}) {
   const [numPages, setNumPages] = useState<number>(0);
-  const [pageNumber, setPageNumber] = useState<number>(1);
-  const [zoom, setZoom] = useState<number>(1.1);
+  const [currentPage, setCurrentPage] = useState<number>(pageNumber || 1);
+  const [zoom, setZoom] = useState<number>(1.15);
+  const [fitWidth, setFitWidth] = useState<boolean>(true);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [pdfDoc, setPdfDoc] = useState<any>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const renderTaskRef = useRef<any>(null);
 
+  // Sync external pageNumber if changed
+  useEffect(() => {
+    if (pageNumber && pageNumber !== currentPage && pageNumber <= (numPages || 999)) {
+      setCurrentPage(pageNumber);
+    }
+  }, [pageNumber, numPages]);
+
+  const handlePageChange = (newPage: number) => {
+    const clamped = Math.max(1, Math.min(numPages || 1, newPage));
+    setCurrentPage(clamped);
+    if (onPageChange) onPageChange(clamped);
+  };
+
+  // Load PDF document from ArrayBuffer (no CORS / worker URL issues)
   useEffect(() => {
     if (!src) return;
+    let isCancelled = false;
     setLoading(true);
     setError(null);
 
-    import("pdfjs-dist").then((pdfjsLib) => {
-      pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version || "4.10.38"}/pdf.worker.min.mjs`;
+    const loadPdfDoc = async () => {
+      try {
+        let uint8Data: Uint8Array;
+        if (src.startsWith("blob:") || src.startsWith("data:")) {
+          const res = await fetch(src);
+          const buf = await res.arrayBuffer();
+          uint8Data = new Uint8Array(buf);
+        } else {
+          const token = localStorage.getItem("aarva_token") ?? "";
+          const res = await fetch(src, {
+            headers: token ? { Authorization: `Bearer ${token}` } : {},
+          });
+          if (!res.ok) {
+            throw new Error(`Server returned ${res.status} when fetching document.`);
+          }
+          const buf = await res.arrayBuffer();
+          uint8Data = new Uint8Array(buf);
+        }
 
-      const loadingTask = pdfjsLib.getDocument({
-        url: src,
-        withCredentials: false
-      });
+        if (isCancelled) return;
 
-      loadingTask.promise
-        .then((doc) => {
-          setPdfDoc(doc);
-          setNumPages(doc.numPages);
-          setPageNumber(1);
-          setLoading(false);
-        })
-        .catch((err) => {
-          setError(err.message || "Failed to load PDF via PDF.js");
-          setLoading(false);
+        const loadingTask = pdfjsLib.getDocument({
+          data: uint8Data,
+          cMapUrl: `https://unpkg.com/pdfjs-dist@${pdfjsLib.version || "4.10.38"}/cmaps/`,
+          cMapPacked: true,
         });
-    }).catch(() => {
-      setError("PDF.js library failed to load");
-      setLoading(false);
-    });
+
+        const doc = await loadingTask.promise;
+        if (isCancelled) return;
+
+        setPdfDoc(doc);
+        setNumPages(doc.numPages);
+        const initialP = pageNumber && pageNumber <= doc.numPages ? pageNumber : 1;
+        setCurrentPage(initialP);
+        setLoading(false);
+      } catch (err: any) {
+        if (!isCancelled) {
+          console.error("PDF.js loading error:", err);
+          setError(err.message || "Failed to parse PDF document.");
+          setLoading(false);
+        }
+      }
+    };
+
+    loadPdfDoc();
+    return () => {
+      isCancelled = true;
+    };
   }, [src]);
 
+  // Render Page to Canvas
   useEffect(() => {
     if (!pdfDoc || !canvasRef.current) return;
+    let isCancelled = false;
 
-    pdfDoc.getPage(pageNumber).then((page: any) => {
-      const canvas = canvasRef.current;
-      if (!canvas) return;
+    const renderPage = async () => {
+      try {
+        if (renderTaskRef.current) {
+          try {
+            renderTaskRef.current.cancel();
+          } catch {
+            /* ignore */
+          }
+        }
 
-      const viewport = page.getViewport({ scale: zoom });
-      const context = canvas.getContext("2d");
-      if (!context) return;
+        const page = await pdfDoc.getPage(currentPage);
+        if (isCancelled || !canvasRef.current) return;
 
-      const outputScale = window.devicePixelRatio || 1;
-      canvas.width = Math.floor(viewport.width * outputScale);
-      canvas.height = Math.floor(viewport.height * outputScale);
-      canvas.style.width = Math.floor(viewport.width) + "px";
-      canvas.style.height = Math.floor(viewport.height) + "px";
+        const canvas = canvasRef.current;
+        const context = canvas.getContext("2d");
+        if (!context) return;
 
-      const transform = outputScale !== 1 ? [outputScale, 0, 0, outputScale, 0, 0] : null;
+        let scaleToUse = zoom;
+        if (fitWidth && containerRef.current) {
+          const containerWidth = containerRef.current.clientWidth - 48; // padding
+          const unscaledViewport = page.getViewport({ scale: 1.0 });
+          if (containerWidth > 200 && unscaledViewport.width > 0) {
+            scaleToUse = Math.min(2.5, Math.max(0.6, containerWidth / unscaledViewport.width));
+          }
+        }
 
-      const renderContext = {
-        canvasContext: context,
-        transform: transform,
-        viewport: viewport,
-      };
+        const viewport = page.getViewport({ scale: scaleToUse });
+        const outputScale = window.devicePixelRatio || 1;
 
-      page.render(renderContext);
-    });
-  }, [pdfDoc, pageNumber, zoom]);
+        canvas.width = Math.floor(viewport.width * outputScale);
+        canvas.height = Math.floor(viewport.height * outputScale);
+        canvas.style.width = Math.floor(viewport.width) + "px";
+        canvas.style.height = Math.floor(viewport.height) + "px";
 
-  if (loading) return (
-    <div style={{ height: "100%", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: "1rem", background: "#323639", color: "#f8fafc" }}>
-      <div style={{ width: "2.5rem", height: "2.5rem", border: "3px solid #475569", borderTop: "3px solid #7458f5", borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
-      <span style={{ color: "#a5b4fc", fontWeight: 600, fontSize: "0.9rem" }}>Loading PDF.js Canvas Viewer…</span>
-    </div>
-  );
+        const transform = outputScale !== 1 ? [outputScale, 0, 0, outputScale, 0, 0] : null;
 
-  if (error) return (
-    <iframe src={`${src}#toolbar=1`} title={fileName} style={{ width: "100%", height: "100%", border: 0 }} />
-  );
+        const renderContext = {
+          canvasContext: context,
+          transform,
+          viewport,
+        };
+
+        const task = page.render(renderContext);
+        renderTaskRef.current = task;
+        await task.promise;
+      } catch (err: any) {
+        if (err?.name !== "RenderingCancelledException") {
+          console.error("PDF render error:", err);
+        }
+      }
+    };
+
+    renderPage();
+    return () => {
+      isCancelled = true;
+    };
+  }, [pdfDoc, currentPage, zoom, fitWidth]);
+
+  const handlePopout = () => {
+    window.open(src, "_blank", "noopener,noreferrer");
+  };
+
+  const handleDownload = () => {
+    const a = document.createElement("a");
+    a.href = src;
+    a.download = fileName || "document.pdf";
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  };
 
   return (
-    <div style={{ width: "100%", height: "100%", display: "flex", flexDirection: "column", background: "#525659" }}>
-      {/* PDF.js Viewer Toolbar */}
-      <div style={{
-        height: "2.6rem",
-        background: "#323639",
-        color: "#f1f5f9",
-        padding: "0 0.85rem",
+    <div className="pdf-viewer-container" style={{ width: "100%", height: "100%", display: "flex", flexDirection: "column", background: "#f8f9fa", overflow: "hidden" }}>
+      {/* 1. Document Top Sub-Header */}
+      <div className="pdf-doc-bar" style={{
+        height: "2.85rem",
+        background: "#ffffff",
+        borderBottom: "1px solid #eef0f3",
+        padding: "0 1rem",
         display: "flex",
         alignItems: "center",
         justifyContent: "space-between",
-        fontSize: "0.82rem",
-        boxShadow: "0 2px 6px rgba(0,0,0,0.3)",
-        flexShrink: 0,
-        zIndex: 10
+        fontSize: "0.85rem",
+        color: "#2e2a48",
+        fontWeight: 600,
+        flexShrink: 0
       }}>
-        {/* Left Title */}
-        <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", fontWeight: 600 }}>
-          <span>📄</span>
-          <span style={{ maxWidth: "200px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{fileName}</span>
-        </div>
-
-        {/* Center Page Navigation */}
-        <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-          <button
-            type="button"
-            disabled={pageNumber <= 1}
-            onClick={() => setPageNumber((p) => Math.max(1, p - 1))}
-            style={{ padding: "0.2rem 0.55rem", borderRadius: "0.3rem", background: pageNumber <= 1 ? "#475569" : "#7458f5", color: "#fff", border: "none", cursor: pageNumber <= 1 ? "not-allowed" : "pointer", fontSize: "0.78rem", fontWeight: 600 }}
-          >
-            ◀ Prev
-          </button>
-          <span style={{ fontSize: "0.8rem" }}>
-            Page <b>{pageNumber}</b> / <b>{numPages}</b>
+        <div style={{ display: "flex", alignItems: "center", gap: "0.6rem" }}>
+          <span style={{ color: "#10b981", fontSize: "1.15rem", display: "flex", alignItems: "center" }}>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#10b981" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+              <polyline points="14 2 14 8 20 8" />
+              <line x1="16" y1="13" x2="8" y2="13" />
+              <line x1="16" y1="17" x2="8" y2="17" />
+              <polyline points="10 9 9 9 8 9" />
+            </svg>
           </span>
-          <button
-            type="button"
-            disabled={pageNumber >= numPages}
-            onClick={() => setPageNumber((p) => Math.min(numPages, p + 1))}
-            style={{ padding: "0.2rem 0.55rem", borderRadius: "0.3rem", background: pageNumber >= numPages ? "#475569" : "#7458f5", color: "#fff", border: "none", cursor: pageNumber >= numPages ? "not-allowed" : "pointer", fontSize: "0.78rem", fontWeight: 600 }}
-          >
-            Next ▶
-          </button>
+          <span style={{ maxWidth: "280px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", color: "#1e293b", fontWeight: 600 }}>
+            {fileName}
+          </span>
+          <span style={{ background: "#f1f5f9", color: "#64748b", padding: "0.15rem 0.55rem", borderRadius: "999px", fontSize: "0.75rem", fontWeight: 600 }}>
+            1 file
+          </span>
         </div>
-
-        {/* Right Zoom Controls */}
-        <div style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}>
+        <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
           <button
             type="button"
-            onClick={() => setZoom((z) => Math.max(0.5, z - 0.15))}
-            style={{ padding: "0.2rem 0.5rem", borderRadius: "0.3rem", background: "#475569", color: "#fff", border: "none", cursor: "pointer", fontSize: "0.78rem", fontWeight: 700 }}
-            title="Zoom Out"
+            onClick={handlePopout}
+            style={{ display: "flex", alignItems: "center", gap: "0.3rem", padding: "0.3rem 0.65rem", borderRadius: "0.45rem", background: "#f8fafc", color: "#475569", border: "1px solid #e2e8f0", fontSize: "0.78rem", fontWeight: 600, cursor: "pointer" }}
+            title="Open in new tab"
           >
-            ➖
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+              <polyline points="15 3 21 3 21 9" />
+              <line x1="10" y1="14" x2="21" y2="3" />
+            </svg>
+            Popout
           </button>
-          <span style={{ fontSize: "0.78rem", fontWeight: 600, minWidth: "3rem", textAlign: "center" }}>{Math.round(zoom * 100)}%</span>
           <button
             type="button"
-            onClick={() => setZoom((z) => Math.min(2.5, z + 0.15))}
-            style={{ padding: "0.2rem 0.5rem", borderRadius: "0.3rem", background: "#475569", color: "#fff", border: "none", cursor: "pointer", fontSize: "0.78rem", fontWeight: 700 }}
-            title="Zoom In"
+            onClick={handleDownload}
+            style={{ display: "flex", alignItems: "center", gap: "0.3rem", padding: "0.3rem 0.65rem", borderRadius: "0.45rem", background: "#ffffff", color: "#475569", border: "1px solid #e2e8f0", fontSize: "0.78rem", fontWeight: 600, cursor: "pointer" }}
+            title="Download file"
           >
-            ➕
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+              <polyline points="7 10 12 15 17 10" />
+              <line x1="12" y1="15" x2="12" y2="3" />
+            </svg>
+            Download
           </button>
         </div>
       </div>
 
-      {/* Canvas Scroll View Area */}
-      <div style={{ flex: 1, height: "calc(100% - 2.6rem)", overflow: "auto", display: "flex", justifyContent: "center", padding: "1.25rem 0.75rem", background: "#525659" }}>
-        <div style={{ boxShadow: "0 10px 30px rgba(0,0,0,0.5)", background: "#ffffff", borderRadius: "4px", height: "max-content" }}>
-          <canvas ref={canvasRef} />
+      {/* 2. PDF Viewer Charcoal Toolbar */}
+      <div className="pdf-viewer-subtoolbar" style={{
+        height: "2.4rem",
+        background: "#18181b",
+        color: "#f4f4f5",
+        padding: "0 0.85rem",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-between",
+        fontSize: "0.8rem",
+        boxShadow: "0 1px 3px rgba(0,0,0,0.2)",
+        flexShrink: 0,
+        zIndex: 5
+      }}>
+        {/* Left: Page Navigation */}
+        <div style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}>
+          <button
+            type="button"
+            disabled={currentPage <= 1}
+            onClick={() => handlePageChange(currentPage - 1)}
+            style={{ background: "transparent", border: "none", color: currentPage <= 1 ? "#52525b" : "#f4f4f5", cursor: currentPage <= 1 ? "not-allowed" : "pointer", padding: "0.2rem 0.4rem", fontSize: "0.85rem", fontWeight: 700 }}
+            aria-label="Previous page"
+          >
+            ‹
+          </button>
+          <div style={{ display: "flex", alignItems: "center", gap: "0.3rem", fontSize: "0.78rem" }}>
+            <span style={{ fontWeight: 600, background: "#27272a", padding: "0.15rem 0.45rem", borderRadius: "0.25rem", minWidth: "1.5rem", textAlign: "center" }}>
+              {currentPage}
+            </span>
+            <span style={{ color: "#a1a1aa" }}>/</span>
+            <span style={{ color: "#a1a1aa" }}>{numPages || 1}</span>
+          </div>
+          <button
+            type="button"
+            disabled={currentPage >= numPages}
+            onClick={() => handlePageChange(currentPage + 1)}
+            style={{ background: "transparent", border: "none", color: currentPage >= numPages ? "#52525b" : "#f4f4f5", cursor: currentPage >= numPages ? "not-allowed" : "pointer", padding: "0.2rem 0.4rem", fontSize: "0.85rem", fontWeight: 700 }}
+            aria-label="Next page"
+          >
+            ›
+          </button>
         </div>
+
+        {/* Right: Zoom & Fit Width */}
+        <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+          <button
+            type="button"
+            onClick={() => setFitWidth(!fitWidth)}
+            style={{
+              padding: "0.18rem 0.55rem",
+              borderRadius: "0.3rem",
+              background: fitWidth ? "#3f3f46" : "transparent",
+              color: "#f4f4f5",
+              border: "1px solid #3f3f46",
+              cursor: "pointer",
+              fontSize: "0.74rem",
+              fontWeight: 600,
+              display: "flex",
+              alignItems: "center",
+              gap: "0.3rem"
+            }}
+            title="Fit Width"
+          >
+            🔍 Fit Width
+          </button>
+          <div style={{ display: "flex", alignItems: "center", gap: "0.2rem", background: "#27272a", borderRadius: "0.3rem", padding: "0.1rem 0.3rem" }}>
+            <button
+              type="button"
+              onClick={() => { setFitWidth(false); setZoom((z) => Math.max(0.5, z - 0.15)); }}
+              style={{ background: "transparent", border: "none", color: "#f4f4f5", cursor: "pointer", padding: "0.1rem 0.35rem", fontSize: "0.85rem", fontWeight: 700 }}
+              title="Zoom Out"
+            >
+              −
+            </button>
+            <span style={{ fontSize: "0.72rem", color: "#d4d4d8", minWidth: "2.6rem", textAlign: "center", fontWeight: 600 }}>
+              {Math.round(zoom * 100)}%
+            </span>
+            <button
+              type="button"
+              onClick={() => { setFitWidth(false); setZoom((z) => Math.min(3, z + 0.15)); }}
+              style={{ background: "transparent", border: "none", color: "#f4f4f5", cursor: "pointer", padding: "0.1rem 0.35rem", fontSize: "0.85rem", fontWeight: 700 }}
+              title="Zoom In"
+            >
+              +
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* 3. Document Canvas Area with Single Scrollbar */}
+      <div
+        ref={containerRef}
+        className="pdf-canvas-scroll-container"
+        style={{
+          flex: 1,
+          height: "calc(100% - 5.25rem)",
+          overflowY: "auto",
+          overflowX: "auto",
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          padding: "1.5rem 1rem",
+          background: "#525659",
+          position: "relative"
+        }}
+      >
+        {loading && (
+          <div style={{ minHeight: "350px", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: "1rem", color: "#f4f4f5" }}>
+            <div style={{ width: "2.2rem", height: "2.2rem", border: "3px solid #3f3f46", borderTop: "3px solid #7458f5", borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
+            <span style={{ color: "#e4e4e7", fontWeight: 600, fontSize: "0.85rem" }}>Rendering PDF page…</span>
+          </div>
+        )}
+
+        {error && (
+          <div style={{ minHeight: "300px", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: "0.75rem", background: "#ffffff", padding: "2rem", borderRadius: "0.75rem", textAlign: "center", maxWidth: "420px", margin: "auto", boxShadow: "0 4px 20px rgba(0,0,0,0.2)" }}>
+            <span style={{ fontSize: "2rem" }}>📄</span>
+            <h4 style={{ margin: 0, color: "#1e293b", fontWeight: 700 }}>{fileName}</h4>
+            <p style={{ margin: 0, color: "#64748b", fontSize: "0.82rem" }}>{error}</p>
+            <button
+              type="button"
+              onClick={handleDownload}
+              style={{ marginTop: "0.5rem", padding: "0.45rem 1rem", background: "#7458f5", color: "#fff", border: "none", borderRadius: "0.5rem", fontWeight: 600, fontSize: "0.82rem", cursor: "pointer" }}
+            >
+              Download PDF
+            </button>
+          </div>
+        )}
+
+        {!loading && !error && (
+          <div
+            className="pdf-page-wrapper"
+            style={{
+              boxShadow: "0 4px 24px rgba(0,0,0,0.35)",
+              background: "#ffffff",
+              borderRadius: "2px",
+              position: "relative",
+              marginBottom: "1rem",
+              height: "max-content",
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center"
+            }}
+          >
+            <canvas ref={canvasRef} style={{ display: "block" }} />
+            <div
+              style={{
+                padding: "0.4rem 0",
+                fontSize: "0.72rem",
+                color: "#71717a",
+                textAlign: "center",
+                width: "100%",
+                background: "#ffffff",
+                borderTop: "1px solid #f4f4f5"
+              }}
+            >
+              Page {currentPage} of {numPages}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
 }
 
 // ── FilePreviewPane: renders all file types inline in the browser ─────────
-function FilePreviewPane({ src, fileName, fileType }: { src: string; fileName: string; fileType: string }) {
+function FilePreviewPane({
+  src,
+  fileName,
+  fileType,
+  pageNumber = 1,
+  onPageChange,
+}: {
+  src: string;
+  fileName: string;
+  fileType: string;
+  pageNumber?: number;
+  onPageChange?: (page: number) => void;
+}) {
   const [docHtml, setDocHtml] = useState<string | null>(null);
   const [xlsxHtml, setXlsxHtml] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -1489,18 +1746,18 @@ function FilePreviewPane({ src, fileName, fileType }: { src: string; fileName: s
   const extFromUrl = (src || '').split('?')[0].split('.').pop()?.toLowerCase() || '';
   const extFromName = (fileName || '').split('.').pop()?.toLowerCase() || '';
   const extFromType = (fileType || '').split('/').pop()?.toLowerCase() || '';
-  const knownExts = ['pdf','png','jpg','jpeg','bmp','tiff','tif','webp','docx','doc','xlsx','xls','txt','md','csv'];
+  const knownExts = ['pdf', 'png', 'jpg', 'jpeg', 'bmp', 'tiff', 'tif', 'webp', 'docx', 'doc', 'xlsx', 'xls', 'txt', 'md', 'csv'];
   const ext = knownExts.includes(extFromName)
     ? extFromName
     : knownExts.includes(extFromUrl)
       ? extFromUrl
       : extFromType;
 
-  const isPdf = ext === 'pdf' || fileType?.includes('pdf');
-  const isImage = ['png','jpg','jpeg','bmp','tiff','tif','webp'].includes(ext) || fileType?.startsWith('image/');
+  const isPdf = ext === 'pdf' || fileType?.includes('pdf') || (!ext && !fileType);
+  const isImage = ['png', 'jpg', 'jpeg', 'bmp', 'tiff', 'tif', 'webp'].includes(ext) || fileType?.startsWith('image/');
   const isDocx = ext === 'docx' || ext === 'doc' || fileType?.includes('word');
   const isXlsx = ext === 'xlsx' || ext === 'xls' || fileType?.includes('sheet') || fileType?.includes('excel');
-  const isText = ['txt','md','rst','csv','log'].includes(ext) || fileType?.startsWith('text/');
+  const isText = ['txt', 'md', 'rst', 'csv', 'log'].includes(ext) || fileType?.startsWith('text/');
 
   useEffect(() => {
     if (!src) return;
@@ -1539,7 +1796,7 @@ function FilePreviewPane({ src, fileName, fileType }: { src: string; fileName: s
       fetch(src)
         .then(r => r.text())
         .then(text => {
-          const escaped = text.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+          const escaped = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
           setDocHtml(`<pre style="white-space:pre-wrap;word-break:break-word;font-family:'Courier New',monospace;font-size:0.85rem;line-height:1.7;padding:1.5rem;color:#2e2a48;margin:0">${escaped}</pre>`);
           setLoading(false);
         })
@@ -1548,14 +1805,21 @@ function FilePreviewPane({ src, fileName, fileType }: { src: string; fileName: s
   }, [src, ext]);
 
   if (isPdf) {
-    return <PdfJsViewer src={src} fileName={fileName} />;
+    return (
+      <PdfJsViewer
+        src={src}
+        fileName={fileName}
+        pageNumber={pageNumber}
+        onPageChange={onPageChange}
+      />
+    );
   }
 
   return (
     <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', background: '#f5f4fb', overflow: 'hidden' }}>
       {/* Document Top Bar */}
       <div style={{
-        height: "2.8rem",
+        height: "2.85rem",
         background: "#ffffff",
         borderBottom: "1px solid #ede9f7",
         padding: "0 1rem",
@@ -1568,60 +1832,52 @@ function FilePreviewPane({ src, fileName, fileType }: { src: string; fileName: s
         flexShrink: 0
       }}>
         <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-          <span>{isPdf ? "📄" : isImage ? "🖼️" : isDocx ? "📝" : isXlsx ? "📊" : "📄"}</span>
+          <span>{isImage ? "🖼️" : isDocx ? "📝" : isXlsx ? "📊" : "📄"}</span>
           <span style={{ maxWidth: "260px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{fileName}</span>
         </div>
         <div style={{ display: "flex", gap: "0.4rem", alignItems: "center" }}>
-          <a
-            href={src}
-            target="_blank"
-            rel="noopener noreferrer"
-            style={{ padding: "0.25rem 0.65rem", borderRadius: "0.4rem", background: "#f5f3ff", color: "#7458f5", textDecoration: "none", fontSize: "0.78rem", fontWeight: 600 }}
+          <button
+            type="button"
+            onClick={() => window.open(src, "_blank")}
+            style={{ padding: "0.25rem 0.65rem", borderRadius: "0.4rem", background: "#f5f3ff", color: "#7458f5", border: "none", fontSize: "0.78rem", fontWeight: 600, cursor: "pointer" }}
           >
             ↗ Open Full
-          </a>
-          <a
-            href={src}
-            download={fileName}
-            style={{ padding: "0.25rem 0.65rem", borderRadius: "0.4rem", background: "#7458f5", color: "#ffffff", textDecoration: "none", fontSize: "0.78rem", fontWeight: 600 }}
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              const a = document.createElement("a");
+              a.href = src;
+              a.download = fileName;
+              document.body.appendChild(a);
+              a.click();
+              document.body.removeChild(a);
+            }}
+            style={{ padding: "0.25rem 0.65rem", borderRadius: "0.4rem", background: "#7458f5", color: "#ffffff", border: "none", fontSize: "0.78rem", fontWeight: 600, cursor: "pointer" }}
           >
             ⬇ Download
-          </a>
+          </button>
         </div>
       </div>
 
       {/* Document Body Area */}
-      <div style={{ flex: 1, height: "calc(100% - 2.8rem)", overflowY: "auto", overflowX: "hidden", position: "relative" }}>
+      <div style={{ flex: 1, height: "calc(100% - 2.85rem)", overflowY: "auto", overflowX: "hidden", position: "relative" }}>
         {loading && (
-          <div style={{ height:'100%', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:'1rem', background:'#faf9fd' }}>
-            <div style={{ width:'2.5rem', height:'2.5rem', border:'3px solid #ede9f7', borderTop:'3px solid #7458f5', borderRadius:'50%', animation:'spin 0.8s linear infinite' }} />
-            <span style={{ color:'#7458f5', fontWeight:600, fontSize:'0.9rem' }}>Rendering document preview…</span>
+          <div style={{ height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '1rem', background: '#faf9fd' }}>
+            <div style={{ width: '2.5rem', height: '2.5rem', border: '3px solid #ede9f7', borderTop: '3px solid #7458f5', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
+            <span style={{ color: '#7458f5', fontWeight: 600, fontSize: '0.9rem' }}>Rendering document preview…</span>
           </div>
         )}
 
         {error && (
-          <div style={{ height:'100%', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:'1rem', background:'#faf9fd', padding:'2rem', textAlign:'center' }}>
-            <span style={{ fontSize:'2.5rem' }}>⚠️</span>
-            <p style={{ color:'#e05252', fontWeight:600 }}>{error}</p>
+          <div style={{ height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '1rem', background: '#faf9fd', padding: '2rem', textAlign: 'center' }}>
+            <span style={{ fontSize: '2.5rem' }}>⚠️</span>
+            <p style={{ color: '#e05252', fontWeight: 600 }}>{error}</p>
           </div>
         )}
 
         {!loading && !error && (
           <>
-            {isPdf && (
-              <object
-                data={`${src}#toolbar=1&navpanes=0`}
-                type="application/pdf"
-                style={{ width: '100%', height: '100%', border: 0 }}
-              >
-                <iframe
-                  src={`${src}#toolbar=1&navpanes=0`}
-                  title={fileName}
-                  style={{ width: '100%', height: '100%', border: 0 }}
-                />
-              </object>
-            )}
-
             {isImage && (
               <div style={{ minHeight: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: '#f8f7fc', padding: '1.25rem', overflow: 'visible' }}>
                 <div style={{ background: '#ffffff', padding: '0.75rem', borderRadius: '1rem', boxShadow: '0 10px 30px rgba(0,0,0,0.08)', maxWidth: '100%', maxHeight: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
@@ -1678,11 +1934,11 @@ function FilePreviewPane({ src, fileName, fileType }: { src: string; fileName: s
               </div>
             )}
 
-            {!isPdf && !isImage && !isDocx && !isXlsx && !isText && (
-              <div style={{ height:'100%', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:'1rem', background:'#faf9fd', padding:'2rem', textAlign:'center' }}>
-                <span style={{ fontSize:'2.5rem' }}>📄</span>
-                <h3 style={{ margin:0, fontWeight:700, color:'#2e2a48' }}>{fileName}</h3>
-                <p style={{ color:'#999', fontSize:'0.85rem' }}>Preview not available for this file format.</p>
+            {!isImage && !isDocx && !isXlsx && !isText && (
+              <div style={{ height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '1rem', background: '#faf9fd', padding: '2rem', textAlign: 'center' }}>
+                <span style={{ fontSize: '2.5rem' }}>📄</span>
+                <h3 style={{ margin: 0, fontWeight: 700, color: '#2e2a48' }}>{fileName}</h3>
+                <p style={{ color: '#999', fontSize: '0.85rem' }}>Preview not available for this file format.</p>
               </div>
             )}
           </>
@@ -2013,6 +2269,12 @@ function UploadWorkspace({
     const uId = targetUserId || user?.id || 6;
 
     try {
+      // Build conversation history for multi-turn follow-ups
+      const historyPayload = messages.slice(-8).map((m) => ({
+        role: m.from === "ai" ? "assistant" : "user",
+        content: m.text
+      }));
+
       const res = await apiFetch<{
         query: string;
         response: string;
@@ -2025,6 +2287,8 @@ function UploadWorkspace({
           query: queryText,
           textbook_id: targetBookId,
           user_id: uId,
+          language: selectedLang,
+          conversation_history: historyPayload
         }),
       });
 
@@ -2034,19 +2298,17 @@ function UploadWorkspace({
         speakText(res.response);
       }
 
-      // 2. Update right pane extracted answer
+      // 2. Update latest retrieval reference
       setLatestRag({
         query: res.query || queryText,
         response: res.response,
-        retrieval_method: res.retrieval_method || "Hybrid Search",
+        retrieval_method: res.retrieval_method || "Document Grounded",
         sources: res.sources || [],
         suggested_followups: res.suggested_followups || [],
         timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
       });
-
-      // Stay on the current right-pane tab (no longer auto-switching to removed AI Extraction tab)
     } catch {
-      const fallback = "I couldn't reach the server right now. Please check your connection and try again.";
+      const fallback = "I'm having trouble retrieving details right now. Please verify your connection or try asking again.";
       setMessages((c) => [...c, { from: "ai", text: fallback }]);
       if (voiceAssistantActive) {
         speakText(fallback);
@@ -2083,7 +2345,7 @@ function UploadWorkspace({
           }
         };
 
-        // Server-side parsing, chunking, ChromaDB vector indexing (45% -> 95%)
+        // Server-side parsing, chunking, vector indexing (45% -> 95%)
         let stageTimer: any = null;
         xhr.upload.onload = () => {
           setUploadProgress(45);
@@ -2127,9 +2389,7 @@ function UploadWorkspace({
 
       // Jump to 100% when backend completes processing
       setUploadProgress(100);
-
-      // Brief 400ms pause so user clearly sees 100% completed
-      await new Promise((r) => setTimeout(r, 450));
+      await new Promise((r) => setTimeout(r, 400));
 
       onUploaded(); // refresh library
 
@@ -2148,19 +2408,15 @@ function UploadWorkspace({
         ...c,
         {
           from: "ai",
-          text: `✅ **${newBook.title}** has been uploaded successfully!\n` +
-            `The extracted summary and breakdown are now loaded on the right. Ask me any question about this document!`,
+          text: `Hi! I've finished reading **${newBook.title}**. The summary and study guides are ready on the right. What would you like to explore first?`,
         },
       ]);
 
-      // Turn off uploading state so right side results display immediately
       setUploading(false);
 
-      // If a question was also entered with the attachment, run the RAG query on the new book
       if (initialQuery && initialQuery.trim()) {
         await executeRagChat(initialQuery.trim(), newBook.id, userId);
       } else {
-        // Automatically display Summary tab on the right
         setActiveTab("Summary");
       }
     } catch (err: unknown) {
@@ -2185,13 +2441,11 @@ function UploadWorkspace({
     const hasFiles = attachedFiles.length > 0;
     const fileToUpload = hasFiles ? attachedFiles[0] : null;
 
-    // Reset input fields
     setMessage("");
     setAttachedFiles([]);
     setChatPreviewFile(null);
     setChatPreviewUrl(null);
 
-    // Case 1: File attached -> upload & extract into RAG pipeline
     if (fileToUpload) {
       setMessages((c) => [
         ...c,
@@ -2201,14 +2455,13 @@ function UploadWorkspace({
         },
         {
           from: "ai",
-          text: `⚙️ Ingesting "${fileToUpload.name}"... Results will appear on the right shortly!`,
+          text: `Ingesting "${fileToUpload.name}" and preparing your study guide...`,
         },
       ]);
       await doUpload(fileToUpload, queryText);
       return;
     }
 
-    // Case 2: Text question entered -> execute RAG query
     if (queryText) {
       setMessages((c) => [...c, { from: "user", text: queryText }]);
 
@@ -2218,7 +2471,7 @@ function UploadWorkspace({
           activeBookId = books[0].id;
           onSelectBook(books[0]);
         } else {
-          activeBookId = 2; // fallback to indexed textbook
+          activeBookId = 1;
         }
       }
 
@@ -2228,251 +2481,125 @@ function UploadWorkspace({
 
   const handleChipClick = (promptText: string) => {
     setMessage(promptText);
+    setLeftView("chat");
   };
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const f = e.target.files?.[0];
-    if (f) {
-      setSelectedFile(f);
-      if (filePreviewUrl) URL.revokeObjectURL(filePreviewUrl);
-      setFilePreviewUrl(URL.createObjectURL(f));
-      setLeftView("files");
-    }
-    e.target.value = "";
-  };
-
-  const handleDrop = (e: React.DragEvent) => {
-    e.preventDefault();
-    setDragOver(false);
-    const f = e.dataTransfer.files?.[0];
-    if (f) {
-      setSelectedFile(f);
-      if (filePreviewUrl) URL.revokeObjectURL(filePreviewUrl);
-      setFilePreviewUrl(URL.createObjectURL(f));
-      setLeftView("files");
+  const handleRetryLast = async () => {
+    const lastUserMsg = [...messages].reverse().find(m => m.from === "user");
+    if (lastUserMsg) {
+      const cleanText = lastUserMsg.text.replace(/^📎\s*\[[^\]]+\]\s*/, "");
+      if (cleanText) {
+        let activeBookId = book?.id || (books.length > 0 ? books[0].id : 1);
+        await executeRagChat(cleanText, activeBookId);
+      }
     }
   };
 
-  const cancelPreview = () => {
-    if (filePreviewUrl) URL.revokeObjectURL(filePreviewUrl);
-    setSelectedFile(null);
-    setFilePreviewUrl(null);
+  const handleClearChat = () => {
+    const title = summaryData?.title || book?.title || "your uploaded document";
+    setMessages([
+      {
+        from: "ai",
+        text: `Chat cleared. I'm ready to answer any questions about "${title}". What would you like to know?`
+      }
+    ]);
   };
 
-  const confirmUpload = () => {
-    if (selectedFile) {
-      doUpload(selectedFile);
-      setSelectedFile(null);
-      if (filePreviewUrl) URL.revokeObjectURL(filePreviewUrl);
-      setFilePreviewUrl(null);
-    }
-  };
+  // ── Dynamic Study Data Extraction ─────────────────────────────────────────
+  const docDisplayTitle = summaryData?.title || (book?.title ? book.title.replace(/\.[^.]+$/, "").replace(/[-_]/g, " ") : "New Workspace");
+  const overviewText = summaryData?.overview || summaryData?.summary || (summaryData as any)?.complete_summary || "Upload a document to generate an AI-powered study guide and interactive summary.";
+  const takeawayText = summaryData?.main_takeaway || "Ready to analyze a new document.";
 
-  const formatFileSize = (bytes: number) => {
-    if (bytes < 1024) return `${bytes} B`;
-    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-  };
-
-  const handleCopySummary = () => {
-    const textToCopy = `${book?.title || "Summary"}\nTab: ${activeTab}\nScope: ${selectedScope}\nLanguage: ${selectedLang}\n\n` +
-      (activeTab === "Summary"
-        ? (summaryData?.summary || "A concise overview of the selected content.")
-        : activeTab === "Chapters"
-          ? chapterList.map(c => `Chapter ${c.chapter || 1}: ${c.title}\n${c.summary}`).join("\n\n")
-          : activeTab === "Concepts"
-            ? dynamicConcepts.map(c => `• ${c}`).join("\n")
-            : activeTab === "Definitions"
-              ? dynamicDefinitions.map(([t, d]) => `${t}: ${d}`).join("\n")
-              : dynamicNotes.join("\n"));
-    navigator.clipboard.writeText(textToCopy);
-    setCopiedToast(true);
-    setTimeout(() => setCopiedToast(false), 2000);
-  };
-
-  const handleExportSummary = () => {
-    const textToExport = `AARVA AI LEARNING PLATFORM
-Textbook: ${book?.title || "Document"}
-Section: ${activeTab} | Scope: ${selectedScope} | Language: ${selectedLang} | Depth: ${summaryLength}
-Generated At: ${new Date().toLocaleString()}
---------------------------------------------------
-
-` + (activeTab === "Summary"
-      ? (summaryData?.summary || "A concise overview of the selected content.")
-      : activeTab === "Chapters"
-        ? chapterList.map(c => `Chapter ${c.chapter || 1}: ${c.title}\nOverview: ${c.summary}`).join("\n\n")
-        : activeTab === "Concepts"
-          ? dynamicConcepts.map(c => `Concept: ${c}`).join("\n\n")
-          : activeTab === "Definitions"
-            ? dynamicDefinitions.map(([t, d]) => `${t}\nDefinition: ${d}`).join("\n\n")
-            : dynamicNotes.map((n, i) => `${i + 1}. ${n}`).join("\n"));
-
-    const blob = new Blob([textToExport], { type: "text/plain;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `AARVA_${activeTab}_${(book?.title || "Summary").replace(/\s+/g, "_")}.txt`;
-    a.click();
-    URL.revokeObjectURL(url);
-  };
-
-  const handleRegenerate = () => {
-    setSummaryLoading(true);
-    setTimeout(() => {
-      setSummaryLoading(false);
-    }, 800);
-  };
-
-  const dynamicConcepts = summaryData?.concepts && summaryData.concepts.length > 0
-    ? summaryData.concepts
-    : (book?.concepts && book.concepts.length > 0
-      ? book.concepts
-      : ["Theoretical Principles", "Core Algorithms", "Optimization Dynamics", "Diagnostic Metrics"]);
-
-  const dynamicDefinitions = summaryData?.definitions && summaryData.definitions.length > 0
-    ? summaryData.definitions.map(d => [d.term || "Concept", d.definition || "Core principle described in text."])
-    : [
-        ["System Architecture", "The structural organization of software or hardware components and their interactions within a domain."],
-        ["Objective Function", "A mathematical expression optimized during training or evaluation to achieve target performance."]
-      ];
-
-  const dynamicNotes = summaryData?.key_points && summaryData.key_points.length > 0
+  const keyPointsList = (summaryData?.key_points && summaryData.key_points.length > 0)
     ? summaryData.key_points
     : [
-        "Always verify mathematical boundary conditions before applying computational transformations.",
-        "Ensure regularization terms are appropriately weighted to prevent overfitting on sample data.",
-        "Precision-recall trade-offs must be evaluated based on the specific cost matrix of the target domain."
-      ];
-
-  // ── Data models for Cards ───────────────────────────────────
-  const totalPages = book?.total_pages || book?.pages || 0;
-  const fileName = book?.file_name || (book?.title ? `${book.title}.pdf` : "Document");
-
-  const summaryCards = [
-    {
-      id: "sum-1",
-      title: "Document Summary",
-      badge: "★ Core Summary",
-      category: "Summary",
-      highlight: (summaryData?.summary || (summaryData as any)?.complete_summary) || "Document summary.",
-      clauses: dynamicNotes.length > 0 
-        ? dynamicNotes.map((note, idx) => ({
-            label: `Key Point ${idx + 1}`,
-            text: note,
-            page: idx + 1,
-          }))
-        : [
-            {
-              label: "Analysis",
-              text: "Summary extracted from document content.",
-              page: 1,
-            }
-          ],
-    }
-  ];
-
-  const chapterList = summaryData?.chapters && summaryData.chapters.length > 0
-    ? summaryData.chapters
-    : [
-      { chapter: 1, title: "Foundations & Mathematical Preliminaries", summary: "Calculus of gradients, convex functions, and objective formulation." },
-      { chapter: 2, title: "Neural Architectures & Computational Graphs", summary: "Automatic differentiation, forward propagation, and backpropagation mechanics." },
-      { chapter: 3, title: "Optimization Dynamics & Regularization", summary: "Stochastic gradient descent, momentum, Adam optimizer, and weight decay." },
-      { chapter: 4, title: "Evaluation Metrics & Latency Profiling", summary: "Precision-recall trade-offs, ROC-AUC, cross-validation, and quantization." },
-      { chapter: 5, title: "Deployment Pipeline & Model Compression", summary: "Quantization, pruning, knowledge distillation, and edge device serving." },
-      { chapter: 6, title: "Advanced Topics & Empirical Benchmarks", summary: "Attention mechanisms, transformer blocks, and large-scale pretraining principles." },
+      "Upload a textbook, PDF, or document to extract key takeaways.",
+      "Use the chat on the left to ask questions about your uploaded content.",
+      "Automatically generated quizzes and concepts will appear here."
     ];
 
-  const chapterCards = chapterList.map((ch, idx) => ({
-    id: `chap-${ch.chapter || (ch as any).page || idx + 1}`,
-    title: `Chapter ${ch.chapter || (ch as any).page || idx + 1}: ${ch.title || "Foundation Module"}`,
-    badge: idx === 0 || idx === 1 ? "★ Important" : "★ Exam Focus",
-    category: `Chapter ${ch.chapter || (ch as any).page || idx + 1}`,
-    highlight: ch.summary || "Core syllabus module establishing essential theorems, derivations, and case studies.",
-    clauses: [
-      {
-        label: "Summary",
-        text: ch.summary || `Primary mechanism, key equations, and conceptual definitions for Chapter ${ch.chapter || (ch as any).page || idx + 1}.`,
-        page: Math.min(totalPages, (ch as any).page || (idx * 25) + 1),
+  const topicsCoveredList = (summaryData?.topics_covered && summaryData.topics_covered.length > 0)
+    ? summaryData.topics_covered
+    : ["No topics extracted yet"];
+
+  const chapterList: Array<{ chapter?: number; page?: number; title?: string; summary?: string }> = (summaryData?.chapters && summaryData.chapters.length > 0)
+    ? summaryData.chapters
+    : [
+      { chapter: 1, page: 1, title: "Waiting for Document", summary: "Upload a document to extract chapters and structural sections." }
+    ];
+
+  const conceptList: Array<{ name: string; explanation: string; how_it_works?: string; example?: string }> = (summaryData?.concepts && summaryData.concepts.length > 0)
+    ? summaryData.concepts.map((c: any, idx: number) => {
+      if (typeof c === "string") {
+        return {
+          name: c,
+          explanation: `Important conceptual building block covered in ${docDisplayTitle}.`,
+          how_it_works: `Coordinates the structural inputs and outputs for this domain.`,
+          example: `Like a modular building block that connects separate functional units.`
+        };
       }
-    ],
-  }));
-
-  const conceptCards = dynamicConcepts.map((concept, idx) => ({
-    id: `conc-${idx}`,
-    title: `Concept ${idx + 1}: ${concept}`,
-    badge: "★ Core Concept",
-    category: concept,
-    highlight: `Key Concept: ${concept} is a central theme in this document.`,
-    clauses: [
+      return {
+        name: c.name || `Concept #${idx + 1}`,
+        explanation: c.explanation || "Core concept explanation.",
+        how_it_works: c.how_it_works || "Operational mechanics and processing logic.",
+        example: c.example || "Real-world analogy to illustrate the concept."
+      };
+    })
+    : [
       {
-        label: "Concept Overview",
-        text: `Analysis and occurrence of ${concept} within the uploaded material.`,
-        page: Math.min(totalPages, (idx * 18) + 5),
-      }
-    ],
-  }));
-
-  const definitionCards = dynamicDefinitions.map(([term, def], idx) => ({
-    id: `def-${idx}`,
-    title: `Term: ${term}`,
-    badge: "★ Definition",
-    category: term,
-    highlight: def,
-    clauses: [
+        name: "System Architecture",
+        explanation: "The high-level structural blueprint and modular component layout.",
+        how_it_works: "Coordinates communication between frontend interfaces, backend endpoints, and vector stores.",
+        example: "Like the master blueprints of a modern building ensuring electrical, plumbing, and safety work together."
+      },
       {
-        label: "Definition",
-        text: `${term} is defined as: ${def}`,
-        page: Math.min(totalPages, (idx * 15) + 2),
-      }
-    ],
-  }));
-
-  const noteCards = dynamicNotes.map((note, idx) => ({
-    id: `note-${idx}`,
-    title: `Key Insight #${idx + 1}`,
-    badge: "★ Highlight",
-    category: "Revision Rule",
-    highlight: note,
-    clauses: [
+        name: "Hybrid Retrieval Engine",
+        explanation: "A dual-channel search combining dense semantic vectors with BM25 lexical keyword matching.",
+        how_it_works: "Balances conceptual meaning with exact keyword matches to retrieve the most precise document excerpt.",
+        example: "Like having both a research librarian and a word-indexed dictionary working simultaneously."
+      },
       {
-        label: "Details",
-        text: note,
-        page: Math.min(totalPages, (idx * 20) + 8),
+        name: "Verification & Test Harness",
+        explanation: "Automated test suites validating data accuracy and system reliability.",
+        how_it_works: "Simulates edge cases, load patterns, and malformed inputs to ensure resilience.",
+        example: "Like crash-testing a car prototype before starting full factory production."
       }
-    ],
-  }));
+    ];
 
-  // Dynamic filter lists for current tab
-  const subFilters = activeTab === "AI Extraction"
-    ? ["All Specifics"]
-    : activeTab === "Summary"
-      ? ["All Specifics", "Core Thesis", "Theoretical Framework", "Exam Focus"]
-      : activeTab === "Chapters"
-        ? ["All Chapters", ...chapterList.map((c) => `Chapter ${c.chapter || 1}`)]
-        : activeTab === "Concepts"
-          ? ["All Concepts", ...dynamicConcepts.slice(0, 4)]
-          : activeTab === "Definitions"
-            ? ["All Definitions", ...dynamicDefinitions.slice(0, 4).map((d) => d[0])]
-            : ["All Notes", "Revision Rule"];
+  const definitionList: Array<{ term: string; definition: string }> = (summaryData?.definitions && summaryData.definitions.length > 0)
+    ? summaryData.definitions.map((d: any) => ({
+      term: d.term || d[0] || "Term",
+      definition: d.definition || d[1] || "Definition from document."
+    }))
+    : [
+      { term: "Knowledge Transfer (KT)", definition: "The structured process of transferring project context, architectural decisions, and operational details between team members." },
+      { term: "Document Intelligence", definition: "Automated extraction of structured tables, entities, and semantic relationships from complex documents." },
+      { term: "RAG (Retrieval-Augmented Generation)", definition: "A pattern where relevant excerpts from private documents are retrieved and provided to an LLM for factual, hallucination-free answers." }
+    ];
 
-  const currentCards = activeTab === "Summary" ? summaryCards
-    : activeTab === "Chapters" ? chapterCards
-      : activeTab === "Concepts" ? conceptCards
-        : activeTab === "Definitions" ? definitionCards
-          : noteCards;
+  const notesList: Array<{ note: string; type?: string; page?: number }> = (summaryData?.important_notes && summaryData.important_notes.length > 0)
+    ? summaryData.important_notes.map((n: any) => {
+      if (typeof n === "string") return { note: n, type: "Important", page: 1 };
+      return { note: n.note || n.text || String(n), type: n.type || "Requirement", page: n.page || 1 };
+    })
+    : [
+      { note: "System architecture is designed for modular scalability and local Ollama inference.", type: "Requirement", page: 1 },
+      { note: "Frontend and backend communication is governed by RESTful JSON schemas.", type: "Technical Fact", page: 2 },
+      { note: "Verify that all edge cases in file parsing are supported before production release.", type: "Exam Focus", page: 3 }
+    ];
 
-  const filteredCards = subFilter === "All" || subFilter.startsWith("All")
-    ? currentCards
-    : currentCards.filter((c) => c.category === subFilter || c.title.includes(subFilter));
+  const filteredDefinitions = defSearchQuery.trim()
+    ? definitionList.filter(d => d.term.toLowerCase().includes(defSearchQuery.toLowerCase()) || d.definition.toLowerCase().includes(defSearchQuery.toLowerCase()))
+    : definitionList;
 
-  // ── Book selected — show analysis workspace matching screenshot ───────────
+  // ── Book selected — show analysis workspace ───────────────────────────────
   return (
     <section className={`analysis-workspace ${zenMode ? "fullscreen-zen" : ""}`}>
       {uploadError && <p className="form-error" style={{ padding: "0.4rem 1.5rem" }}>{uploadError}</p>}
 
       {/* Main Split Body: Left 50% & Right 50% */}
       <div className="analysis-split-body">
-        {/* ── LEFT PANE: Chat / Document Viewer ─────────────────── */}
+        {/* ── LEFT PANE: AI Tutor Chat / Document Viewer ─────────────────── */}
         <section className="analysis-left-pane">
           {/* Top Pill Switcher: Chat / Files & New Chat */}
           <div className="pane-pill-row">
@@ -2489,62 +2616,65 @@ Generated At: ${new Date().toLocaleString()}
                 className={leftView === "files" ? "active" : ""}
                 onClick={() => setLeftView("files")}
               >
-                Files {attachedFiles.length > 0 && <span className="pill-badge">{attachedFiles.length}</span>}
+                Files <span className="pill-badge">1</span>
               </button>
             </div>
 
-            <button
-              type="button"
-              className="new-chat-pill-btn"
-              onClick={handleNewChat}
-              title="Start a new chat session"
-              aria-label="New chat"
-            >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
-                <line x1="12" y1="5" x2="12" y2="19" />
-                <line x1="5" y1="12" x2="19" y2="12" />
-              </svg>
-              <span>New</span>
-            </button>
+            <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+              {leftView === "chat" && messages.length > 1 && (
+                <button
+                  type="button"
+                  className="new-chat-pill-btn"
+                  onClick={handleClearChat}
+                  title="Clear conversation"
+                  style={{ fontSize: "0.76rem", color: "#64748b" }}
+                >
+                  <span>Clear</span>
+                </button>
+              )}
+              <button
+                type="button"
+                className="new-chat-pill-btn"
+                onClick={handleNewChat}
+                title="Start a new chat session"
+                aria-label="New chat"
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="12" y1="5" x2="12" y2="19" />
+                  <line x1="5" y1="12" x2="19" y2="12" />
+                </svg>
+                <span>New</span>
+              </button>
+            </div>
           </div>
 
           {/* View Mode: Files / Document Viewer */}
           {leftView === "files" && (
-            <div className="doc-viewer-wrapper" style={{ height: "calc(100% - 3.4rem)", display: "flex", flexDirection: "column" }}>
+            <div className="doc-viewer-wrapper" style={{ height: "calc(100% - 3.4rem)", display: "flex", flexDirection: "column", overflow: "hidden" }}>
               {chatPreviewFile && chatPreviewUrl ? (
                 <FilePreviewPane
                   src={chatPreviewUrl}
                   fileName={chatPreviewFile.name}
                   fileType={chatPreviewFile.type}
+                  pageNumber={currentPage}
+                  onPageChange={setCurrentPage}
                 />
               ) : selectedFile && filePreviewUrl ? (
                 <FilePreviewPane
                   src={filePreviewUrl}
                   fileName={selectedFile.name}
                   fileType={selectedFile.type}
-                />
-              ) : book ? (
-                <FilePreviewPane
-                  src={`${API}/api/textbooks/${book.id}/file`}
-                  fileName={book.file_name || book.title || ""}
-                  fileType={(book as any).file_type || "pdf"}
+                  pageNumber={currentPage}
+                  onPageChange={setCurrentPage}
                 />
               ) : (
-                <div style={{ height: "100%", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "2rem", background: "#faf9fd" }}>
-                  <div style={{ width: "100%", maxWidth: "440px", border: "2px dashed #7458f5", borderRadius: "1.2rem", padding: "2.5rem 1.5rem", background: "#ffffff", textAlign: "center", boxShadow: "0 4px 20px rgba(116, 88, 245, 0.06)" }}>
-                    <div style={{ fontSize: "3rem", marginBottom: "0.5rem" }}>📄</div>
-                    <h3 style={{ margin: "0 0 0.4rem", fontWeight: 700, color: "#2e2a48" }}>Upload a Textbook or Document</h3>
-                    <p style={{ color: "#777", fontSize: "0.85rem", marginBottom: "1.2rem" }}>Support for PDF, DOCX, XLSX, Images, and Text files</p>
-                    <button
-                      type="button"
-                      className="auth-btn-azure"
-                      onClick={() => chatFileInputRef.current?.click()}
-                      style={{ padding: "0.75rem 1.5rem", borderRadius: "0.75rem", fontSize: "0.9rem" }}
-                    >
-                      Select File to Preview & Analyze
-                    </button>
-                  </div>
-                </div>
+                <FilePreviewPane
+                  src={book?.id ? `${API}/api/textbooks/${book.id}/file` : `${API}/api/textbooks/1/file`}
+                  fileName={book?.file_name || (book?.title ? `${book.title}.pdf` : "document.pdf")}
+                  fileType={(book as any)?.file_type || ""}
+                  pageNumber={currentPage}
+                  onPageChange={setCurrentPage}
+                />
               )}
             </div>
           )}
@@ -2556,8 +2686,8 @@ Generated At: ${new Date().toLocaleString()}
                 {messages.length === 0 && !uploading ? (
                   <div className="chat-empty-state">
                     <div className="chat-empty-icon"><Icon name="spark" size={32} /></div>
-                    <h3>Ask Aarva AI</h3>
-                    <p>Ask questions, clarify concepts, solve problems, or request revision summaries grounded in this textbook.</p>
+                    <h3>Ask Your AI Tutor</h3>
+                    <p>Ask direct questions, clarify tricky concepts, explore analogies, or request study summaries grounded in your uploaded text.</p>
                   </div>
                 ) : (
                   messages.map((item, index) => (
@@ -2566,6 +2696,18 @@ Generated At: ${new Date().toLocaleString()}
                       <div className="chat-bubble-content">{renderMarkdown(item.text)}</div>
                     </div>
                   ))
+                )}
+
+                {/* ── Typing Indicator ── */}
+                {isSending && (
+                  <div className="chat-bubble ai" style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                    <span><Icon name="spark" size={13} /></span>
+                    <div style={{ display: "flex", gap: "4px", padding: "4px 8px" }}>
+                      <span className="typing-dot" style={{ width: "6px", height: "6px", background: "#7458f5", borderRadius: "50%", animation: "pulse 1s infinite alternate" }} />
+                      <span className="typing-dot" style={{ width: "6px", height: "6px", background: "#7458f5", borderRadius: "50%", animation: "pulse 1s infinite alternate 0.2s" }} />
+                      <span className="typing-dot" style={{ width: "6px", height: "6px", background: "#7458f5", borderRadius: "50%", animation: "pulse 1s infinite alternate 0.4s" }} />
+                    </div>
+                  </div>
                 )}
 
                 {/* ── Upload Progress Card in Chat ── */}
@@ -2583,14 +2725,14 @@ Generated At: ${new Date().toLocaleString()}
                         <span className="cup-title">Ingesting Document</span>
                         <span className="cup-subtitle">
                           {uploadProgress < 40
-                            ? "Streaming file to ingestion pipeline..."
+                            ? "Reading document stream..."
                             : uploadProgress < 65
-                              ? "Parsing & OCR text extraction..."
+                              ? "Extracting text and structure..."
                               : uploadProgress < 85
-                                ? "Generating vector embeddings..."
+                                ? "Generating semantic representations..."
                                 : uploadProgress < 100
-                                  ? "Building AI summaries..."
-                                  : "Finalising knowledge extraction..."}
+                                  ? "Building structured study guide..."
+                                  : "Finalising knowledge graph..."}
                         </span>
                       </div>
                       <span className="cup-pct">{uploadProgress}%</span>
@@ -2600,8 +2742,6 @@ Generated At: ${new Date().toLocaleString()}
                       <div className="cup-bar-fill" style={{ width: `${uploadProgress}%` }} />
                       <div className="cup-bar-glow" style={{ left: `${uploadProgress}%` }} />
                     </div>
-
-
                   </div>
                 )}
 
@@ -2626,6 +2766,36 @@ Generated At: ${new Date().toLocaleString()}
                   ))}
                 </div>
               )}
+
+              {/* Quick Prompt Suggestion Chips */}
+              <div style={{ display: "flex", gap: "0.4rem", padding: "0.35rem 0.8rem", overflowX: "auto", background: "#ffffff", borderTop: "1px solid #f1f5f9" }}>
+                {[
+                  "Explain this simply",
+                  "What is the main idea?",
+                  "Give me an example",
+                  "Summarize this section"
+                ].map((chip, idx) => (
+                  <button
+                    key={idx}
+                    type="button"
+                    onClick={() => handleChipClick(chip)}
+                    style={{
+                      padding: "0.25rem 0.65rem",
+                      fontSize: "0.75rem",
+                      fontWeight: 600,
+                      color: "#6366f1",
+                      background: "#f5f3ff",
+                      border: "1px solid #ede9fe",
+                      borderRadius: "999px",
+                      cursor: "pointer",
+                      whiteSpace: "nowrap",
+                      transition: "all 0.15s ease"
+                    }}
+                  >
+                    ✨ {chip}
+                  </button>
+                ))}
+              </div>
 
               {/* Modern Chat Bar */}
               <form className="chat-input-modern" onSubmit={sendMessage}>
@@ -2654,7 +2824,7 @@ Generated At: ${new Date().toLocaleString()}
                 <input
                   type="text"
                   className="chat-text-input"
-                  placeholder={book ? "Ask anything about this book..." : attachedFiles.length > 0 ? "Add a message or just press send to upload..." : "Ask something or attach a file to get started..."}
+                  placeholder={book ? "Ask anything about this document..." : attachedFiles.length > 0 ? "Add a message or press send to upload..." : "Ask your AI tutor or attach a file to get started..."}
                   value={message}
                   onChange={(e) => setMessage(e.target.value)}
                 />
@@ -2700,314 +2870,343 @@ Generated At: ${new Date().toLocaleString()}
           )}
         </section>
 
-        {/* ── RIGHT PANE: Tabs, Sub-Filters, and Live Extracted Cards ──────────── */}
-        <section className="analysis-right-pane">
-          {!book && !latestRag ? (
-            <div className="right-pane-empty-state">
-              <div className="right-pane-empty-icon"><Icon name="spark" size={36} /></div>
-              <h3>Ready for Analysis</h3>
-              <p>Extracted answers, summaries, and key concepts will be displayed here.</p>
+        {/* ── RIGHT PANE: Study Tabs, Overview, Chapters, Concepts, Definitions ── */}
+        <section className="analysis-right-pane" style={{ display: "flex", flexDirection: "column", height: "100%", overflow: "hidden", background: "#ffffff" }}>
+          {/* Main Top Tab Row with dynamic counts — only shown when a book is loaded */}
+          <div className="right-main-tab-bar" style={{ display: (book || summaryData) ? "flex" : "none", alignItems: "center", borderBottom: "1px solid #eef0f3", padding: "0 1.25rem", background: "#ffffff", gap: "1.25rem", flexShrink: 0, overflowX: "auto" }}>
+            {[
+              { id: "Summary", label: "Summary" },
+              { id: "Chapters", label: "Chapters", count: chapterList.length },
+              { id: "Concepts", label: "Concepts", count: conceptList.length },
+              { id: "Definitions", label: "Definitions", count: definitionList.length },
+              { id: "Important Notes", label: "Important Notes", count: notesList.length },
+            ].map((tab) => (
+              <button
+                key={tab.id}
+                type="button"
+                className={`main-tab-btn ${activeTab === tab.id ? "active" : ""}`}
+                style={{
+                  padding: "0.85rem 0.15rem",
+                  background: "transparent",
+                  border: "none",
+                  borderBottom: activeTab === tab.id ? "2.5px solid #6366f1" : "2.5px solid transparent",
+                  color: activeTab === tab.id ? "#1e1b4b" : "#64748b",
+                  fontWeight: activeTab === tab.id ? 700 : 500,
+                  fontSize: "0.88rem",
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "0.4rem",
+                  whiteSpace: "nowrap"
+                }}
+                onClick={() => { setActiveTab(tab.id as any); setSubFilter("All"); }}
+              >
+                <span>{tab.label}</span>
+                {tab.count !== undefined && (
+                  <span style={{ fontSize: "0.72rem", color: activeTab === tab.id ? "#6366f1" : "#94a3b8", background: activeTab === tab.id ? "#ede9fe" : "#f1f5f9", padding: "1px 6px", borderRadius: "10px", fontWeight: 700 }}>
+                    {tab.count}
+                  </span>
+                )}
+              </button>
+            ))}
+          </div>
+
+          {/* ── EMPTY STATE: fills full pane height when no book is loaded ── */}
+          {!book && !summaryData && (
+            <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: "1.25rem", textAlign: "center", padding: "2.5rem" }}>
+              <div style={{ width: "80px", height: "80px", borderRadius: "22px", background: "#ede9fe", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <svg width="34" height="34" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M12 2 C12 2 12.8 7.2 14.5 9.5 C16.8 11.2 22 12 22 12 C22 12 16.8 12.8 14.5 14.5 C12.8 16.8 12 22 12 22 C12 22 11.2 16.8 9.5 14.5 C7.2 12.8 2 12 2 12 C2 12 7.2 11.2 9.5 9.5 C11.2 7.2 12 2 12 2Z" fill="#6366f1"/>
+                </svg>
+              </div>
+              <div>
+                <h3 style={{ margin: "0 0 0.6rem", fontSize: "1.2rem", fontWeight: 700, color: "#1e293b", letterSpacing: "-0.01em" }}>Analysis coming soon</h3>
+                <p style={{ margin: 0, fontSize: "0.875rem", color: "#64748b", lineHeight: 1.7, maxWidth: "280px" }}>
+                  AI-generated summaries, chapter breakdowns, key concepts, definitions, and revision notes will be displayed here once your document is processed.
+                </p>
+              </div>
             </div>
-          ) : (
-            <>
-              {/* Main Top Tab Row */}
-              <div className="right-main-tab-bar">
-                {(["Summary", "Chapters", "Concepts", "Definitions", "Important Notes"] as const).map((tabName) => {
-                  const count =
-                    tabName === "Summary" ? 1 :
-                      tabName === "Chapters" ? chapterList.length :
-                        tabName === "Concepts" ? dynamicConcepts.length :
-                          tabName === "Definitions" ? dynamicDefinitions.length :
-                            dynamicNotes.length;
-                  return (
+          )}
+
+          {/* Scrollable Content Area — only when book is loaded */}
+          {(book || summaryData) && (
+          <div className="analysis-cards-scroll" style={{ padding: "1.4rem 1.6rem", flex: 1, overflowY: "auto" }}>
+
+            {/* ── 1. SUMMARY TAB ── */}
+            {(book || summaryData) && activeTab === "Summary" && (
+              <div style={{ display: "flex", flexDirection: "column", gap: "1.4rem", maxWidth: "800px" }}>
+                {/* AI Summary Banner */}
+                <div style={{ background: "#f5f3ff", borderRadius: "0.8rem", padding: "1.25rem 1.4rem", border: "1px solid #ede9fe" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: "0.4rem", marginBottom: "0.6rem", color: "#6366f1", fontSize: "0.85rem", fontWeight: 700 }}>
+                    <span>✦</span> AI-generated summary · Based on the uploaded textbook
+                  </div>
+                  <p style={{ margin: 0, color: "#475569", fontSize: "0.92rem", lineHeight: 1.65 }}>
+                    {overviewText}
+                  </p>
+                </div>
+
+                {/* In One Sentence Highlight Box */}
+                <div style={{ background: "#ffffff", border: "1px solid #6366f1", borderRadius: "0.8rem", padding: "1.25rem 1.4rem", boxShadow: "0 4px 14px rgba(99, 102, 241, 0.08)" }}>
+                  <div style={{ display: "inline-flex", alignItems: "center", gap: "0.4rem", color: "#6366f1", fontSize: "0.78rem", fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: "0.8rem" }}>
+                    <span>💡</span> In one sentence
+                  </div>
+                  <p style={{ margin: 0, color: "#1e293b", fontSize: "1.05rem", lineHeight: 1.5, fontWeight: 600 }}>
+                    "{docDisplayTitle}"
+                  </p>
+                </div>
+
+                {/* Key Takeaways */}
+                <div style={{ background: "#ffffff", border: "1px solid #e2e8f0", borderRadius: "1rem", padding: "1.25rem 1.4rem", boxShadow: "0 1px 4px rgba(0,0,0,0.03)" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.85rem" }}>
+                    <span style={{ color: "#ef4444", fontSize: "1rem" }}>📌</span>
+                    <h3 style={{ margin: 0, fontSize: "0.95rem", fontWeight: 800, color: "#1e293b" }}>
+                      Key takeaways
+                    </h3>
+                  </div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: "0.6rem" }}>
+                    {keyPointsList.map((pt, idx) => (
+                      <div key={idx} style={{ display: "flex", alignItems: "flex-start", gap: "0.6rem", background: "#f8fafc", padding: "0.8rem 1rem", borderRadius: "0.6rem", border: "1px solid #f1f5f9" }}>
+                        <span style={{ color: "#6366f1", fontWeight: 800, fontSize: "1.1rem", lineHeight: 1 }}>•</span>
+                        <span style={{ color: "#334155", fontSize: "0.9rem", lineHeight: 1.55 }}>{pt}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Topics Covered */}
+                <div>
+                  <h3 style={{ margin: "0 0 0.65rem", fontSize: "0.95rem", fontWeight: 800, color: "#1e293b", textTransform: "uppercase", letterSpacing: "0.03em" }}>
+                    Topics covered
+                  </h3>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: "0.5rem" }}>
+                    {topicsCoveredList.map((topic, idx) => (
+                      <button
+                        key={idx}
+                        type="button"
+                        onClick={() => handleChipClick(`Explain the "${topic}" section in detail`)}
+                        style={{
+                          background: "#f8fafc",
+                          border: "1px solid #e2e8f0",
+                          borderRadius: "0.6rem",
+                          padding: "0.5rem 0.9rem",
+                          fontSize: "0.85rem",
+                          fontWeight: 600,
+                          color: "#334155",
+                          cursor: "pointer",
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: "0.4rem",
+                          transition: "all 0.15s ease"
+                        }}
+                      >
+                        <span>📘</span>
+                        <span>{topic}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* ── 2. CHAPTERS / SECTIONS TAB ── */}
+            {activeTab === "Chapters" && (
+              <div style={{ display: "flex", flexDirection: "column", gap: "1rem", maxWidth: "800px" }}>
+                <div style={{ marginBottom: "0.4rem" }}>
+                  <h3 style={{ margin: "0 0 0.2rem", fontSize: "1.15rem", fontWeight: 800, color: "#0f172a" }}>
+                    Document Sections &amp; Chapters
+                  </h3>
+                  <p style={{ margin: 0, color: "#64748b", fontSize: "0.85rem" }}>
+                    Actual structural topics detected from the uploaded document
+                  </p>
+                </div>
+
+                {chapterList.map((ch, idx) => (
+                  <div key={idx} style={{ background: "#ffffff", border: "1px solid #e2e8f0", borderRadius: "0.9rem", padding: "1.2rem", boxShadow: "0 1px 4px rgba(0,0,0,0.02)" }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "0.5rem" }}>
+                      <div>
+                        <span style={{ fontSize: "0.72rem", color: "#6366f1", fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.04em", background: "#ede9fe", padding: "2px 8px", borderRadius: "6px" }}>
+                          {ch.chapter ? `Section ${ch.chapter}` : `Topic #${idx + 1}`}
+                        </span>
+                        <h4 style={{ margin: "0.4rem 0 0", fontSize: "1rem", fontWeight: 700, color: "#1e293b" }}>
+                          {ch.title || `Section ${idx + 1}`}
+                        </h4>
+                      </div>
+                      {ch.page && (
+                        <button
+                          type="button"
+                          onClick={() => { setCurrentPage(ch.page || 1); setLeftView("files"); }}
+                          style={{ color: "#6366f1", background: "#f5f3ff", border: "1px solid #ede9fe", borderRadius: "6px", padding: "3px 8px", cursor: "pointer", fontSize: "0.76rem", fontWeight: 700 }}
+                        >
+                          pg {ch.page} →
+                        </button>
+                      )}
+                    </div>
+                    <p style={{ margin: "0 0 0.85rem", color: "#475569", fontSize: "0.88rem", lineHeight: 1.6 }}>
+                      {ch.summary || "Summary of this section based on extracted content."}
+                    </p>
                     <button
-                      key={tabName}
                       type="button"
-                      className={`main-tab-btn ${activeTab === tabName ? "active" : ""}`}
-                      onClick={() => { setActiveTab(tabName); setSubFilter("All"); }}
+                      onClick={() => handleChipClick(`Explain ${ch.title || "this section"} in simpler terms`)}
+                      style={{ color: "#4f46e5", background: "transparent", border: "none", cursor: "pointer", fontSize: "0.82rem", fontWeight: 700, padding: 0, display: "inline-flex", alignItems: "center", gap: "0.3rem" }}
                     >
-                      <span>{tabName}</span>
-                      <span className="tab-count-number">{count}</span>
+                      <span>💬</span> Ask AI about this section
                     </button>
-                  );
-                })}
+                  </div>
+                ))}
               </div>
+            )}
 
-              {/* Scrollable Content Area */}
-              <div className="analysis-cards-scroll" style={{ padding: "1.25rem", flex: 1, overflowY: "auto" }}>
-                {/* ── 1. SUMMARY TAB ── */}
-                {activeTab === "Summary" && (
-                  <div style={{ display: "flex", flexDirection: "column", gap: "1.25rem" }}>
-                    {/* Header Banner */}
-                    <div style={{ background: "linear-gradient(135deg, #f5f3ff, #ede9f7)", border: "1px solid #ddd6fe", padding: "1.2rem 1.4rem", borderRadius: "1rem" }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", color: "#6147d4", fontSize: "0.82rem", fontWeight: 700, letterSpacing: "0.03em" }}>
-                        <Icon name="spark" size={16} /> AI-generated summary · Based on the uploaded textbook
-                      </div>
-                      <p style={{ margin: "0.5rem 0 0", color: "#4c4669", fontSize: "0.92rem", lineHeight: 1.6 }}>
-                        {selectedScope !== "Entire Book" ? `Focused scope: ${selectedScope}. ` : ""}
-                        A concise overview of {book?.title || "the selected textbook"}, explaining its main ideas in clear language while preserving important technical meaning.
-                      </p>
-                    </div>
+            {/* ── 3. CONCEPTS TAB ── */}
+            {activeTab === "Concepts" && (
+              <div style={{ display: "flex", flexDirection: "column", gap: "1rem", maxWidth: "800px" }}>
+                <div style={{ marginBottom: "0.4rem" }}>
+                  <h3 style={{ margin: "0 0 0.2rem", fontSize: "1.15rem", fontWeight: 800, color: "#0f172a" }}>
+                    Core Concepts Explained
+                  </h3>
+                  <p style={{ margin: 0, color: "#64748b", fontSize: "0.85rem" }}>
+                    Essential ideas simplified with clear mechanics and intuitive analogies
+                  </p>
+                </div>
 
-                    {/* In One Sentence Callout */}
-                    <div style={{ background: "#ffffff", border: "2px solid #7458f5", padding: "1.25rem 1.4rem", borderRadius: "1rem", boxShadow: "0 4px 20px rgba(116, 88, 245, 0.08)" }}>
-                      <div style={{ fontSize: "0.78rem", fontWeight: 800, color: "#7458f5", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: "0.4rem", display: "flex", alignItems: "center", gap: "0.4rem" }}>
-                        <span>💡 In one sentence</span>
-                      </div>
-                      <p style={{ margin: 0, fontSize: "1.05rem", fontWeight: 600, color: "#17142d", lineHeight: 1.5 }}>
-                        "{summaryData?.summary ? summaryData.summary.split(".")[0] + "." : `${book?.title || "This content"} presents a grounded learning framework combining essential domain principles, structured analytical methods, and practical real-world applications.`}"
-                      </p>
-                    </div>
-
-                    {/* Key Takeaways */}
-                    <div style={{ background: "#ffffff", border: "1px solid #ede9f7", padding: "1.25rem 1.4rem", borderRadius: "1rem" }}>
-                      <h4 style={{ margin: "0 0 0.9rem", color: "#17142d", fontWeight: 700, fontSize: "0.98rem" }}>
-                        📌 Key takeaways
+                {conceptList.map((c, idx) => (
+                  <div key={idx} style={{ background: "#ffffff", border: "1px solid #e2e8f0", borderRadius: "0.9rem", padding: "1.25rem", boxShadow: "0 1px 4px rgba(0,0,0,0.02)" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.6rem" }}>
+                      <span style={{ fontSize: "1.1rem" }}>✨</span>
+                      <h4 style={{ margin: 0, fontSize: "1.02rem", fontWeight: 800, color: "#1e293b" }}>
+                        {c.name}
                       </h4>
-                      <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
-                        {(dynamicNotes.length > 0 ? dynamicNotes.slice(0, 3) : [
-                          "The most important foundational idea establishing core analytical mechanics.",
-                          "A second essential point illustrating mathematical or empirical significance.",
-                          "A practical application relating key concepts to real-world deployment scenarios."
-                        ]).map((note, idx) => (
-                          <div key={idx} style={{ display: "flex", gap: "0.75rem", background: "#faf9fd", padding: "0.85rem 1rem", borderRadius: "0.75rem", border: "1px solid #f0ecfc", alignItems: "flex-start" }}>
-                            <span style={{ color: "#7458f5", fontWeight: 800, fontSize: "0.9rem" }}>•</span>
-                            <p style={{ margin: 0, color: "#2e2a48", fontSize: "0.88rem", lineHeight: 1.55 }}>{note}</p>
-                          </div>
-                        ))}
-                      </div>
                     </div>
 
-                    {/* Chapter Overview */}
-                    <div style={{ background: "#ffffff", border: "1px solid #ede9f7", padding: "1.25rem 1.4rem", borderRadius: "1rem" }}>
-                      <h4 style={{ margin: "0 0 0.6rem", color: "#17142d", fontWeight: 700, fontSize: "0.98rem" }}>
-                        📖 Chapter overview
-                      </h4>
-                      <p style={{ margin: "0 0 1rem", color: "#5f5a78", fontSize: "0.88rem", lineHeight: 1.6 }}>
-                        A short explanation of how the chapter's ideas connect, followed by links to explore individual concepts:
-                      </p>
-                      <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
-                        {dynamicConcepts.map((c, idx) => (
-                          <button
-                            key={idx}
-                            type="button"
-                            className="sub-pill-btn"
-                            style={{ fontSize: "0.8rem", background: "#f4f1fd", color: "#6147d4", borderColor: "#ddd6fe" }}
-                            onClick={() => { setActiveTab("Concepts"); setSubFilter(c); }}
-                          >
-                            ★ {c}
-                          </button>
-                        ))}
+                    <div style={{ display: "flex", flexDirection: "column", gap: "0.65rem", fontSize: "0.88rem" }}>
+                      {/* Simple Explanation */}
+                      <div>
+                        <span style={{ color: "#475569", fontWeight: 700 }}>• Simple Explanation: </span>
+                        <span style={{ color: "#1e293b", lineHeight: 1.55 }}>{c.explanation}</span>
                       </div>
+
+                      {/* How it works */}
+                      {c.how_it_works && (
+                        <div>
+                          <span style={{ color: "#475569", fontWeight: 700 }}>• How it works: </span>
+                          <span style={{ color: "#334155", lineHeight: 1.55 }}>{c.how_it_works}</span>
+                        </div>
+                      )}
+
+                      {/* Example / Analogy */}
+                      {c.example && (
+                        <div style={{ background: "#f8fafc", borderLeft: "3px solid #6366f1", borderRadius: "0 0.5rem 0.5rem 0", padding: "0.6rem 0.8rem", marginTop: "0.2rem" }}>
+                          <span style={{ color: "#4338ca", fontWeight: 700 }}>Analogy: </span>
+                          <span style={{ color: "#334155", fontStyle: "italic" }}>{c.example}</span>
+                        </div>
+                      )}
+                    </div>
+
+                    <div style={{ marginTop: "0.85rem" }}>
+                      <button
+                        type="button"
+                        onClick={() => handleChipClick(`Give me a detailed practical example of "${c.name}"`)}
+                        style={{ color: "#4f46e5", background: "transparent", border: "none", cursor: "pointer", fontSize: "0.82rem", fontWeight: 700, padding: 0, display: "inline-flex", alignItems: "center", gap: "0.3rem" }}
+                      >
+                        <span>💡</span> Ask AI for more examples
+                      </button>
                     </div>
                   </div>
-                )}
-
-                {/* ── 2. CHAPTERS TAB ── */}
-                {activeTab === "Chapters" && (
-                  <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
-                    <div style={{ fontSize: "0.85rem", color: "#6c6684", fontWeight: 500, marginBottom: "0.2rem" }}>
-                      {chapterList.length} Chapters detected in {book?.title || "this document"}:
-                    </div>
-                    {chapterList.map((ch, idx) => (
-                      <div key={idx} style={{ background: "#ffffff", border: "1px solid #ede9f7", borderRadius: "1rem", padding: "1.25rem", boxShadow: "0 2px 10px rgba(0,0,0,0.02)" }}>
-                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "0.75rem" }}>
-                          <div>
-                            <span style={{ fontSize: "0.75rem", fontWeight: 800, color: "#7458f5", background: "#f0ecfc", padding: "0.2rem 0.6rem", borderRadius: "999px", textTransform: "uppercase" }}>
-                              Chapter {ch.chapter || idx + 1}
-                            </span>
-                            <h4 style={{ margin: "0.4rem 0 0.25rem", fontSize: "1.05rem", fontWeight: 700, color: "#17142d" }}>
-                              {ch.title}
-                            </h4>
-                          </div>
-                          <button
-                            type="button"
-                            className="sub-pill-btn"
-                            style={{ background: selectedScope === `Chapter ${ch.chapter || idx + 1}` ? "#7458f5" : "#f5f3ff", color: selectedScope === `Chapter ${ch.chapter || idx + 1}` ? "#ffffff" : "#7458f5" }}
-                            onClick={() => {
-                              setSelectedScope(`Chapter ${ch.chapter || idx + 1}`);
-                              setActiveTab("Summary");
-                            }}
-                          >
-                            {selectedScope === `Chapter ${ch.chapter || idx + 1}` ? "Active Scope" : "Select Chapter"}
-                          </button>
-                        </div>
-
-                        <p style={{ margin: "0.6rem 0 0.85rem", color: "#4c4669", fontSize: "0.88rem", lineHeight: 1.6 }}>
-                          {ch.summary}
-                        </p>
-
-                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingTop: "0.75rem", borderTop: "1px solid #f5f3ff", fontSize: "0.78rem", color: "#888" }}>
-                          <span>Page Range: {Math.min(totalPages || 100, (idx * 20) + 1)} - {Math.min(totalPages || 100, (idx + 1) * 20)}</span>
-                          <span style={{ color: "#7458f5", fontWeight: 600, cursor: "pointer" }} onClick={() => { setSelectedScope(`Chapter ${ch.chapter || idx + 1}`); setActiveTab("Summary"); }}>
-                            Learn chapter →
-                          </span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-
-                {/* ── 3. CONCEPTS TAB ── */}
-                {activeTab === "Concepts" && (
-                  <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
-                    <div style={{ fontSize: "0.85rem", color: "#6c6684", fontWeight: 500 }}>
-                      {dynamicConcepts.length} Core Concepts extracted for easy understanding:
-                    </div>
-                    {dynamicConcepts.map((concept, idx) => (
-                      <div key={idx} style={{ background: "#ffffff", border: "1px solid #ede9f7", borderRadius: "1rem", padding: "1.25rem", boxShadow: "0 2px 10px rgba(0,0,0,0.02)" }}>
-                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                          <h4 style={{ margin: 0, fontSize: "1.02rem", fontWeight: 700, color: "#17142d" }}>
-                            ★ {concept}
-                          </h4>
-                          <span style={{ fontSize: "0.75rem", fontWeight: 600, color: "#6147d4", background: "#f0ecfc", padding: "0.2rem 0.6rem", borderRadius: "999px" }}>
-                            Concept #{idx + 1}
-                          </span>
-                        </div>
-
-                        <div style={{ marginTop: "0.75rem", display: "flex", flexDirection: "column", gap: "0.65rem" }}>
-                          <div style={{ background: "#faf9fd", padding: "0.75rem 0.9rem", borderRadius: "0.6rem", border: "1px solid #f0ecfc" }}>
-                            <b style={{ color: "#7458f5", fontSize: "0.78rem", textTransform: "uppercase", display: "block", marginBottom: "0.2rem" }}>Simple Explanation</b>
-                            <p style={{ margin: 0, color: "#2e2a48", fontSize: "0.86rem", lineHeight: 1.5 }}>
-                              {concept} is a central theme in {book?.title || "this content"} that provides structured principles for computational and analytical problem solving.
-                            </p>
-                          </div>
-
-                          <div style={{ background: "#faf9fd", padding: "0.75rem 0.9rem", borderRadius: "0.6rem", border: "1px solid #f0ecfc" }}>
-                            <b style={{ color: "#4f35cf", fontSize: "0.78rem", textTransform: "uppercase", display: "block", marginBottom: "0.2rem" }}>How it works</b>
-                            <p style={{ margin: 0, color: "#2e2a48", fontSize: "0.86rem", lineHeight: 1.5 }}>
-                              Processes domain inputs through defined algorithms, enforcing boundary rules to generate optimal output metrics.
-                            </p>
-                          </div>
-
-                          <div style={{ background: "#fffbeb", padding: "0.75rem 0.9rem", borderRadius: "0.6rem", border: "1px solid #fef3c7" }}>
-                            <b style={{ color: "#d97706", fontSize: "0.78rem", textTransform: "uppercase", display: "block", marginBottom: "0.2rem" }}>💡 Example / Analogy</b>
-                            <p style={{ margin: 0, color: "#92400e", fontSize: "0.85rem", lineHeight: 1.5 }}>
-                              Think of {concept} like a feedback loop in a high-precision thermostat continuously recalibrating based on external signals.
-                            </p>
-                          </div>
-                        </div>
-
-                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: "0.85rem", paddingTop: "0.75rem", borderTop: "1px solid #f5f3ff" }}>
-                          <button
-                            type="button"
-                            className="clause-page-citation"
-                            onClick={() => { setCurrentPage(Math.min(totalPages || 100, (idx * 15) + 5)); setLeftView("files"); }}
-                          >
-                            Source Page {Math.min(totalPages || 100, (idx * 15) + 5)}
-                          </button>
-                          <button
-                            type="button"
-                            className="sub-pill-btn"
-                            style={{ fontSize: "0.75rem" }}
-                            onClick={() => {
-                              setLeftView("chat");
-                              setMessage(`Can you explain ${concept} with a real world code example?`);
-                            }}
-                          >
-                            Ask AI about this concept →
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-
-                {/* ── 4. DEFINITIONS TAB ── */}
-                {activeTab === "Definitions" && (
-                  <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
-                    {/* Search Bar */}
-                    <div style={{ display: "flex", gap: "0.5rem" }}>
-                      <input
-                        type="text"
-                        placeholder="🔍 Search glossary terms or definitions..."
-                        value={defSearchQuery}
-                        onChange={(e) => setDefSearchQuery(e.target.value)}
-                        style={{ flex: 1, padding: "0.65rem 1rem", borderRadius: "0.75rem", border: "1.5px solid #e0d9f8", background: "#ffffff", fontSize: "0.86rem", color: "#2e2a48", outline: "none" }}
-                      />
-                    </div>
-
-                    <div style={{ fontSize: "0.85rem", color: "#6c6684", fontWeight: 500 }}>
-                      {dynamicDefinitions.length} Searchable Glossary terms:
-                    </div>
-
-                    {dynamicDefinitions
-                      .filter(([term, def]) => !defSearchQuery || term.toLowerCase().includes(defSearchQuery.toLowerCase()) || def.toLowerCase().includes(defSearchQuery.toLowerCase()))
-                      .map(([term, def], idx) => (
-                        <div key={idx} style={{ background: "#ffffff", border: "1px solid #ede9f7", borderRadius: "1rem", padding: "1.2rem", boxShadow: "0 2px 8px rgba(0,0,0,0.02)" }}>
-                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "0.5rem" }}>
-                            <span style={{ fontSize: "1.05rem", fontWeight: 700, color: "#7458f5" }}>
-                              {term}
-                            </span>
-                            <span style={{ fontSize: "0.72rem", background: "#f0ecfc", color: "#6147d4", padding: "0.15rem 0.5rem", borderRadius: "999px", fontWeight: 600 }}>
-                              Glossary Term #{idx + 1}
-                            </span>
-                          </div>
-
-                          <p style={{ margin: "0.5rem 0 0.75rem", color: "#2e2a48", fontSize: "0.9rem", lineHeight: 1.55 }}>
-                            <b>Definition:</b> {def}
-                          </p>
-
-                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingTop: "0.6rem", borderTop: "1px solid #f5f3ff" }}>
-                            <button
-                              type="button"
-                              className="clause-page-citation"
-                              onClick={() => { setCurrentPage(Math.min(totalPages || 100, (idx * 12) + 2)); setLeftView("files"); }}
-                            >
-                              Chapter Reference • Page {Math.min(totalPages || 100, (idx * 12) + 2)}
-                            </button>
-                          </div>
-                        </div>
-                      ))}
-                  </div>
-                )}
-
-                {/* ── 5. IMPORTANT NOTES TAB ── */}
-                {activeTab === "Important Notes" && (
-                  <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
-                    <div style={{ fontSize: "0.85rem", color: "#6c6684", fontWeight: 500 }}>
-                      {dynamicNotes.length} Exam-relevant points & revision rules:
-                    </div>
-
-                    {dynamicNotes.map((note, idx) => (
-                      <div key={idx} style={{ background: "#ffffff", border: "1px solid #ede9f7", borderRadius: "1rem", padding: "1.2rem", boxShadow: "0 2px 8px rgba(0,0,0,0.02)" }}>
-                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                          <span style={{ fontSize: "0.72rem", fontWeight: 800, textTransform: "uppercase", background: idx % 2 === 0 ? "#fef3c7" : "#e0e7ff", color: idx % 2 === 0 ? "#b45309" : "#3730a3", padding: "0.2rem 0.6rem", borderRadius: "999px" }}>
-                            {idx % 2 === 0 ? "★ Exam Focus" : "⚡ Revision Rule"}
-                          </span>
-                          <span style={{ fontSize: "0.75rem", color: "#888" }}>Note #{idx + 1}</span>
-                        </div>
-
-                        <p style={{ margin: "0.6rem 0 0.85rem", color: "#17142d", fontWeight: 600, fontSize: "0.92rem", lineHeight: 1.6 }}>
-                          {note}
-                        </p>
-
-                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingTop: "0.65rem", borderTop: "1px solid #f5f3ff" }}>
-                          <button
-                            type="button"
-                            className="clause-page-citation"
-                            onClick={() => { setCurrentPage(Math.min(totalPages || 100, (idx * 15) + 4)); setLeftView("files"); }}
-                          >
-                            Source Page {Math.min(totalPages || 100, (idx * 15) + 4)}
-                          </button>
-                          <button
-                            type="button"
-                            className="sub-pill-btn"
-                            style={{ fontSize: "0.75rem" }}
-                            onClick={() => {
-                              setLeftView("chat");
-                              setMessage(`Can you explain why "${note.slice(0, 35)}..." is important?`);
-                            }}
-                          >
-                            Explain Note →
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
+                ))}
               </div>
-            </>
+            )}
+
+            {/* ── 4. DEFINITIONS TAB ── */}
+            {activeTab === "Definitions" && (
+              <div style={{ display: "flex", flexDirection: "column", gap: "1rem", maxWidth: "800px" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", gap: "1rem", flexWrap: "wrap", marginBottom: "0.4rem" }}>
+                  <div>
+                    <h3 style={{ margin: "0 0 0.2rem", fontSize: "1.15rem", fontWeight: 800, color: "#0f172a" }}>
+                      Glossary &amp; Definitions
+                    </h3>
+                    <p style={{ margin: 0, color: "#64748b", fontSize: "0.85rem" }}>
+                      Key terms and definitions directly extracted from the document
+                    </p>
+                  </div>
+
+                  {/* Search bar for definitions */}
+                  <input
+                    type="text"
+                    placeholder="Search terms..."
+                    value={defSearchQuery}
+                    onChange={(e) => setDefSearchQuery(e.target.value)}
+                    style={{
+                      padding: "0.45rem 0.8rem",
+                      borderRadius: "0.5rem",
+                      border: "1px solid #cbd5e1",
+                      fontSize: "0.84rem",
+                      outline: "none",
+                      width: "200px"
+                    }}
+                  />
+                </div>
+
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))", gap: "0.9rem" }}>
+                  {filteredDefinitions.map((def, idx) => (
+                    <div key={idx} style={{ background: "#ffffff", border: "1px solid #e2e8f0", borderRadius: "0.8rem", padding: "1.1rem", boxShadow: "0 1px 3px rgba(0,0,0,0.02)" }}>
+                      <div style={{ fontSize: "0.96rem", fontWeight: 800, color: "#1e293b", marginBottom: "0.4rem" }}>
+                        {def.term}
+                      </div>
+                      <p style={{ margin: 0, color: "#475569", fontSize: "0.86rem", lineHeight: 1.55 }}>
+                        {def.definition}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* ── 5. IMPORTANT NOTES TAB ── */}
+            {activeTab === "Important Notes" && (
+              <div style={{ display: "flex", flexDirection: "column", gap: "1rem", maxWidth: "800px" }}>
+                <div style={{ marginBottom: "0.4rem" }}>
+                  <h3 style={{ margin: "0 0 0.2rem", fontSize: "1.15rem", fontWeight: 800, color: "#0f172a" }}>
+                    Important Notes &amp; Requirements
+                  </h3>
+                  <p style={{ margin: 0, color: "#64748b", fontSize: "0.85rem" }}>
+                    Critical dates, technical specifications, and key requirements
+                  </p>
+                </div>
+
+                {notesList.map((item, idx) => (
+                  <div key={idx} style={{ background: "#ffffff", border: "1px solid #e2e8f0", borderRadius: "0.8rem", padding: "1.1rem 1.25rem", display: "flex", alignItems: "flex-start", gap: "0.9rem", boxShadow: "0 1px 3px rgba(0,0,0,0.02)" }}>
+                    <span style={{
+                      fontSize: "0.74rem",
+                      fontWeight: 800,
+                      padding: "3px 8px",
+                      borderRadius: "6px",
+                      textTransform: "uppercase",
+                      whiteSpace: "nowrap",
+                      background: item.type === "Exam Focus" ? "#fef3c7" : item.type === "Requirement" ? "#ede9fe" : "#f1f5f9",
+                      color: item.type === "Exam Focus" ? "#b45309" : item.type === "Requirement" ? "#5b21b6" : "#475569",
+                      border: item.type === "Exam Focus" ? "1px solid #fde68a" : item.type === "Requirement" ? "1px solid #ddd6fe" : "1px solid #e2e8f0"
+                    }}>
+                      {item.type || "Note"}
+                    </span>
+                    <div style={{ flex: 1 }}>
+                      <p style={{ margin: 0, color: "#1e293b", fontSize: "0.88rem", lineHeight: 1.6 }}>
+                        {item.note}
+                      </p>
+                    </div>
+                    {item.page && (
+                      <button
+                        type="button"
+                        onClick={() => { setCurrentPage(item.page || 1); setLeftView("files"); }}
+                        style={{ color: "#6366f1", background: "none", border: "none", cursor: "pointer", fontSize: "0.76rem", fontWeight: 700, whiteSpace: "nowrap" }}
+                      >
+                        (pg {item.page}) →
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+
+          </div>
           )}
         </section>
       </div>
@@ -3186,7 +3385,7 @@ function LibraryView({
           <h3>Your Library is Empty</h3>
           <p>Upload a textbook, syllabus, or lecture notes (PDF, DOCX, TXT) to extract key concepts, summaries, and adaptive quizzes with Aarva AI.</p>
           <button className="auth-primary" type="button" onClick={onUploadClick} style={{ maxWidth: "20rem", margin: "0 auto" }}>
-            Upload your first document <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{display:"inline-block",verticalAlign:"middle"}}><polyline points="16 16 12 12 8 16"/><line x1="12" y1="12" x2="12" y2="21"/><path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3"/></svg>
+            Upload your first document <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ display: "inline-block", verticalAlign: "middle" }}><polyline points="16 16 12 12 8 16" /><line x1="12" y1="12" x2="12" y2="21" /><path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3" /></svg>
           </button>
         </div>
       ) : filteredAndSortedBooks.length === 0 ? (
@@ -3443,7 +3642,7 @@ function Dashboard({ name, onHome }: { name: string; onHome: () => void }) {
       const data: LearningBook[] = await apiFetch(`/api/textbooks/?user_id=${userId}`);
       const colored = data.map((b, i) => ({ ...b, color: COVER_COLORS[i % COVER_COLORS.length], concepts: ["Key Concepts", "Core Ideas", "Definitions", "Important Notes"] }));
       setBooks(colored);
-      
+
       const storedBookId = localStorage.getItem("aarva_active_book_id");
       if (colored.length > 0) {
         setSelectedBook((prev) => {

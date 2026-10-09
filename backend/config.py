@@ -65,7 +65,9 @@ class Settings:
     ALLOWED_FILE_TYPES: list = os.getenv("ALLOWED_FILE_TYPES", "pdf,docx,xlsx,txt").split(",")
 
     # ── Chunking Engine ──────────────────────────────────────
-    CHUNK_SIZE: int = _int_env("CHUNK_SIZE", 600)
+    CHUNK_SIZE = os.getenv("CHUNK_SIZE", "auto")
+    if CHUNK_SIZE != "auto":
+        CHUNK_SIZE = _int_env("CHUNK_SIZE", 600)
     CHUNK_OVERLAP: int = _int_env("CHUNK_OVERLAP", 120)
     MIN_CHUNK_SIZE: int = _int_env("MIN_CHUNK_SIZE", 50)
     CHUNKING_STRATEGY: str = os.getenv("CHUNKING_STRATEGY", "semantic_paragraph")

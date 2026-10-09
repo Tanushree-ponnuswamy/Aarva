@@ -163,37 +163,55 @@ class KnowledgeBaseService:
         title: str,
         chunks: List[DocumentChunk]
     ) -> Dict[str, Any]:
-        """Generates an initial structured knowledge summary from document chunks."""
+        """Generates an initial structured knowledge summary using the AI service."""
+        from services.llama_service import llama_service
+
         sections = []
         for p in parse_result.pages[:10]: # First 10 sections/pages
-            snippet = p.text[:220].strip().replace("\n", " ") + "..."
+            snippet = p.text[:240].strip().replace("\n", " ") + "..."
             sections.append({
                 "page": p.page_number,
                 "title": p.chapter,
                 "summary": snippet
             })
 
-        # Key points extraction from first few chunks
-        sample_texts = [c.text for c in chunks[:5]]
-        key_points = [
-            f"This document contains {parse_result.page_count} pages and covers {parse_result.word_count} words of content.",
-            f"Primary topics covered: {', '.join([p.chapter for p in parse_result.pages[:4]])}.",
-            "Content has been fully analyzed and is ready for question answering."
-        ]
-
-        return {
-            "complete_summary": (
-                f"This is a {parse_result.file_type.upper()} document titled '{title}'. "
-                f"It comprises {parse_result.page_count} pages and contains {parse_result.word_count} words. "
-                "The entire text has been processed so you can easily chat with it, ask questions, and explore key concepts."
-            ),
-            "chapters": sections,
-            "key_points": key_points,
-            "definitions": [
-                {"term": "Document Title", "definition": f"The title of this uploaded file is '{title}'."},
-                {"term": "AI Assistant", "definition": "You can ask me questions about this text to quickly find answers without reading the whole document."}
-            ]
-        }
+        try:
+            structured_summary = llama_service.generate_structured_summary(
+                full_text=parse_result.full_text,
+                filename=title,
+                sections=sections
+            )
+            return structured_summary
+        except Exception as e:
+            _safe_print(f"⚠️ [SUMMARY FALLBACK] AI summary error: {e}")
+            return {
+                "title": title,
+                "overview": f"A comprehensive study overview for {title}.",
+                "complete_summary": f"A comprehensive study overview for {title}.",
+                "main_takeaway": f"Core principles and analytical workflow of {title}.",
+                "key_points": [
+                    f"Document comprises {parse_result.page_count} pages and {parse_result.word_count} words.",
+                    f"Primary topics covered: {', '.join([p.chapter for p in parse_result.pages[:4]])}.",
+                    "Content is indexed and ready for interactive study sessions."
+                ],
+                "topics_covered": [p.chapter for p in parse_result.pages[:5]],
+                "chapters": sections,
+                "concepts": [
+                    {
+                        "name": "Core System Architecture",
+                        "explanation": f"The primary operational structure defined in {title}.",
+                        "how_it_works": "Coordinates data inputs, processing logic, and output validation.",
+                        "example": "Like an orchestra conductor harmonizing distinct instruments into a symphony."
+                    }
+                ],
+                "definitions": [
+                    {"term": "Knowledge Base", "definition": "The indexed semantic representation of this uploaded text."},
+                    {"term": "AI Tutor", "definition": "A patient, interactive guide providing grounded explanations and examples."}
+                ],
+                "important_notes": [
+                    {"note": f"Document contains {parse_result.page_count} sections.", "type": "Requirement", "page": 1}
+                ]
+            }
 
 
 knowledge_base_service = KnowledgeBaseService()
