@@ -1654,9 +1654,7 @@ function UploadWorkspace({
         timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
       });
 
-      // 3. Switch to the extracted answer tab on the right
-      setActiveTab("AI Extraction");
-      setSubFilter("All Specifics");
+      // Stay on the current right-pane tab (no longer auto-switching to removed AI Extraction tab)
     } catch {
       const fallback = "I couldn't reach the server right now. Please check your connection and try again.";
       setMessages((c) => [...c, { from: "ai", text: fallback }]);
@@ -2270,16 +2268,6 @@ function UploadWorkspace({
             <>
               {/* Main Top Tab Row */}
               <div className="right-main-tab-bar">
-                {latestRag && (
-                  <button
-                    type="button"
-                    className={`main-tab-btn ${activeTab === "AI Extraction" ? "active" : ""}`}
-                    onClick={() => { setActiveTab("AI Extraction"); setSubFilter("All Specifics"); }}
-                  >
-                    <span>⚡ Extracted Answer</span>
-                    <span className="tab-count-number">Live</span>
-                  </button>
-                )}
                 {(["Summary", "Chapters", "Concepts", "Definitions", "Important Notes"] as const).map((tabName) => {
                   const count =
                     tabName === "Summary" ? summaryCards.length :
@@ -2322,7 +2310,7 @@ function UploadWorkspace({
                 <span className="tracker-bullet">●</span>
                 <span>
                   {activeTab === "AI Extraction"
-                    ? "RAG Pipeline Extraction & Synthesis"
+                    ? `${book?.title || "Document"} • Summary`
                     : `${book?.title || "Document"} • ${activeTab}`}
                 </span>
               </div>
