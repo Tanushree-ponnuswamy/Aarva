@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 from typing import Optional, List
 from datetime import datetime
 from database.postgres import get_db
-from models.models import Textbook, User
+from models.models import Textbook, User, ChatSession, ChatMessage
 from database.chroma import chroma_store
 from services.llama_service import llama_service
 
@@ -81,6 +81,34 @@ async def upload_textbook(
             f.write(file_bytes)
     except Exception as e:
         print(f"[WARN] Failed to write preview file to disk: {e}")
+
+    # Persist the upload event to the chat history
+    try:
+        session = ChatSession(
+            user_id=user_id,
+            textbook_id=result['document_id'],
+            session_title=f"Chat about {title}",
+            message_count=2
+        )
+        db.add(session)
+        db.commit()
+        db.refresh(session)
+        
+        user_msg = ChatMessage(
+            chat_session_id=session.id,
+            role="user",
+            content=f"📎 Attached: {filename}"
+        )
+        ai_msg = ChatMessage(
+            chat_session_id=session.id,
+            role="assistant",
+            content=f"✅ **{result['title']}** has been parsed and indexed successfully!\n📊 **Indexed**: {result['total_pages']} pages ({result['total_chunks']} chunks) in Dense ChromaDB + BM25 Okapi.\nThe extracted summary and breakdown are now loaded on the right. Ask me any question about this document!"
+        )
+        db.add(user_msg)
+        db.add(ai_msg)
+        db.commit()
+    except Exception as e:
+        print(f"[WARN] Failed to save upload chat history: {e}")
 
     return {
         "success": True,
