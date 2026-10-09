@@ -1366,7 +1366,7 @@ function FilePreviewPane({ src, fileName, fileType }: { src: string; fileName: s
             const sheets = wb.SheetNames.map(name => {
               const ws = wb.Sheets[name];
               const html = XLSX.utils.sheet_to_html(ws, { id: `sheet-${name}`, editable: false });
-              return `<div class="xlsx-sheet"><h3 style="padding:0.5rem 1rem;background:#f0ecfc;margin:0;font-size:0.9rem;color:#7458f5;font-weight:700;">📊 Sheet: ${name}</h3>${html}</div>`;
+              return `<div class="xlsx-sheet"><h4 style="padding:0.6rem 1rem;background:#f0ecfc;margin:0;font-size:0.88rem;color:#7458f5;font-weight:700;">📊 Sheet: ${name}</h4>${html}</div>`;
             });
             return sheets.join('<hr style="border:none;border-top:2px solid #ede9f7;margin:0"/>');
           });
@@ -1379,60 +1379,139 @@ function FilePreviewPane({ src, fileName, fileType }: { src: string; fileName: s
         .then(r => r.text())
         .then(text => {
           const escaped = text.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-          setDocHtml(`<pre style="white-space:pre-wrap;word-break:break-word;font-family:monospace;font-size:0.85rem;line-height:1.7;padding:1.5rem;color:#2e2a48">${escaped}</pre>`);
+          setDocHtml(`<pre style="white-space:pre-wrap;word-break:break-word;font-family:'Courier New',monospace;font-size:0.85rem;line-height:1.7;padding:1.5rem;color:#2e2a48;margin:0">${escaped}</pre>`);
           setLoading(false);
         })
         .catch(e => { setError(`Could not load text: ${e.message}`); setLoading(false); });
     }
   }, [src, ext]);
 
-  const wrapStyle: React.CSSProperties = { width:'100%', height:'100%', overflow:'auto', background:'#fff' };
-
-  if (loading) return (
-    <div style={{ height:'100%', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:'1rem', background:'#faf9fd' }}>
-      <div style={{ width:'2.5rem', height:'2.5rem', border:'3px solid #ede9f7', borderTop:'3px solid #7458f5', borderRadius:'50%', animation:'spin 0.8s linear infinite' }} />
-      <span style={{ color:'#7458f5', fontWeight:600, fontSize:'0.9rem' }}>Loading preview…</span>
-    </div>
-  );
-
-  if (error) return (
-    <div style={{ height:'100%', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:'1rem', background:'#faf9fd', padding:'2rem', textAlign:'center' }}>
-      <span style={{ fontSize:'2.5rem' }}>⚠️</span>
-      <p style={{ color:'#e05252', fontWeight:600 }}>{error}</p>
-    </div>
-  );
-
-  if (isPdf) return (
-    <iframe src={src} title={fileName} style={{ width:'100%', height:'100%', border:0 }} />
-  );
-
-  if (isImage) return (
-    <div style={{ height:'100%', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:'0.75rem', background:'#faf9fd', padding:'1.5rem' }}>
-      <img src={src} alt={fileName} style={{ maxWidth:'100%', maxHeight:'88%', objectFit:'contain', borderRadius:'0.75rem', boxShadow:'0 8px 28px rgba(0,0,0,0.1)' }} />
-      <span style={{ fontSize:'0.78rem', color:'#999', fontStyle:'italic' }}>{fileName}</span>
-    </div>
-  );
-
-  if ((isDocx || isText) && docHtml !== null) return (
-    <div style={wrapStyle}>
-      <div style={{ maxWidth:'800px', margin:'0 auto', padding:'2rem', fontFamily:'Georgia,serif', lineHeight:1.7, fontSize:'0.95rem', color:'#2e2a48' }}
-        dangerouslySetInnerHTML={{ __html: docHtml }} />
-    </div>
-  );
-
-  if (isXlsx && xlsxHtml !== null) return (
-    <div style={{ ...wrapStyle, fontFamily:'system-ui,sans-serif' }}>
-      <style>{`.xlsx-sheet table{border-collapse:collapse;width:100%}.xlsx-sheet td,.xlsx-sheet th{border:1px solid #e2e8f0;padding:0.4rem 0.7rem;font-size:0.82rem;white-space:nowrap}.xlsx-sheet tr:nth-child(even){background:#f8f7fd}`}</style>
-      <div dangerouslySetInnerHTML={{ __html: xlsxHtml }} />
-    </div>
-  );
-
-  // Fallback: generic unsupported
   return (
-    <div style={{ height:'100%', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:'1rem', background:'#faf9fd', padding:'2rem', textAlign:'center' }}>
-      <span style={{ fontSize:'2.5rem' }}>📄</span>
-      <h3 style={{ margin:0, fontWeight:700, color:'#2e2a48' }}>{fileName}</h3>
-      <p style={{ color:'#999', fontSize:'0.85rem' }}>Preview not available for this file type.</p>
+    <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', background: '#f5f4fb', overflow: 'hidden' }}>
+      {/* Document Top Bar */}
+      <div style={{
+        height: "2.8rem",
+        background: "#ffffff",
+        borderBottom: "1px solid #ede9f7",
+        padding: "0 1rem",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-between",
+        fontSize: "0.83rem",
+        color: "#2e2a48",
+        fontWeight: 600,
+        flexShrink: 0
+      }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+          <span>{isPdf ? "📄" : isImage ? "🖼️" : isDocx ? "📝" : isXlsx ? "📊" : "📄"}</span>
+          <span style={{ maxWidth: "260px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{fileName}</span>
+        </div>
+        <div style={{ display: "flex", gap: "0.4rem", alignItems: "center" }}>
+          <a
+            href={src}
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{ padding: "0.25rem 0.65rem", borderRadius: "0.4rem", background: "#f5f3ff", color: "#7458f5", textDecoration: "none", fontSize: "0.78rem", fontWeight: 600 }}
+          >
+            ↗ Open Full
+          </a>
+          <a
+            href={src}
+            download={fileName}
+            style={{ padding: "0.25rem 0.65rem", borderRadius: "0.4rem", background: "#7458f5", color: "#ffffff", textDecoration: "none", fontSize: "0.78rem", fontWeight: 600 }}
+          >
+            ⬇ Download
+          </a>
+        </div>
+      </div>
+
+      {/* Document Body Area */}
+      <div style={{ flex: 1, height: "calc(100% - 2.8rem)", overflow: "auto", position: "relative" }}>
+        {loading && (
+          <div style={{ height:'100%', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:'1rem', background:'#faf9fd' }}>
+            <div style={{ width:'2.5rem', height:'2.5rem', border:'3px solid #ede9f7', borderTop:'3px solid #7458f5', borderRadius:'50%', animation:'spin 0.8s linear infinite' }} />
+            <span style={{ color:'#7458f5', fontWeight:600, fontSize:'0.9rem' }}>Rendering document preview…</span>
+          </div>
+        )}
+
+        {error && (
+          <div style={{ height:'100%', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:'1rem', background:'#faf9fd', padding:'2rem', textAlign:'center' }}>
+            <span style={{ fontSize:'2.5rem' }}>⚠️</span>
+            <p style={{ color:'#e05252', fontWeight:600 }}>{error}</p>
+          </div>
+        )}
+
+        {!loading && !error && (
+          <>
+            {isPdf && (
+              <object
+                data={`${src}#toolbar=1&navpanes=0`}
+                type="application/pdf"
+                style={{ width: '100%', height: '100%', border: 0 }}
+              >
+                <iframe
+                  src={`${src}#toolbar=1&navpanes=0`}
+                  title={fileName}
+                  style={{ width: '100%', height: '100%', border: 0 }}
+                />
+              </object>
+            )}
+
+            {isImage && (
+              <div style={{ height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: '#f8f7fc', padding: '1.25rem', overflow: 'auto' }}>
+                <div style={{ background: '#ffffff', padding: '0.75rem', borderRadius: '1rem', boxShadow: '0 10px 30px rgba(0,0,0,0.08)', maxWidth: '100%', maxHeight: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                  <img
+                    src={src}
+                    alt={fileName}
+                    style={{ maxWidth: '100%', maxHeight: 'calc(100vh - 12rem)', objectFit: 'contain', borderRadius: '0.5rem' }}
+                  />
+                  <span style={{ fontSize: '0.78rem', color: '#888', fontStyle: 'italic', marginTop: '0.5rem' }}>{fileName}</span>
+                </div>
+              </div>
+            )}
+
+            {(isDocx || isText) && docHtml !== null && (
+              <div style={{ width: '100%', height: '100%', overflow: 'auto', background: '#f3f2f8', padding: '2rem 1rem' }}>
+                <div style={{
+                  maxWidth: '820px',
+                  margin: '0 auto',
+                  background: '#ffffff',
+                  padding: '3rem 3.5rem',
+                  borderRadius: '8px',
+                  boxShadow: '0 8px 30px rgba(0,0,0,0.06), 0 2px 4px rgba(0,0,0,0.04)',
+                  minHeight: '800px',
+                  fontFamily: 'Calibri, "Segoe UI", Georgia, serif',
+                  lineHeight: 1.7,
+                  fontSize: '0.98rem',
+                  color: '#1a1a1a'
+                }}
+                dangerouslySetInnerHTML={{ __html: docHtml }} />
+              </div>
+            )}
+
+            {isXlsx && xlsxHtml !== null && (
+              <div style={{ width: '100%', height: '100%', overflow: 'auto', background: '#f8f7fc', padding: '1rem' }}>
+                <style>{`
+                  .xlsx-sheet table { border-collapse: collapse; width: 100%; background: #fff; border: 1px solid #cbd5e1; }
+                  .xlsx-sheet th { background: #f1f5f9; color: #334155; font-weight: 700; border: 1px solid #cbd5e1; padding: 0.5rem 0.75rem; font-size: 0.82rem; text-align: left; }
+                  .xlsx-sheet td { border: 1px solid #e2e8f0; padding: 0.45rem 0.75rem; font-size: 0.82rem; color: #1e293b; white-space: nowrap; }
+                  .xlsx-sheet tr:nth-child(even) { background: #f8fafc; }
+                  .xlsx-sheet tr:hover { background: #f1f5f9; }
+                `}</style>
+                <div dangerouslySetInnerHTML={{ __html: xlsxHtml }} />
+              </div>
+            )}
+
+            {!isPdf && !isImage && !isDocx && !isXlsx && !isText && (
+              <div style={{ height:'100%', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:'1rem', background:'#faf9fd', padding:'2rem', textAlign:'center' }}>
+                <span style={{ fontSize:'2.5rem' }}>📄</span>
+                <h3 style={{ margin:0, fontWeight:700, color:'#2e2a48' }}>{fileName}</h3>
+                <p style={{ color:'#999', fontSize:'0.85rem' }}>Preview not available for this file format.</p>
+              </div>
+            )}
+          </>
+        )}
+      </div>
     </div>
   );
 }
