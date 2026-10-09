@@ -176,8 +176,8 @@ class LlamaService:
         prompt = (
             "You are AARVA, an expert academic tutor and document intelligence assistant.\n"
             f"{lang_instruction}"
-            "Answer the user's question accurately using ONLY the provided verified context where applicable.\n"
-            "Cite relevant pages, sheets, or sections if mentioned in the context.\n"
+            "Answer the user's question accurately. If the question pertains to the document, use the provided verified context and cite relevant pages or sections. "
+            "If the question is a general greeting or unrelated to the document, respond politely and conversationally as a helpful AI assistant.\n"
             "Provide a conversational, natural response similar to ChatGPT. Use paragraphs and bold text for emphasis where appropriate, rather than rigid headings.\n\n"
             f"VERIFIED CONTEXT:\n{context}\n\n"
             f"USER QUESTION: {query}\n\n"
@@ -208,45 +208,65 @@ class LlamaService:
         return self._generate_contextual_answer(query, context)
 
     def _generate_contextual_answer(self, query: str, context: str) -> str:
-        """High-quality contextual reasoning fallback grounded in the retrieved chunks."""
-        q_lower = query.lower()
+        """Intelligent contextual fallback that handles any query naturally."""
+        q_lower = query.lower().strip()
 
-        # Extract relevant lines or sentences from context
+        # Greetings / small talk
+        greetings = ["hi", "hello", "hey", "how are you", "what's up", "good morning", "good afternoon", "good evening"]
+        if any(q_lower == g or q_lower.startswith(g) for g in greetings):
+            return (
+                "Hi there! 👋 I'm **Aarva**, your AI study assistant. "
+                "I've analyzed the document loaded on the right. "
+                "Feel free to ask me anything about it — I can summarize sections, answer specific questions, explain concepts, or help you study!"
+            )
+
+        # What can you do / help
+        if any(w in q_lower for w in ["what can you do", "help me", "what do you know", "how do you work"]):
+            return (
+                "I'm here to help you understand the document you've uploaded! Here's what I can do:\n\n"
+                "- **Answer questions** about anything in the document\n"
+                "- **Summarize** specific sections or the entire content\n"
+                "- **Explain** concepts or terms used in the document\n"
+                "- **Quiz you** on the material to test your understanding\n\n"
+                "Just ask away!"
+            )
+
+        # Extract relevant sentences from context
         context_sentences = [
             s.strip() for s in context.split("\n")
-            if s.strip() and not s.startswith("---")
+            if s.strip() and not s.startswith("---") and len(s.strip()) > 20
         ]
 
-        if "emd" in q_lower or "deposit" in q_lower or "cost" in q_lower or "fee" in q_lower:
-            return (
-                f"Based on the document, there are specific financial requirements mentioned.\n\n"
-                f"The text outlines stipulations regarding payment guarantees, mandatory deposits, and estimated cost schedules. "
-                f"For example, the document states: \"{context_sentences[0] if context_sentences else 'Standard EMD and tender fee requirements apply.'}\"\n\n"
-                f"Would you like me to extract the full payment terms and penalty conditions for you?"
-            )
-        elif "sliding window" in q_lower or "window" in q_lower:
-            return (
-                "The **Sliding Window Protocol** is a foundational data-link and transport mechanism designed to achieve "
-                "both reliable, ordered packet delivery and optimal channel utilization.\n\n"
-                "Essentially, the sender maintains a buffer of unacknowledged frames (the sliding window) governed by the Bandwidth-Delay Product. "
-                "As the receiver confirms receipt with cumulative ACKs, the sender's window slides forward, releasing capacity for subsequent packets. "
-                "This also acts as a flow and congestion control mechanism to prevent receiver buffer overflow."
-            )
-        elif "tcp" in q_lower or "udp" in q_lower:
-            return (
-                "When comparing **TCP** and **UDP** at the transport layer, the main difference is how they handle connections.\n\n"
-                "**TCP (Transmission Control Protocol)** is connection-oriented. It uses a 3-Way Handshake (SYN, SYN-ACK, ACK) and guarantees in-order delivery via sequence numbers and retransmission timers.\n\n"
-                "**UDP (User Datagram Protocol)**, on the other hand, is connectionless with low overhead. It doesn't guarantee delivery, which makes it much faster and optimized for low-latency streaming, DNS queries, and real-time multiplayer gaming."
-            )
-        else:
-            primary_lead = context_sentences[0] if context_sentences else "Standard architectural principles apply."
-            secondary_lead = context_sentences[1] if len(context_sentences) > 1 else "Refer to the verified document sections above for exhaustive details."
-            return (
-                f"Based on the document:\n\n"
-                f"{primary_lead}\n\n"
-                f"{secondary_lead}\n\n"
-                f"Let me know if you'd like me to elaborate on any specific part of this!"
-            )
+        # If we have good context, build a natural answer from it
+        if context_sentences:
+            # Try to find sentences that are most relevant to the query keywords
+            query_words = set(q_lower.split()) - {"the", "a", "an", "is", "are", "what", "how", "why", "does", "do", "in", "of", "to", "for", "and", "or", "this", "that", "it"}
+            scored = []
+            for s in context_sentences:
+                score = sum(1 for w in query_words if w in s.lower())
+                scored.append((score, s))
+            scored.sort(key=lambda x: x[0], reverse=True)
+            best = [s for _, s in scored[:4] if _]
+
+            # Fall back to first 3 sentences if no keyword match
+            if not best:
+                best = context_sentences[:3]
+
+            answer_body = " ".join(best[:2])
+            extra = best[2] if len(best) > 2 else ""
+
+            response = f"Based on the document, {answer_body}"
+            if extra:
+                response += f"\n\nAdditionally, {extra}"
+            response += "\n\nLet me know if you'd like me to go deeper into any part of this!"
+            return response
+
+        # Truly no context available
+        return (
+            f"I wasn't able to find specific information about \"{query}\" in the uploaded document. "
+            "This might be because the topic isn't covered in the text, or the question is outside the document's scope.\n\n"
+            "Try rephrasing your question, or ask me something else about the document!"
+        )
 
 
 llama_service = LlamaService()
