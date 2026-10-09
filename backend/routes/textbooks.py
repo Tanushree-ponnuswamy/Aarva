@@ -138,7 +138,7 @@ def get_textbook_file(textbook_id: int, db: Session = Depends(get_db)):
     for p in UPLOADS_DIR.glob(f"{textbook_id}_*"):
         ext = p.suffix.lower()
         media_type = "application/pdf" if ext == ".pdf" else "text/plain"
-        return FileResponse(path=p, media_type=media_type, filename=book.file_name)
+        return FileResponse(path=p, media_type=media_type, filename=book.file_name, content_disposition_type="inline")
 
     # Fallback response if file was created before disk persistence
     summary_text = (book.summary_data or {}).get("complete_summary", f"Document summary for {book.title}.")
