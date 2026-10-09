@@ -1329,12 +1329,21 @@ function FilePreviewPane({ src, fileName, fileType }: { src: string; fileName: s
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const ext = fileName.split('.').pop()?.toLowerCase() || fileType;
-  const isPdf = ext === 'pdf';
-  const isImage = ['png','jpg','jpeg','bmp','tiff','tif','webp'].includes(ext);
-  const isDocx = ext === 'docx' || ext === 'doc';
-  const isXlsx = ext === 'xlsx' || ext === 'xls';
-  const isText = ['txt','md','rst','csv','log'].includes(ext);
+  const extFromUrl = (src || '').split('?')[0].split('.').pop()?.toLowerCase() || '';
+  const extFromName = (fileName || '').split('.').pop()?.toLowerCase() || '';
+  const extFromType = (fileType || '').split('/').pop()?.toLowerCase() || '';
+  const knownExts = ['pdf','png','jpg','jpeg','bmp','tiff','tif','webp','docx','doc','xlsx','xls','txt','md','csv'];
+  const ext = knownExts.includes(extFromName)
+    ? extFromName
+    : knownExts.includes(extFromUrl)
+      ? extFromUrl
+      : extFromType;
+
+  const isPdf = ext === 'pdf' || fileType?.includes('pdf');
+  const isImage = ['png','jpg','jpeg','bmp','tiff','tif','webp'].includes(ext) || fileType?.startsWith('image/');
+  const isDocx = ext === 'docx' || ext === 'doc' || fileType?.includes('word');
+  const isXlsx = ext === 'xlsx' || ext === 'xls' || fileType?.includes('sheet') || fileType?.includes('excel');
+  const isText = ['txt','md','rst','csv','log'].includes(ext) || fileType?.startsWith('text/');
 
   useEffect(() => {
     if (!src) return;
@@ -1695,6 +1704,7 @@ function UploadWorkspace({
       const primary = newFiles[0];
       setChatPreviewFile(primary);
       setChatPreviewUrl(URL.createObjectURL(primary));
+      setLeftView("files");
     }
     e.target.value = "";
   };
@@ -1970,6 +1980,7 @@ function UploadWorkspace({
       setSelectedFile(f);
       if (filePreviewUrl) URL.revokeObjectURL(filePreviewUrl);
       setFilePreviewUrl(URL.createObjectURL(f));
+      setLeftView("files");
     }
     e.target.value = "";
   };
@@ -1982,6 +1993,7 @@ function UploadWorkspace({
       setSelectedFile(f);
       if (filePreviewUrl) URL.revokeObjectURL(filePreviewUrl);
       setFilePreviewUrl(URL.createObjectURL(f));
+      setLeftView("files");
     }
   };
 
@@ -2249,6 +2261,12 @@ Generated At: ${new Date().toLocaleString()}
                   fileName={chatPreviewFile.name}
                   fileType={chatPreviewFile.type}
                 />
+              ) : selectedFile && filePreviewUrl ? (
+                <FilePreviewPane
+                  src={filePreviewUrl}
+                  fileName={selectedFile.name}
+                  fileType={selectedFile.type}
+                />
               ) : book ? (
                 <FilePreviewPane
                   src={`${API}/api/textbooks/${book.id}/file`}
@@ -2259,7 +2277,7 @@ Generated At: ${new Date().toLocaleString()}
                 <div className="chat-empty-state" style={{ height: "100%" }}>
                   <div className="chat-empty-icon"><Icon name="spark" size={32} /></div>
                   <h3>No file uploaded</h3>
-                  <p>Upload a document in the chat to view its preview here.</p>
+                  <p>Upload or attach a document to view its preview here.</p>
                 </div>
               )}
             </div>
