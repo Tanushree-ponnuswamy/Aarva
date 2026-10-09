@@ -250,14 +250,10 @@ class LlamaService:
             primary_lead = context_sentences[0] if context_sentences else "Standard architectural principles apply."
             secondary_lead = context_sentences[1] if len(context_sentences) > 1 else "Refer to the verified document sections above for exhaustive details."
             return (
-                f"### Analysis & Key Findings for: *\"{query}\"*\n\n"
-                f"From the verified indexed document sources:\n\n"
-                f"1. **Core Concept / Requirement**:\n"
-                f"   - {primary_lead}\n\n"
-                f"2. **Operational Context**:\n"
-                f"   - {secondary_lead}\n\n"
-                f"3. **Summary & Verification**:\n"
-                f"   - The information above was synthesized using **Hybrid Retrieval (Dense ChromaDB Vector + BM25 Okapi)** across your ingested materials."
+                f"Based on the document:\n\n"
+                f"{primary_lead}\n\n"
+                f"{secondary_lead}\n\n"
+                f"Let me know if you'd like me to elaborate on any specific part of this!"
             )
 
 
