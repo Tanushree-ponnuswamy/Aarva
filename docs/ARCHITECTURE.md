@@ -97,10 +97,11 @@ flowchart TB
   - Email verification codes generated and verified via `services/email_service.py`.
 
 ### C. AI Intelligence & Vector Search (RAG)
-- **Textbook Ingestion**: `pypdf` / `pdfplumber` extracts structured text from uploaded PDF textbooks.
+- **Textbook Ingestion**: `pypdf` / `pdfplumber` extracts structured text from uploaded PDF textbooks into clean semantic chunks.
 - **Vector Storage (`ChromaDB`)**: Extracted text chunks are indexed with dense embeddings for high-speed semantic similarity retrieval.
-- **Llama Summarization Service**: Generates chapter summaries, key takeaways, and glossary definitions tailored to the learner's persona.
-- **Mistral AI Tutor Chat**: Retrieves relevant chunks from ChromaDB based on student questions, injecting textbook context and citing exact chapter and page sources.
+- **Primary LLM Engine (`Qwen3 8B` / `Qwen2.5`)**: Serves as the primary inference model for chapter summarization, key concept extraction, adaptive question generation, and grounded RAG tutor chat with exact textbook citations.
+- **Fallback Models**: Supports seamless fallback to `Llama 3`, `Mistral`, `Llama 3.2`, or `Phi-3` when deployed across varying hardware profiles.
+
 
 ---
 

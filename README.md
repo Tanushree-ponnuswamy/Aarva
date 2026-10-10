@@ -106,7 +106,7 @@ flowchart TD
 | **Backend Framework** | **FastAPI** (Python 3.10+) | High-throughput asynchronous REST API with automatic Swagger OpenAPI docs |
 | **Database & ORM** | **PostgreSQL** / **SQLite** + **SQLAlchemy** | Relational data persistence for users, profiles, progress metrics, quizzes, and audit logs |
 | **Vector Database (RAG)** | **ChromaDB** | Semantic embedding storage, similarity search, and chapter/page citation retrieval |
-| **AI / LLM Engine** | **Meta Llama** & **Mistral AI** | Multi-tier summarization, key takeaway generation, and grounded RAG tutor chat |
+| **AI / LLM Engine** | **Qwen (Qwen3 8B / Qwen2.5)** *(Primary)*, with **Llama 3** & **Mistral AI** fallbacks | Multi-tier summarization, key takeaway generation, adaptive quiz generation, and grounded RAG tutor chat |
 | **Authentication & Security** | **JWT (Python-Jose)** + **Bcrypt** | Stateless token auth, active session revocation, secure password hashing, SMTP OTP verification |
 
 ---
