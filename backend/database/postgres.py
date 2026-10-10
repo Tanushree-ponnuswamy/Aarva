@@ -52,9 +52,22 @@ def init_db():
 def seed_demo_data():
     db = SessionLocal()
     try:
-        # Check if users already exist
-        if db.query(User).count() > 0:
-            return
+        # Helper to get or create demo user
+        def get_or_create(email, defaults, profile_creator=None):
+            u = db.query(User).filter(User.email == email).first()
+            if not u:
+                u = User(email=email, **defaults)
+                db.add(u)
+                db.flush()
+                if profile_creator:
+                    profile_creator(u)
+            else:
+                # Ensure active and password reset for demo consistency
+                u.is_active = True
+                if defaults.get("password_hash"):
+                    u.password_hash = defaults["password_hash"]
+            return u
+
 
         # 1. Admin Account
         admin = User(

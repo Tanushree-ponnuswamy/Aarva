@@ -4,6 +4,12 @@
 
 ---
 
+## 🎥 Project Demo & Video Walkthrough
+
+- **Google Drive Demo Link**: [Watch AARVA Demo Video](https://drive.google.com/file/d/1ybVgyU1iQzW7RVQTdciTqkYm3qatSfJi/view?usp=sharing)
+
+---
+
 ## 🌟 Key Features
 
 1. **Universal Multi-Step Adaptive Sign-Up & Authentication**:
@@ -31,7 +37,65 @@
 
 ---
 
-## 🏗️ Architecture
+## 🏗️ System Architecture
+
+```mermaid
+flowchart TD
+    subgraph ClientLayer ["Client Layer (Responsive React + Vite SPA)"]
+        UI["Modern Web Interface"]
+        AuthModal["Multi-Step Adaptive Signup / Login"]
+        TutorChat["Mistral AI Tutor & Voice Assistant"]
+        Summarizer["Multi-Mode Textbook Summarizer"]
+        AdaptiveQuiz["Gamified Adaptive Quiz Engine"]
+        AdminDashboard["Admin Telemetry & User Manager"]
+    end
+
+    subgraph APILayer ["API & Gateway Layer (FastAPI)"]
+        AuthRoute["/api/auth (JWT & OTP Auth)"]
+        AdminRoute["/api/admin (Metrics & User Mgmt)"]
+        TextbookRoute["/api/textbooks (Upload & Indexing)"]
+        SummaryRoute["/api/summary (Llama AI Summaries)"]
+        QuizRoute["/api/quiz (Adaptive Evaluation)"]
+        StudentsRoute["/api/students (Profiles & Stats)"]
+    end
+
+    subgraph ServiceLayer ["AI & Business Services"]
+        LlamaService["Llama Service (Summarization & Concept Extraction)"]
+        MistralService["Mistral Service (RAG Tutor Chat)"]
+        AdaptiveEngine["Adaptive Engine (Personalized Learning Paths)"]
+        EmailService["SMTP Email Service (Verification OTPs)"]
+    end
+
+    subgraph StorageLayer ["Data & Vector Persistence"]
+        PostgresDB[("PostgreSQL / SQLite Database\n- Users & Student Profiles\n- Learning Progress & Streaks\n- Quiz History & Analytics\n- User & Chat Sessions")]
+        ChromaVectorDB[("ChromaDB Vector Store\n- PDF Embeddings (Chunks)\n- Semantic Search Collection\n- Chapter/Page Metadata")]
+    end
+
+    UI --> AuthRoute
+    AuthModal --> AuthRoute
+    TutorChat --> SummaryRoute
+    Summarizer --> TextbookRoute
+    Summarizer --> SummaryRoute
+    AdaptiveQuiz --> QuizRoute
+    AdminDashboard --> AdminRoute
+
+    AuthRoute --> EmailService
+    AuthRoute --> PostgresDB
+    AdminRoute --> PostgresDB
+    StudentsRoute --> PostgresDB
+    QuizRoute --> AdaptiveEngine
+    QuizRoute --> PostgresDB
+    TextbookRoute --> ChromaVectorDB
+    TextbookRoute --> PostgresDB
+    SummaryRoute --> LlamaService
+    SummaryRoute --> MistralService
+    LlamaService --> ChromaVectorDB
+    MistralService --> ChromaVectorDB
+```
+
+---
+
+## 📁 Repository Structure
 
 ```
 d:\Aarva\
@@ -60,7 +124,38 @@ d:\Aarva\
 │   │   └── chroma.py             # ChromaDB vector collection & RAG retrieval
 │   ├── routes/                   # auth, admin, students, textbooks, summary, quiz
 │   └── services/                 # llama_service, mistral_service, adaptive_service
+└── docs/                         # Detailed architecture, DB schema & API references
+    ├── ARCHITECTURE.md
+    ├── DB_SCHEMA.md
+    └── API_OVERVIEW.md
 ```
+
+---
+
+## ⚙️ Setup & Configuration
+
+1. **Clone the repository**
+   ```bash
+   git clone <repo-url>
+   cd AARVA
+   ```
+2. **Backend setup**
+   ```bash
+   cd backend
+   python -m venv venv
+   . venv/Scripts/activate   # Windows (or source venv/bin/activate on Linux/macOS)
+   pip install -r requirements.txt
+   ```
+   - Create a `.env` file (or set environment variables) with:
+     - `DATABASE_URL=postgresql://user:pass@localhost/aarva` (defaults to `sqlite:///./aarva.db` for local dev)
+     - `CHROMA_PATH=./vector_db/chroma`
+     - `JWT_SECRET=your-secret-key`
+
+3. **Frontend setup**
+   ```bash
+   cd ../frontend
+   npm install
+   ```
 
 ---
 
@@ -69,13 +164,33 @@ d:\Aarva\
 ### 1. Start FastAPI Backend:
 ```bash
 cd backend
-python -m uvicorn app:app --port 8000
+python -m uvicorn app:app --port 8000 --reload
 ```
-Backend API docs available at: `http://127.0.0.1:8000/docs`
+Backend API interactive Swagger docs available at: `http://127.0.0.1:8000/docs`
 
 ### 2. Start Frontend App:
 ```bash
 cd frontend
 npm run dev -- --host 127.0.0.1 --port 5173
 ```
-Open `http://localhost:5173` in any browser on desktop, tablet, or phone.
+Open `http://localhost:5173` in any browser on desktop, tablet, or mobile.
+
+---
+
+## 🔑 Demo Accounts
+
+| Role | Email | Password | Persona / Details |
+|------|-------|----------|-------------------|
+| **College Student** (Auto-fill) | `student@college.edu` | `student123` | Alex Morgan (CSE 3rd Year, IIT Madras) |
+| **School Student** | `priya.patel@school.edu` | `student123` | Priya Patel (Class 11 CBSE, DPS RK Puram) |
+| **Working Professional** | `rohan.iyer@techcorp.com` | `student123` | Rohan Iyer (Cloud Solutions Architect) |
+| **Administrator** | `admin@aarva.edu` | `admin123` | AARVA Platform Administrator |
+
+---
+
+## 📚 Documentation
+
+Detailed system documentation is available in the [`docs/`](file:///d:/Aarva/docs/) folder:
+- [Architecture & Flow Diagrams](file:///d:/Aarva/docs/ARCHITECTURE.md)
+- [Database Schema & ER Diagrams](file:///d:/Aarva/docs/DB_SCHEMA.md)
+- [API Endpoints Reference](file:///d:/Aarva/docs/API_OVERVIEW.md)
