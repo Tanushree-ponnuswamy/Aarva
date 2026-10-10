@@ -211,3 +211,10 @@ Detailed system documentation is available in the [`docs/`](file:///d:/Aarva/doc
 - [Architecture & Flow Diagrams](file:///d:/Aarva/docs/ARCHITECTURE.md)
 - [Database Schema & ER Diagrams](file:///d:/Aarva/docs/DB_SCHEMA.md)
 - [API Endpoints Reference](file:///d:/Aarva/docs/API_OVERVIEW.md)
+
+---
+
+## 🎥 Project Demo Video
+
+- **Watch the Video Walkthrough on Google Drive**: [AARVA System Demo Video](https://drive.google.com/file/d/1ybVgyU1iQzW7RVQTdciTqkYm3qatSfJi/view?usp=sharing)
+
