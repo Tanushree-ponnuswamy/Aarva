@@ -20,10 +20,10 @@
    - Seamless Dark and Light theme toggle.
 
 2. **Student Portal ("AARVA Learning Space")**:
-   - **Textbook Library**: Multi-textbook upload with automated text extraction, ChromaDB vector indexing, and Llama summarization.
+   - **Textbook Library**: Multi-textbook upload with automated text extraction, ChromaDB vector indexing, and Qwen / Llama AI summarization.
    - **Dual Learning Screen**:
      - *Textbook Summarizer*: Complete Book, Chapter-wise, Page-wise, and Concept-wise modes, expandable definitions, key takeaways, and Markdown/Print export.
-     - *Mistral AI Tutor Chat*: RAG retrieval citing chapter and page numbers, suggested follow-ups, and audio speech output.
+     - *AI Tutor Chat (Qwen & Mistral)*: Hybrid RAG retrieval citing chapter and page numbers, suggested follow-ups, and audio speech output.
    - **Adaptive Quiz Module**: Interactive practice questions with instant pedagogical explanations and confetti celebrations.
    - **Progress & Analytics**: Daily streak tracker (🔥 12 Days), concept mastery progress meters, targeted micro-sessions, and achievement badges.
    - **Mobile Experience**: One-handed bottom navigation bar and touch-friendly cards.
@@ -125,7 +125,7 @@ d:\Aarva\
 │   │   │   ├── UniversalSignup.tsx # Mockup-faithful dynamic 4-step signup
 │   │   │   ├── StudentPortal.tsx # Dual learning space coordinator
 │   │   │   ├── SummarizerView.tsx # Multi-mode summarizer & export
-│   │   │   ├── AIChat.tsx        # Mistral AI tutor with ChromaDB RAG & voice
+│   │   │   ├── AIChat.tsx        # AI tutor chat with ChromaDB RAG & voice
 │   │   │   ├── QuizModule.tsx    # Timed adaptive quiz with instant feedback
 │   │   │   ├── ProgressView.tsx  # Concept mastery & streak analytics
 │   │   │   └── AdminPortal.tsx   # User management & session telemetry
@@ -135,12 +135,13 @@ d:\Aarva\
 │   │   └── services/api.ts       # API client connecting to FastAPI
 ├── backend/                      # FastAPI Python Application
 │   ├── app.py                    # Main API server with CORS & startup seeder
+│   ├── config.py                 # Pydantic system settings & env loader
 │   ├── models/models.py          # SQLAlchemy models (users, profiles, quizzes, etc.)
 │   ├── database/
 │   │   ├── postgres.py           # Database engine & demo seed data
 │   │   └── chroma.py             # ChromaDB vector collection & RAG retrieval
 │   ├── routes/                   # auth, admin, students, textbooks, summary, quiz
-│   └── services/                 # llama_service, mistral_service, adaptive_service
+│   └── services/                 # llama_service (Qwen/Llama/Mistral), quiz_service, adaptive_service
 └── docs/                         # Detailed architecture, DB schema & API references
     ├── ARCHITECTURE.md
     ├── DB_SCHEMA.md
