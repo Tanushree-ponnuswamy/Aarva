@@ -4,12 +4,6 @@
 
 ---
 
-## 🎥 Project Demo & Video Walkthrough
-
-- **Google Drive Demo Link**: [Watch AARVA Demo Video](https://drive.google.com/file/d/1ybVgyU1iQzW7RVQTdciTqkYm3qatSfJi/view?usp=sharing)
-
----
-
 ## 🌟 Key Features
 
 1. **Universal Multi-Step Adaptive Sign-Up & Authentication**:
