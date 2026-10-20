@@ -209,7 +209,16 @@ class KnowledgeBaseService:
                     {"term": "AI Tutor", "definition": "A patient, interactive guide providing grounded explanations and examples."}
                 ],
                 "important_notes": [
-                    {"note": f"Document contains {parse_result.page_count} sections.", "type": "Requirement", "page": 1}
+                    {
+                        "note": f"Document contains {parse_result.page_count} pages and approximately {parse_result.word_count} words covering '{parse_result.pages[0].chapter if parse_result.pages else 'General'}'.",
+                        "type": "Overview",
+                        "page": parse_result.pages[0].page_number if parse_result.pages else 1
+                    },
+                    {
+                        "note": f"Key sections include {', '.join([p.chapter for p in parse_result.pages[:3]])}.",
+                        "type": "Exam Focus",
+                        "page": parse_result.pages[min(1, len(parse_result.pages) - 1)].page_number if parse_result.pages else 1
+                    }
                 ]
             }
 

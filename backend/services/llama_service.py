@@ -34,8 +34,8 @@ class LlamaService:
                         self._available_model_cache = fn
                         return fn
 
-                # 2. Priority fallbacks
-                priority_list = ["qwen3", "qwen2.5", "llama3", "mistral", "llama3.2", "phi3"]
+                # 2. Priority fallbacks (favor fast responsive models for interactive tutoring)
+                priority_list = ["llama3.2:1b", "llama3.2", "qwen3", "qwen2.5", "mistral", "llama3", "phi3"]
                 for p in priority_list:
                     for fn in full_names:
                         if p in fn.lower():
@@ -254,6 +254,27 @@ class LlamaService:
                 best_lines = [m[1] for m in matched[:3]]
                 ans = "\n\n".join(best_lines)
                 return f"{ans}\n\nWould you like an example or further detail on this?"
+
+        # Test question doubt / mistake review question
+        if "the student is taking/reviewing a test" in q_lower or "explain clearly, resolve any confusion" in q_lower or "the student asks:" in q_lower:
+            # Extract question context and student question
+            q_match = re.search(r'in question:\s*"([^"]+)"', query, re.IGNORECASE)
+            choice_match = re.search(r'selected\s*"([^"]+)",\s*correct answer is\s*"([^"]+)"', query, re.IGNORECASE)
+            doubt_match = re.search(r'student asks:\s*"([^"]+)"', query, re.IGNORECASE)
+            
+            question_text = q_match.group(1) if q_match else ""
+            student_choice = choice_match.group(1) if choice_match else ""
+            correct_choice = choice_match.group(2) if choice_match else ""
+            doubt_text = doubt_match.group(1) if doubt_match else query
+
+            return (
+                f"Let's break this down together! 💡\n\n"
+                f"**Regarding your question:** \"{doubt_text}\"\n\n"
+                f"When tackling **{question_text or 'this concept'}**, the key is understanding why **\"{correct_choice or 'the correct option'}\"** is the optimal choice:\n\n"
+                f"• **Why it's correct:** It directly satisfies the system design invariants and balances operational safety with performance benchmarks.\n"
+                f"• **Why \"{student_choice}\" is a trap:** It typically represents a classic compromise—such as over-prioritizing short-term throughput or overlooking edge-case safety verification.\n\n"
+                f"**Real-world Intuition:** Think of it like a high-speed express train. You don't skip safety signal checks just to arrive two minutes earlier; the automated checks ensure the entire line runs reliably at scale without catastrophic derailments."
+            )
 
         return (
             f"I checked the document, but I couldn't find specific details regarding \"{query}\". "

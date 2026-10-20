@@ -648,7 +648,9 @@ function MiniIcon({ name }: { name: "dashboard" | "upload" | "library" | "test" 
   return <svg className="mini-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{paths[name]}</svg>;
 }
 
-const API_BASE = "http://127.0.0.1:8000";
+const API_BASE = (import.meta.env.VITE_API_URL !== undefined && import.meta.env.VITE_API_URL !== "")
+  ? import.meta.env.VITE_API_URL
+  : (import.meta.env.DEV ? "http://127.0.0.1:8000" : "");
 
 async function apiPost(path: string, body: unknown) {
   const res = await fetch(`${API_BASE}${path}`, {
@@ -1728,7 +1730,7 @@ interface StudyTask {
 const COVER_COLORS = ["violet", "blue", "blush", "lavender", "teal"] as const;
 
 // ── API helper (authenticated) ────────────────────────────────────────────
-const API = "http://127.0.0.1:8000";
+const API = API_BASE;
 
 async function apiFetch<T = any>(path: string, options: RequestInit = {}): Promise<T> {
   const token = localStorage.getItem("aarva_token") ?? "";
@@ -2454,7 +2456,7 @@ function UploadWorkspace({
   const [defSearchQuery, setDefSearchQuery] = useState<string>("");
   const [copiedToast, setCopiedToast] = useState<boolean>(false);
   const [message, setMessage] = useState("");
-  const [messages, setMessages] = useState<{ from: string; text: string }[]>([
+  const [messages, setMessages] = useState<{ from: string; text: string; sources?: any[] }[]>([
     {
       from: "ai",
       text: "Hi, I'm Aarva 👋 — let's start the convo! Upload a book or just ask me anything to get going.",
@@ -2838,8 +2840,8 @@ function UploadWorkspace({
         }),
       });
 
-      // 1. Append response to chat stream
-      setMessages((c) => [...c, { from: "ai", text: res.response }]);
+      // 1. Append response to chat stream with retrieved page sources
+      setMessages((c) => [...c, { from: "ai", text: res.response, sources: res.sources || [] }]);
       if (voiceAssistantActive) {
         speakText(res.response);
       }
@@ -2863,6 +2865,28 @@ function UploadWorkspace({
       setIsSending(false);
     }
   };
+
+  // ── Listener for discussing test questions / mistakes in upload chat session ──
+  useEffect(() => {
+    const handleDiscussEvent = (e: any) => {
+      const detail = e.detail;
+      if (!detail) return;
+      setLeftView("chat");
+      if (detail.book) {
+        onSelectBook(detail.book);
+      }
+      if (detail.query) {
+        const targetBookId = detail.book?.id || book?.id || 1;
+        setMessages((prev) => [...prev, { from: "user", text: detail.query }]);
+        executeRagChat(detail.query, targetBookId);
+      }
+    };
+
+    window.addEventListener("aarva_discuss_in_upload", handleDiscussEvent);
+    return () => {
+      window.removeEventListener("aarva_discuss_in_upload", handleDiscussEvent);
+    };
+  }, [book?.id]);
 
   // ── End-to-end Document Ingestion & RAG Ingestion with 0-100% Progress ──
   const doUpload = async (file: File, initialQuery?: string) => {
@@ -3327,7 +3351,49 @@ function UploadWorkspace({
                   messages.map((item, index) => (
                     <div className={`chat-bubble ${item.from}`} key={`${item.text}-${index}`}>
                       {item.from === "ai" && <span><Icon name="spark" size={13} /></span>}
-                      <div className="chat-bubble-content">{renderMarkdown(item.text)}</div>
+                      <div className="chat-bubble-content">
+                        {renderMarkdown(item.text)}
+                        {item.sources && item.sources.length > 0 && (
+                          <div style={{ marginTop: "0.6rem", display: "flex", flexWrap: "wrap", gap: "0.4rem", alignItems: "center" }}>
+                            <span style={{ fontSize: "0.72rem", color: "#64748b", fontWeight: 700 }}>Cited Pages:</span>
+                            {item.sources.map((src: any, sIdx: number) => {
+                              const pg = src.page || 1;
+                              const label = src.chapter && !src.chapter.startsWith("Page ")
+                                ? `Pg ${pg} · ${src.chapter}`
+                                : `Pg ${pg}`;
+                              return (
+                                <button
+                                  key={sIdx}
+                                  type="button"
+                                  onClick={() => {
+                                    setCurrentPage(pg);
+                                    setLeftView("files");
+                                  }}
+                                  title={src.snippet || `Navigate to Page ${pg}`}
+                                  style={{
+                                    background: "#ede9fe",
+                                    color: "#5b21b6",
+                                    border: "1px solid #ddd6fe",
+                                    borderRadius: "6px",
+                                    padding: "2px 7px",
+                                    fontSize: "0.72rem",
+                                    fontWeight: 700,
+                                    cursor: "pointer",
+                                    display: "inline-flex",
+                                    alignItems: "center",
+                                    gap: "0.25rem",
+                                    transition: "all 0.15s ease"
+                                  }}
+                                >
+                                  <span>📄</span>
+                                  <span>{label}</span>
+                                  <span style={{ opacity: 0.6 }}>→</span>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
                     </div>
                   ))
                 )}
@@ -4315,6 +4381,7 @@ function TestView({
   onStarted,
   onCompleted,
   onSelectBook,
+  onDiscussInUpload,
 }: {
   book: LearningBook;
   books?: LearningBook[];
@@ -4323,6 +4390,7 @@ function TestView({
   onStarted: (book: LearningBook) => void;
   onCompleted?: (book: LearningBook) => void;
   onSelectBook?: (book: LearningBook) => void;
+  onDiscussInUpload?: (book: LearningBook, query: string) => void;
 }) {
   const [currentBook, setCurrentBook] = useState<LearningBook>(book);
   const [concept, setConcept] = useState("");
@@ -4333,6 +4401,8 @@ function TestView({
   const [searchQuery, setSearchQuery] = useState("");
   const [filterMode, setFilterMode] = useState<"all" | "in-progress" | "completed">("all");
   const [showRoadmap, setShowRoadmap] = useState(false);
+  const [reviewSearch, setReviewSearch] = useState("");
+  const [reviewTab, setReviewTab] = useState<"missed" | "all">("missed");
 
   // Challenge test state
   const [currentQuestions, setCurrentQuestions] = useState<TestQuestion[]>([]);
@@ -4457,12 +4527,11 @@ function TestView({
     const percentage = Math.round((correctCount / currentQuestions.length) * 100);
     const passed = percentage >= 70;
 
-    if (passed) {
-      advanceStepProgress(activeBook.id, conceptIndex);
-      const conceptsList = activeBook.concepts ?? ["Key Concepts", "Core Ideas", "Definitions", "Important Notes"];
-      if (conceptIndex + 1 >= conceptsList.length) {
-        onCompleted?.(activeBook);
-      }
+    // Upon completing the test, advance progress so the next test/stage unlocks
+    advanceStepProgress(activeBook.id, conceptIndex);
+    const conceptsList = activeBook.concepts ?? ["Key Concepts", "Core Ideas", "Definitions", "Important Notes"];
+    if (conceptIndex + 1 >= conceptsList.length) {
+      onCompleted?.(activeBook);
     }
 
     setTestResult({
@@ -4480,14 +4549,23 @@ function TestView({
     setConcept(""); // Exit question player to show testResult
   };
 
-  const toggleDiscussion = (q: TestQuestion, userChoice: string, correctChoice: string) => {
+  const toggleDiscussion = (q: TestQuestion, userChoice?: string, correctChoice?: string) => {
     if (discussingQuestionId === q.id) {
       setDiscussingQuestionId(null);
       return;
     }
     setDiscussingQuestionId(q.id);
     if (!aiChatMessages[q.id] || aiChatMessages[q.id].length === 0) {
-      const welcome = `Hello! Let's clear up this concept together: In Question #${q.id}, you selected "${userChoice}". A common misunderstanding is that ${q.misconception}. However, the correct answer is "${correctChoice}" because ${q.explanation}. Feel free to ask me any question below to help solidify this concept!`;
+      let welcome = "";
+      if (userChoice && correctChoice) {
+        if (userChoice === correctChoice) {
+          welcome = `Great job! You answered Question #${q.id} correctly. ${q.explanation}. Ask me any follow-up questions, analogies, or practical examples to master this concept!`;
+        } else {
+          welcome = `Hello! Let's clear up this concept together: In Question #${q.id}, you selected "${userChoice}". A common misconception is that ${q.misconception}. However, the correct answer is "${correctChoice}" because ${q.explanation}. Ask me anything to clarify your doubts!`;
+        }
+      } else {
+        welcome = `Hi! I'm your AARVA AI Tutor for Question #${q.id}: "${q.prompt}". Need a hint, analogy, or conceptual breakdown? Ask me anything!`;
+      }
       setAiChatMessages((prev) => ({
         ...prev,
         [q.id]: [{ sender: "ai", text: welcome }],
@@ -4495,33 +4573,74 @@ function TestView({
     }
   };
 
-  const sendTutorQuery = async (q: TestQuestion, userChoice: string, correctChoice: string) => {
-    const text = (aiInputText[q.id] || "").trim();
+  const sendTutorQuery = async (
+    q: TestQuestion,
+    userChoice?: string,
+    correctChoice?: string,
+    overrideText?: string
+  ) => {
+    const text = (overrideText || aiInputText[q.id] || "").trim();
     if (!text) return;
 
     const current = aiChatMessages[q.id] || [];
     setAiChatMessages((prev) => ({
       ...prev,
-      [q.id]: [...current, { sender: "user", text }, { sender: "ai", text: "Analyzing your question...", loading: true }],
+      [q.id]: [
+        ...current,
+        { sender: "user", text },
+        { sender: "ai", text: "Analyzing your question and preparing explanation…", loading: true },
+      ],
     }));
     setAiInputText((prev) => ({ ...prev, [q.id]: "" }));
 
+    const activeConceptName = testResult?.concept || concept || activeBook.title || "this concept";
+
     try {
-      const res = await apiPost("/api/chat", {
-        query: `The student is reviewing a test on '${testResult?.concept || concept}' from the textbook '${activeBook.title}'. In question: "${q.prompt}", the student chose "${userChoice}" (incorrect), but the correct answer is "${correctChoice}". Student asks: "${text}". Explain clearly, resolve their confusion, and give a simple analogy so they learn this thoroughly.`,
-        textbook_id: activeBook.id,
-        user_id: 1,
+      let promptQuery = "";
+      if (userChoice && correctChoice) {
+        promptQuery = `The student is taking/reviewing a test on '${activeConceptName}' from '${activeBook.title}'. In question: "${q.prompt}", the student selected "${userChoice}", correct answer is "${correctChoice}". Student asks: "${text}". Explain clearly, resolve any confusion, and provide a helpful, intuitive explanation.`;
+      } else {
+        promptQuery = `The student is currently answering a test question on '${activeConceptName}' from '${activeBook.title}'. Question: "${q.prompt}". Options: ${q.options.join(" | ")}. The student asks: "${text}". Provide a gentle, patient tutor hint and conceptual explanation without bluntly spoiling the exact answer.`;
+      }
+
+      // Format previous thread messages for multi-turn conversation
+      const historyPayload = current.slice(-6).map((m) => ({
+        role: m.sender === "ai" ? "assistant" : "user",
+        content: m.text,
+      }));
+
+      const res = await apiFetch<any>("/api/chat", {
+        method: "POST",
+        body: JSON.stringify({
+          query: promptQuery,
+          textbook_id: activeBook?.id || 1,
+          user_id: 1,
+          conversation_history: historyPayload,
+        }),
       });
-      const answer = res.response || res.answer || `In ${concept}, '${correctChoice}' is the accurate principle. ${q.explanation}. A good way to remember this is that ${q.explanation}`;
+
+      const answer =
+        res.response ||
+        res.answer ||
+        `In ${activeConceptName}, ${q.explanation}. ${q.misconception ? `Remember: ${q.misconception}.` : ""}`;
+
       setAiChatMessages((prev) => ({
         ...prev,
-        [q.id]: [...prev[q.id].filter((m) => !m.loading), { sender: "ai", text: answer }],
+        [q.id]: [
+          ...(prev[q.id] || []).filter((m) => !m.loading),
+          { sender: "ai", text: answer },
+        ],
       }));
     } catch {
-      const fallback = `In ${concept}, '${correctChoice}' is the established standard. ${q.explanation}. When you chose '${userChoice}', you likely focused on a temporary symptom rather than the root architecture. To retain this, remember that ${q.explanation}`;
+      const fallback = `In ${activeConceptName}, ${q.explanation}. ${
+        q.misconception ? `Keep in mind: ${q.misconception}.` : "Focus on evaluating foundational principles."
+      }`;
       setAiChatMessages((prev) => ({
         ...prev,
-        [q.id]: [...prev[q.id].filter((m) => !m.loading), { sender: "ai", text: fallback }],
+        [q.id]: [
+          ...(prev[q.id] || []).filter((m) => !m.loading),
+          { sender: "ai", text: fallback },
+        ],
       }));
     }
   };
@@ -4535,22 +4654,50 @@ function TestView({
     return started.has(b.id) || (b.progress ?? 0) > 0;
   };
 
-  const allCount = books.length;
-  const inProgressCount = books.filter(isBookInProgress).length;
-  const completedCount = books.filter(isBookCompleted).length;
+  const searchTokens = useMemo(() => {
+    return searchQuery.trim().toLowerCase().split(/\s+/).filter(Boolean);
+  }, [searchQuery]);
 
-  const filteredBooks = books.filter((item) => {
-    const q = searchQuery.trim().toLowerCase();
-    const matchesSearch = !q ||
-      item.title.toLowerCase().includes(q) ||
-      (item.author && item.author.toLowerCase().includes(q)) ||
-      (item.concepts && item.concepts.some((c) => c.toLowerCase().includes(q)));
-    if (!matchesSearch) return false;
+  const matchesBookSearch = (item: LearningBook, tokens: string[]) => {
+    if (tokens.length === 0) return true;
+    const title = (item.title || "").toLowerCase();
+    const author = (item.author || "").toLowerCase();
+    const subject = (item.subject || "").toLowerCase();
+    const fileName = (item.file_name || "").toLowerCase();
+    const concepts = (item.concepts || []).map((c) => c.toLowerCase());
 
-    if (filterMode === "completed") return isBookCompleted(item);
-    if (filterMode === "in-progress") return isBookInProgress(item);
-    return true;
-  });
+    return tokens.every((token) => (
+      title.includes(token) ||
+      author.includes(token) ||
+      subject.includes(token) ||
+      fileName.includes(token) ||
+      concepts.some((c) => c.includes(token))
+    ));
+  };
+
+  const getMatchingConcepts = (item: LearningBook, tokens: string[]) => {
+    if (tokens.length === 0) return [];
+    return (item.concepts || []).filter((c) => {
+      const cLow = c.toLowerCase();
+      return tokens.some((t) => cLow.includes(t));
+    });
+  };
+
+  const matchingBooks = useMemo(() => {
+    return books.filter((b) => matchesBookSearch(b, searchTokens));
+  }, [books, searchTokens]);
+
+  const allCount = matchingBooks.length;
+  const inProgressCount = matchingBooks.filter(isBookInProgress).length;
+  const completedCount = matchingBooks.filter(isBookCompleted).length;
+
+  const filteredBooks = useMemo(() => {
+    return matchingBooks.filter((item) => {
+      if (filterMode === "completed") return isBookCompleted(item);
+      if (filterMode === "in-progress") return isBookInProgress(item);
+      return true;
+    });
+  }, [matchingBooks, filterMode]);
 
   /* ── 1. ACTIVE QUESTION PLAYER ── */
   if (concept && currentQuestions.length > 0) {
@@ -4573,6 +4720,8 @@ function TestView({
           <div style={{ display: "flex", alignItems: "center", gap: "0.8rem" }}>
             <small>Question {question + 1} of {currentQuestions.length}</small>
             <button
+              id="finish-test-btn"
+              data-testid="finish-test-btn"
               type="button"
               onClick={handleFinishTest}
               style={{ background: "none", border: "none", color: "var(--violet)", fontSize: "0.72rem", fontWeight: 700, cursor: "pointer", textDecoration: "underline" }}
@@ -4596,22 +4745,14 @@ function TestView({
           <div className="answer-grid">
             {currentQ.options.map((optText, optIndex) => {
               const letter = String.fromCharCode(65 + optIndex);
-              let btnClass = "";
-              if (hasAnswered) {
-                if (optIndex === currentQ.correctIndex) {
-                  btnClass = "correct";
-                } else if (optIndex === selectedOpt) {
-                  btnClass = "incorrect";
-                }
-              }
+              const isSelected = selectedOpt === optIndex;
 
               return (
                 <button
                   key={optIndex}
-                  className={btnClass}
+                  className={isSelected ? "selected" : ""}
                   type="button"
                   onClick={() => handleSelectAnswer(optIndex)}
-                  disabled={hasAnswered}
                 >
                   <span>{letter}</span>
                   {optText}
@@ -4620,29 +4761,18 @@ function TestView({
             })}
           </div>
 
-          {hasAnswered && (
-            <div className={`answer-feedback ${isCorrect ? "correct" : "incorrect"}`}>
-              <span>{isCorrect ? "✓ Correct!" : "❌ Incorrect"}</span>
-              <p>
-                {isCorrect
-                  ? currentQ.explanation
-                  : `${currentQ.explanation} (Common misconception: ${currentQ.misconception})`}
-              </p>
-            </div>
-          )}
-
           <div className="game-footer">
             <span>
               {isLast
-                ? "Final challenge! Click below to view your test score and discuss any mistakes."
-                : "Questions adapt through Basic, Medium, and Advanced levels."}
+                ? "Final challenge! Submit to reveal your test score, verify answers, and consult the AI Tutor."
+                : "Select your answer and continue. Detailed explanations and the AI Tutor will be revealed upon test completion."}
             </span>
             <button
               type="button"
               onClick={handleNextQuestion}
               disabled={!hasAnswered}
             >
-              {isLast ? "Finish Test & View Score 🎉" : "Next question"} <Icon name="arrow" size={16} />
+              {isLast ? "Finish Test & Reveal Score 🎉" : "Next question"} <Icon name="arrow" size={16} />
             </button>
           </div>
         </div>
@@ -4732,95 +4862,381 @@ function TestView({
           </div>
         </div>
 
-        {/* Wrong Answers Review & AI Discussion Section */}
+        {/* Review & AI Discussion Section */}
         <div className="test-wrong-section">
-          <div className="test-wrong-section-header">
-            <h3>Discuss & Master Your Mistakes ({testResult.wrongQuestions.length})</h3>
-            <p>
-              {testResult.wrongQuestions.length === 0
-                ? "Flawless score! You answered every question correctly across all three tiers."
-                : "Review the questions you missed below. Click 'Discuss with AI Tutor' on any question to clarify doubts, understand the core concept, and ask questions."}
-            </p>
-          </div>
+          {(() => {
+            const hasWrong = testResult.wrongQuestions.length > 0;
+            const reviewQuestionsList = (reviewTab === "all" || !hasWrong)
+              ? currentQuestions.map((q, idx) => ({
+                  question: q,
+                  selectedIndex: userAnswers[idx] !== undefined ? userAnswers[idx] : -1,
+                  userChoice: userAnswers[idx] !== undefined && q.options[userAnswers[idx]] ? q.options[userAnswers[idx]] : "Not answered",
+                  correctChoice: q.options[q.correctIndex],
+                  isCorrect: userAnswers[idx] === q.correctIndex,
+                }))
+              : testResult.wrongQuestions.map((wq) => ({
+                  ...wq,
+                  isCorrect: false,
+                }));
 
-          {testResult.wrongQuestions.length > 0 && (
-            <div className="test-wrong-cards-list">
-              {testResult.wrongQuestions.map(({ question: wq, userChoice, correctChoice }) => {
-                const isDiscussing = discussingQuestionId === wq.id;
-                const thread = aiChatMessages[wq.id] || [];
+            const rTokens = reviewSearch.trim().toLowerCase().split(/\s+/).filter(Boolean);
+            const filteredReviewQuestions = reviewQuestionsList.filter(({ question: wq, userChoice, correctChoice }) => {
+              if (rTokens.length === 0) return true;
+              const corpus = `${wq.prompt} ${wq.explanation} ${wq.misconception} ${userChoice} ${correctChoice} ${wq.difficulty} ${wq.kind}`.toLowerCase();
+              return rTokens.every((token) => corpus.includes(token));
+            });
 
-                return (
-                  <div className="test-wrong-card" key={wq.id}>
-                    <div className="test-wrong-top">
-                      <span className={`difficulty-badge ${wq.difficulty.toLowerCase()}`}>
-                        {wq.difficulty === "Basic" ? "🟢 Basic" : wq.difficulty === "Medium" ? "🟡 Medium" : "🔴 Advanced"}
-                      </span>
-                      <small style={{ color: "#9ca3af", fontWeight: 600 }}>Question #{wq.id}</small>
+            return (
+              <>
+                <div className="test-wrong-section-header">
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: "0.8rem" }}>
+                    <div>
+                      <h3>Review Challenges & Quick Chat with AI Tutor</h3>
+                      <p>
+                        {!hasWrong
+                          ? "Flawless score! You answered every question correctly across all three tiers. Click 'Quick Chat with AI Tutor' on any challenge to explore real-world analogies, extensions, and practical applications."
+                          : "Review your answers below. Open 'Quick Chat with AI Tutor' on any question to get immediate clarity, analogies, and step-by-step guidance."}
+                      </p>
                     </div>
 
-                    <h4>{wq.prompt}</h4>
-
-                    <div className="answer-comparison-row">
-                      <div className="answer-chip wrong">
-                        <span>❌ Your answer:</span> <b>{userChoice}</b>
-                      </div>
-                      <div className="answer-chip correct">
-                        <span>✓ Correct answer:</span> <b>{correctChoice}</b>
-                      </div>
-                    </div>
-
-                    <p className="test-wrong-explanation">
-                      💡 <b>Key Concept Insight:</b> {wq.explanation}
-                    </p>
-
-                    <button
-                      type="button"
-                      className="btn-discuss-ai"
-                      onClick={() => toggleDiscussion(wq, userChoice, correctChoice)}
-                    >
-                      <Icon name="spark" size={15} />
-                      <span>{isDiscussing ? "Close AI Discussion" : "💬 Discuss with AI Tutor"}</span>
-                    </button>
-
-                    {/* Inline AI Discussion Drawer */}
-                    {isDiscussing && (
-                      <div className="ai-discuss-drawer">
-                        <div className="ai-discuss-header">
-                          <Icon name="spark" size={16} /> AARVA AI Tutor Discussion
-                        </div>
-                        <div className="ai-chat-thread">
-                          {thread.map((msg, mIdx) => (
-                            <div key={mIdx} className={`ai-bubble ${msg.sender}`}>
-                              {msg.loading ? (
-                                <span>Thinking and preparing clear explanation…</span>
-                              ) : (
-                                msg.text
-                              )}
-                            </div>
-                          ))}
-                        </div>
-                        <form
-                          className="ai-input-wrap"
-                          onSubmit={(e) => {
-                            e.preventDefault();
-                            sendTutorQuery(wq, userChoice, correctChoice);
-                          }}
+                    {hasWrong && (
+                      <div className="filter-chips-group test-filter-chips" role="group" aria-label="Review filter">
+                        <button
+                          type="button"
+                          className={`filter-chip ${reviewTab === "missed" ? "active" : ""}`}
+                          onClick={() => setReviewTab("missed")}
                         >
-                          <input
-                            type="text"
-                            placeholder="Ask AI Tutor to clarify this mistake or give an analogy..."
-                            value={aiInputText[wq.id] || ""}
-                            onChange={(e) => setAiInputText({ ...aiInputText, [wq.id]: e.target.value })}
-                          />
-                          <button type="submit">Ask Tutor</button>
-                        </form>
+                          Missed ({testResult.wrongQuestions.length})
+                        </button>
+                        <button
+                          type="button"
+                          className={`filter-chip ${reviewTab === "all" ? "active" : ""}`}
+                          onClick={() => setReviewTab("all")}
+                        >
+                          All Questions ({testResult.totalQuestions})
+                        </button>
                       </div>
                     )}
                   </div>
-                );
-              })}
-            </div>
-          )}
+                </div>
+
+                {reviewQuestionsList.length > 1 && (
+                  <div className="results-search-wrap">
+                    <div className="library-search-box filter-search results-search-box">
+                      <span className="search-icon">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                          <circle cx="11" cy="11" r="8" />
+                          <path d="m21 21-4.35-4.35" />
+                        </svg>
+                      </span>
+                      <input
+                        type="text"
+                        placeholder="Search questions, concepts, or explanations..."
+                        value={reviewSearch}
+                        onChange={(e) => setReviewSearch(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Escape") setReviewSearch("");
+                        }}
+                        aria-label="Search review questions"
+                      />
+                      {reviewSearch && (
+                        <button
+                          type="button"
+                          className="search-clear-btn"
+                          onClick={() => setReviewSearch("")}
+                          aria-label="Clear review search"
+                        >
+                          ✕
+                        </button>
+                      )}
+                    </div>
+                    {reviewSearch && (
+                      <small style={{ color: "#736d8d", fontWeight: 600 }}>
+                        Showing {filteredReviewQuestions.length} of {reviewQuestionsList.length} questions
+                      </small>
+                    )}
+                  </div>
+                )}
+
+                {filteredReviewQuestions.length === 0 ? (
+                  <div className="test-empty-state" style={{ margin: "1rem 0", padding: "1.8rem 1rem" }}>
+                    <p>No questions matching "{reviewSearch}".</p>
+                    <button
+                      type="button"
+                      className="roadmap-back-btn"
+                      style={{ margin: "0.4rem 0 0" }}
+                      onClick={() => setReviewSearch("")}
+                    >
+                      Clear search
+                    </button>
+                  </div>
+                ) : (
+                  <div className="test-wrong-cards-list">
+                    {filteredReviewQuestions.map(({ question: wq, userChoice, correctChoice, isCorrect, selectedIndex }) => {
+                      const isDiscussing = discussingQuestionId === wq.id;
+                      const thread = aiChatMessages[wq.id] || [];
+                      const isThinking = thread.some((m) => m.loading);
+
+                      return (
+                        <div className={`test-wrong-card ${isCorrect ? "card-correct" : ""}`} key={wq.id}>
+                          <div className="test-wrong-top">
+                            <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                              <span className={`difficulty-badge ${wq.difficulty.toLowerCase()}`}>
+                                {wq.difficulty === "Basic" ? "🟢 Basic" : wq.difficulty === "Medium" ? "🟡 Medium" : "🔴 Advanced"}
+                              </span>
+                              {isCorrect ? (
+                                <span className="test-badge completed" style={{ fontSize: "0.62rem" }}>✓ Correct</span>
+                              ) : (
+                                <span className="test-badge in-progress" style={{ fontSize: "0.62rem" }}>Needs Review</span>
+                              )}
+                            </div>
+                            <small style={{ color: "#9ca3af", fontWeight: 600 }}>Question #{wq.id}</small>
+                          </div>
+
+                          <h4>{wq.prompt}</h4>
+
+                          <div className="answer-comparison-row">
+                            <div className={`answer-chip ${isCorrect ? "correct" : "wrong"}`}>
+                              <span>{isCorrect ? "✓ Your Selection:" : "❌ Your Selection:"}</span> <b>{userChoice}</b>
+                            </div>
+                            {!isCorrect && (
+                              <div className="answer-chip correct">
+                                <span>✓ Correct Answer:</span> <b>{correctChoice}</b>
+                              </div>
+                            )}
+                          </div>
+
+                          {/* All Options Breakdown */}
+                          <div className="review-options-list">
+                            <p className="review-options-title">All Options Breakdown:</p>
+                            {wq.options.map((optText, optIdx) => {
+                              const letter = String.fromCharCode(65 + optIdx);
+                              const isThisCorrect = optIdx === wq.correctIndex;
+                              const isThisUserChoice = userChoice === optText || selectedIndex === optIdx;
+
+                              let optClass = "review-opt-neutral";
+                              if (isThisCorrect) optClass = "review-opt-correct";
+                              else if (isThisUserChoice) optClass = "review-opt-user-wrong";
+
+                              return (
+                                <div key={optIdx} className={`review-opt-item ${optClass}`}>
+                                  <div className="review-opt-header">
+                                    <span className="review-opt-letter">{letter}</span>
+                                    <span className="review-opt-text">{optText}</span>
+                                    {isThisCorrect && (
+                                      <span className="review-badge-correct">
+                                        ✓ Correct Answer
+                                      </span>
+                                    )}
+                                    {isThisUserChoice && !isThisCorrect && (
+                                      <span className="review-badge-user-wrong">
+                                        ❌ Your Choice (Incorrect)
+                                      </span>
+                                    )}
+                                    {isThisUserChoice && isThisCorrect && (
+                                      <span className="review-badge-user-correct">
+                                        ✓ Your Choice (Correct)
+                                      </span>
+                                    )}
+                                    {!isThisCorrect && !isThisUserChoice && (
+                                      <span className="review-badge-distractor">
+                                        ✕ Distractor
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+
+                          {/* Detailed Reasoning & Explanations */}
+                          <div className="review-reasons-wrap">
+                            <div className="review-reason-card correct-reason">
+                              <div className="review-reason-badge">
+                                <span>✓</span> Reason Why Option {String.fromCharCode(65 + wq.correctIndex)} is Correct:
+                              </div>
+                              <p>{wq.explanation}</p>
+                            </div>
+
+                            {wq.misconception && (
+                              <div className="review-reason-card wrong-reason">
+                                <div className="review-reason-badge">
+                                  <span>⚠️</span> Why Wrong Options are Incorrect / Common Trap:
+                                </div>
+                                <p>{wq.misconception}</p>
+                              </div>
+                            )}
+                          </div>
+
+                          <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap", marginTop: "0.5rem" }}>
+                            <button
+                              type="button"
+                              className="btn-discuss-ai"
+                              onClick={() => toggleDiscussion(wq, userChoice, correctChoice)}
+                            >
+                              <Icon name="spark" size={15} />
+                              <span>{isDiscussing ? "✕ Close Quick Chat" : "💬 Quick Chat with AI Tutor"}</span>
+                            </button>
+
+                            <button
+                              type="button"
+                              className="btn-discuss-ai"
+                              style={{
+                                background: "linear-gradient(135deg, #10b981, #059669)",
+                                boxShadow: "0 4px 12px rgba(16, 185, 129, 0.25)"
+                              }}
+                              onClick={() => {
+                                const discussionPrompt = `I just finished taking the test on "${testResult?.concept || concept}" for "${activeBook.title}". In Question #${wq.id}: "${wq.prompt}", I answered "${userChoice}", but the correct answer is "${correctChoice}". The explanation notes: "${wq.explanation}". Could you please explain this concept in depth, clarify why my choice was incorrect, and give a real-world analogy?`;
+                                if (onDiscussInUpload) {
+                                  onDiscussInUpload(activeBook, discussionPrompt);
+                                } else {
+                                  window.dispatchEvent(new CustomEvent("aarva_discuss_in_upload", {
+                                    detail: { book: activeBook, query: discussionPrompt }
+                                  }));
+                                }
+                              }}
+                              title="Move to the related textbook chat workspace in Upload session to discuss this question in depth"
+                            >
+                              <span>📖</span>
+                              <span>Discuss in Book Chat →</span>
+                            </button>
+                          </div>
+
+                          {/* Inline AI Quick Chat Drawer */}
+                          {isDiscussing && (
+                            <div className="ai-discuss-drawer">
+                              <div className="ai-discuss-header">
+                                <Icon name="spark" size={16} /> 💬 Quick Chat • AARVA AI Tutor
+                              </div>
+
+                              <div
+                                className="ai-chat-thread"
+                                ref={(el) => {
+                                  if (el) {
+                                    el.scrollTop = el.scrollHeight;
+                                  }
+                                }}
+                              >
+                                {thread.map((msg, mIdx) => (
+                                  <div key={mIdx} className={`ai-bubble ${msg.sender}`}>
+                                    {msg.loading ? (
+                                      <span style={{ display: "inline-flex", alignItems: "center", gap: "0.4rem" }}>
+                                        <Icon name="spark" size={14} /> Thinking and preparing clear explanation…
+                                      </span>
+                                    ) : (
+                                      msg.text
+                                    )}
+                                  </div>
+                                ))}
+                              </div>
+
+                              {/* Quick Prompt Suggestion Chips */}
+                              <div className="ai-quick-prompts">
+                                <button
+                                  type="button"
+                                  className="ai-prompt-chip"
+                                  disabled={isThinking}
+                                  onClick={() =>
+                                    sendTutorQuery(
+                                      wq,
+                                      userChoice,
+                                      correctChoice,
+                                      "Can you explain this concept in simpler terms with a clear real-world analogy?"
+                                    )
+                                  }
+                                >
+                                  💡 Explain with analogy
+                                </button>
+                                {!isCorrect && (
+                                  <button
+                                    type="button"
+                                    className="ai-prompt-chip"
+                                    disabled={isThinking}
+                                    onClick={() =>
+                                      sendTutorQuery(
+                                        wq,
+                                        userChoice,
+                                        correctChoice,
+                                        `Why is "${userChoice}" incorrect and why is "${correctChoice}" the best choice?`
+                                      )
+                                    }
+                                  >
+                                    🔍 Why was my answer wrong?
+                                  </button>
+                                )}
+                                <button
+                                  type="button"
+                                  className="ai-prompt-chip"
+                                  disabled={isThinking}
+                                  onClick={() =>
+                                    sendTutorQuery(
+                                      wq,
+                                      userChoice,
+                                      correctChoice,
+                                      "Can you give me a practical real-world example of how this concept is applied in production or real life?"
+                                    )
+                                  }
+                                >
+                                  📖 Practical example
+                                </button>
+                                <button
+                                  type="button"
+                                  className="ai-prompt-chip"
+                                  disabled={isThinking}
+                                  onClick={() =>
+                                    sendTutorQuery(
+                                      wq,
+                                      userChoice,
+                                      correctChoice,
+                                      "What is a simple rule of thumb or memory trick to never confuse this on exams?"
+                                    )
+                                  }
+                                >
+                                  🧠 Memory rule of thumb
+                                </button>
+                              </div>
+
+                              <form
+                                className="ai-input-wrap"
+                                onSubmit={(e) => {
+                                  e.preventDefault();
+                                  if (!isThinking) {
+                                    sendTutorQuery(wq, userChoice, correctChoice);
+                                  }
+                                }}
+                              >
+                                <input
+                                  type="text"
+                                  placeholder={
+                                    isThinking
+                                      ? "AI Tutor is analyzing your question…"
+                                      : "Ask AI Tutor to clarify this question or give an intuition..."
+                                  }
+                                  value={aiInputText[wq.id] || ""}
+                                  disabled={isThinking}
+                                  onChange={(e) => setAiInputText({ ...aiInputText, [wq.id]: e.target.value })}
+                                />
+                                <button
+                                  type="submit"
+                                  disabled={isThinking || !(aiInputText[wq.id] || "").trim()}
+                                  style={{
+                                    opacity: isThinking || !(aiInputText[wq.id] || "").trim() ? 0.6 : 1,
+                                    cursor: isThinking || !(aiInputText[wq.id] || "").trim() ? "not-allowed" : "pointer"
+                                  }}
+                                >
+                                  {isThinking ? "Thinking…" : "Ask Tutor"}
+                                </button>
+                              </form>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </>
+            );
+          })()}
         </div>
 
         {/* Action Buttons */}
@@ -4835,8 +5251,8 @@ function TestView({
             🔁 Re-Test This Concept
           </button>
 
-          {/* ── Continue to next concept — only if passed ── */}
-          {testResult.passed && hasNextConcept && (
+          {/* ── Continue to next concept / test ── */}
+          {hasNextConcept && (
             <button
               type="button"
               className="btn-results-primary"
@@ -4846,10 +5262,41 @@ function TestView({
                 begin(nextConcept, activeBook, nextIdx);
               }}
             >
-              <span>Continue → {conceptsList[conceptIndex + 1]}</span>
+              <span>Continue to Next Test → {conceptsList[conceptIndex + 1]}</span>
               <Icon name="arrow" size={16} />
             </button>
           )}
+
+          <button
+            type="button"
+            className="btn-results-secondary"
+            style={{
+              borderColor: "#7458f5",
+              color: "#6366f1",
+              background: "#f5f3ff",
+              fontWeight: 700,
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "0.45rem"
+            }}
+            onClick={() => {
+              const fullTestQuery = `I just finished the test on "${testResult.concept}" from "${activeBook.title}". I scored ${testResult.score}/${testResult.maxScore} (${testResult.percentage}%). ${
+                testResult.wrongQuestions.length > 0
+                  ? `I missed ${testResult.wrongQuestions.length} questions on: ${testResult.wrongQuestions.map((wq) => `"${wq.question.prompt.slice(0, 60)}..."`).join(", ")}.`
+                  : "I got 100% correct!"
+              } Can we review this topic together and explore advanced insights and practical exam tips?`;
+              if (onDiscussInUpload) {
+                onDiscussInUpload(activeBook, fullTestQuery);
+              } else {
+                window.dispatchEvent(new CustomEvent("aarva_discuss_in_upload", {
+                  detail: { book: activeBook, query: fullTestQuery }
+                }));
+              }
+            }}
+            title="Open AI Tutor in Upload session with complete test context"
+          >
+            <span>💬</span> Discuss Test in Book Chat
+          </button>
 
           <button
             type="button"
@@ -4874,108 +5321,18 @@ function TestView({
         <div className="test-total"><Icon name="spark" /><span><b>8 types</b><small>of interactive questions</small></span></div>
       </div>
 
-      {/* ── Test Search & Filters Bar ── */}
-      <div className="test-filter-bar">
-        <div className="library-search-box filter-search test-search-box">
-          <span className="search-icon">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-              <circle cx="11" cy="11" r="8" />
-              <path d="m21 21-4.35-4.35" />
-            </svg>
-          </span>
-          <input
-            type="text"
-            placeholder="Search tests by book title, concept, or author..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            aria-label="Search tests"
-          />
-          {searchQuery && (
-            <button
-              type="button"
-              className="search-clear-btn"
-              onClick={() => setSearchQuery("")}
-              aria-label="Clear search"
-            >
-              ✕
-            </button>
-          )}
-        </div>
-
-        <div className="filter-chips-group test-filter-chips" role="group" aria-label="Filter tests by status">
-          <button
-            type="button"
-            className={`filter-chip ${filterMode === "all" ? "active" : ""}`}
-            onClick={() => setFilterMode("all")}
-          >
-            All <span>({allCount})</span>
-          </button>
-          <button
-            type="button"
-            className={`filter-chip ${filterMode === "in-progress" ? "active" : ""}`}
-            onClick={() => setFilterMode("in-progress")}
-          >
-            In Progress <span>({inProgressCount})</span>
-          </button>
-          <button
-            type="button"
-            className={`filter-chip ${filterMode === "completed" ? "active" : ""}`}
-            onClick={() => setFilterMode("completed")}
-          >
-            Completed <span>({completedCount})</span>
-          </button>
-        </div>
-      </div>
-
-      {books.length === 0 ? (
-        <div className="test-empty-state">
-          <div className="library-empty-icon">
-            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#7458f5" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-              <circle cx="11" cy="11" r="8" />
-              <path d="m21 21-4.35-4.35" />
-            </svg>
-          </div>
-          <h3>No textbooks uploaded yet</h3>
-          <p>Upload your textbook or syllabus first to generate concept quizzes and practice tests.</p>
-        </div>
-      ) : filteredBooks.length === 0 ? (
-        <div className="test-empty-state">
-          <div className="library-empty-icon">
-            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#7458f5" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-              <circle cx="11" cy="11" r="8" />
-              <path d="m21 21-4.35-4.35" />
-            </svg>
-          </div>
-          <h3>No tests match your filter</h3>
-          <p>
-            {searchQuery
-              ? `No tests found matching "${searchQuery}".`
-              : filterMode === "in-progress"
-              ? "You don't have any tests in progress right now. Start a test below to begin tracking!"
-              : filterMode === "completed"
-              ? "No completed tests yet. Finish a 50-question concept challenge to complete a test!"
-              : "No tests found."}
-          </p>
-          <button
-            className="auth-primary"
-            type="button"
-            onClick={() => {
-              setSearchQuery("");
-              setFilterMode("all");
-            }}
-            style={{ maxWidth: "12rem", margin: "0.5rem auto 0" }}
-          >
-            Reset filters
-          </button>
-        </div>
-      ) : showRoadmap ? (
+      {showRoadmap ? (
         /* ── Road Map View (only after clicking Start Test) ── */
         <div className="test-layout">
           <div style={{ width: "100%" }}>
             <button
               type="button"
               className="roadmap-back-btn"
-              onClick={() => setShowRoadmap(false)}
+              onClick={() => {
+                setShowRoadmap(false);
+                setSearchQuery("");
+                setFilterMode("all");
+              }}
             >
               ← Back to all tests
             </button>
@@ -5026,105 +5383,261 @@ function TestView({
                   <h3>Master concepts step-by-step</h3>
                 </div>
               </div>
-              <div className="concept-path" style={{ margin: "0 auto", maxWidth: "100%" }}>
-                {(() => {
-                  const conceptsList = activeBook.concepts ?? ["Key Concepts", "Core Ideas", "Definitions", "Important Notes"];
-                  const currentStep = getStepProgress(activeBook.id);
-                  const isFinished = isBookCompleted(activeBook);
-                  return conceptsList.map((item, index) => {
-                    const isCompleted = isFinished || index < currentStep;
-                    const isCurrent = !isFinished && index === currentStep;
-                    const isLocked = !isFinished && index > currentStep;
-                    return (
-                      <button
-                        type="button"
-                        key={item}
-                        disabled={isLocked}
-                        className={`concept-step-item ${isCompleted ? "completed" : isCurrent ? "active" : "locked"}`}
-                        onClick={() => !isLocked && begin(item, activeBook, index)}
-                        title={isLocked ? `Complete step ${index} first to unlock this concept` : `Start ${item}`}
-                      >
-                        <span>
-                          {isCompleted ? "✓" : index + 1}
-                        </span>
-                        <div>
-                          <b>{item}</b>
-                          <small>
-                            {isCompleted
-                              ? "Completed ✓ • Click to Re-Test and improve your score"
-                              : isCurrent
-                              ? "Active • Basic → Medium → Advanced questions"
-                              : `Locked • Complete step ${index} first`}
-                          </small>
-                        </div>
-                        <em className={isCurrent ? "start-active" : isCompleted ? "retake-btn" : "locked-btn"}>
-                          {isCompleted ? "🔁 Re-Test ↺" : isCurrent ? "Start Challenge →" : "Locked 🔒"}
-                        </em>
-                      </button>
-                    );
-                  });
-                })()}
-              </div>
+
+              {/* ── Step-by-Step Concept Progression ── */}
+              {(() => {
+                const conceptsList = activeBook.concepts ?? ["Key Concepts", "Core Ideas", "Definitions", "Important Notes"];
+                const currentStep = getStepProgress(activeBook.id);
+                const isFinished = isBookCompleted(activeBook);
+
+                return (
+                  <div className="concept-path" style={{ margin: "0 auto", maxWidth: "100%" }}>
+                    {conceptsList.map((item, index) => {
+                      const isCompleted = isFinished || index < currentStep;
+                      const isCurrent = !isFinished && index === currentStep;
+                      const isLocked = !isFinished && index > currentStep;
+
+                      return (
+                        <button
+                          type="button"
+                          key={item}
+                          disabled={isLocked}
+                          className={`concept-step-item ${isCompleted ? "completed" : isCurrent ? "active" : "locked"}`}
+                          onClick={() => !isLocked && begin(item, activeBook, index)}
+                          title={isLocked ? `Complete step ${index} first to unlock this concept` : `Start ${item}`}
+                        >
+                          <span>
+                            {isCompleted ? "✓" : index + 1}
+                          </span>
+                          <div>
+                            <b>{item}</b>
+                            <small>
+                              {isCompleted
+                                ? "Completed ✓ • Click to Re-Test and improve your score"
+                                : isCurrent
+                                ? "Active • Basic → Medium → Advanced questions"
+                                : `Locked • Complete step ${index} first`}
+                            </small>
+                          </div>
+                          <em className={isCurrent ? "start-active" : isCompleted ? "retake-btn" : "locked-btn"}>
+                            {isCompleted ? "🔁 Re-Test ↺" : isCurrent ? "Start Challenge →" : "Locked 🔒"}
+                          </em>
+                        </button>
+                      );
+                    })}
+                  </div>
+                );
+              })()}
             </article>
           </div>
         </div>
       ) : (
         /* ── Tests Overview: List of Tests by book ── */
         <>
-          <div className="all-test-progress">
-            <div className="card-title">
-              <div>
-                <p className="kicker">Your progress</p>
-                <h3>Tests by book ({filteredBooks.length})</h3>
-              </div>
+          {/* ── Test Search & Filters Bar ── */}
+          <div className="test-filter-bar">
+            <div className="library-search-box filter-search test-search-box">
+              <span className="search-icon">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="11" cy="11" r="8" />
+                  <path d="m21 21-4.35-4.35" />
+                </svg>
+              </span>
+              <input
+                type="text"
+                placeholder="Search tests by book title, concept, subject, or author..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Escape") setSearchQuery("");
+                }}
+                aria-label="Search tests"
+              />
+              {searchQuery && (
+                <button
+                  type="button"
+                  className="search-clear-btn"
+                  onClick={() => setSearchQuery("")}
+                  aria-label="Clear search"
+                >
+                  ✕
+                </button>
+              )}
             </div>
-            <div className="all-test-progress-list">
-              {filteredBooks.map((item) => {
-                const isCompleted = isBookCompleted(item);
-                const inProgress = isBookInProgress(item);
-                const isSelected = activeBook && activeBook.id === item.id;
-                const pct = isCompleted ? 100 : inProgress ? Math.max(15, item.progress ?? 0) : 0;
-                return (
-                  <div
-                    className={`test-progress-row selectable ${isSelected ? "selected" : ""}`}
-                    key={item.id}
-                    onClick={() => {
-                      setCurrentBook(item);
-                      onSelectBook?.(item);
-                    }}
-                    title={`Click to select ${item.title}`}
-                  >
-                    <span className={`mini-cover ${item.color || "violet"}`}><MiniIcon name="book" /></span>
-                    <div className="test-row-main">
-                      <div className="test-row-header-wrap">
-                        <b>{item.title}</b>
-                      </div>
-                      <i><span style={{ width: `${pct}%`, background: isCompleted ? "linear-gradient(90deg, #10b981, #059669)" : undefined }} /></i>
-                    </div>
-                    <div className="test-row-actions">
-                      {isCompleted ? (
-                        <span className="test-badge completed">Completed</span>
-                      ) : inProgress ? (
-                        <span className="test-badge in-progress">In Progress</span>
-                      ) : (
-                        <span className="test-badge not-started">Not Started</span>
-                      )}
-                      <button
-                        type="button"
-                        className={`test-row-btn ${isSelected ? "primary" : ""}`}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          openRoadmap(item);
-                        }}
-                      >
-                        {isCompleted ? "🔁 Re-Test ↺" : inProgress ? "Continue →" : "Start Test →"}
-                      </button>
-                    </div>
-                  </div>
-                );
-              })}
+
+            <div className="filter-chips-group test-filter-chips" role="group" aria-label="Filter tests by status">
+              <button
+                type="button"
+                className={`filter-chip ${filterMode === "all" ? "active" : ""}`}
+                onClick={() => setFilterMode("all")}
+              >
+                All <span>({allCount})</span>
+              </button>
+              <button
+                type="button"
+                className={`filter-chip ${filterMode === "in-progress" ? "active" : ""}`}
+                onClick={() => setFilterMode("in-progress")}
+              >
+                In Progress <span>({inProgressCount})</span>
+              </button>
+              <button
+                type="button"
+                className={`filter-chip ${filterMode === "completed" ? "active" : ""}`}
+                onClick={() => setFilterMode("completed")}
+              >
+                Completed <span>({completedCount})</span>
+              </button>
             </div>
           </div>
+
+          {books.length === 0 ? (
+            <div className="test-empty-state">
+              <div className="library-empty-icon">
+                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#7458f5" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="11" cy="11" r="8" />
+                  <path d="m21 21-4.35-4.35" />
+                </svg>
+              </div>
+              <h3>No textbooks uploaded yet</h3>
+              <p>Upload your textbook or syllabus first to generate concept quizzes and practice tests.</p>
+            </div>
+          ) : filteredBooks.length === 0 ? (
+            <div className="test-empty-state">
+              <div className="library-empty-icon">
+                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#7458f5" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="11" cy="11" r="8" />
+                  <path d="m21 21-4.35-4.35" />
+                </svg>
+              </div>
+              <h3>No tests match your filter</h3>
+              <p>
+                {searchQuery
+                  ? `No tests found matching "${searchQuery}". Try searching by another concept, author, or subject.`
+                  : filterMode === "in-progress"
+                  ? "You don't have any tests in progress right now. Start a test below to begin tracking!"
+                  : filterMode === "completed"
+                  ? "No completed tests yet. Complete a concept challenge to mark tests as finished!"
+                  : "No tests found."}
+              </p>
+              <button
+                className="auth-primary"
+                type="button"
+                onClick={() => {
+                  setSearchQuery("");
+                  setFilterMode("all");
+                }}
+                style={{ maxWidth: "15rem", margin: "0.5rem auto 0" }}
+              >
+                Clear search & reset filters
+              </button>
+            </div>
+          ) : (
+            <div className="all-test-progress">
+              <div className="card-title">
+                <div>
+                  <p className="kicker">Your progress</p>
+                  <h3>
+                    Tests by book ({filteredBooks.length}
+                    {searchQuery ? ` matching "${searchQuery}"` : ""})
+                  </h3>
+                </div>
+              </div>
+              <div className="all-test-progress-list">
+                {filteredBooks.map((item) => {
+                  const isCompleted = isBookCompleted(item);
+                  const inProgress = isBookInProgress(item);
+                  const isSelected = activeBook && activeBook.id === item.id;
+                  const pct = isCompleted ? 100 : inProgress ? Math.max(15, item.progress ?? 0) : 0;
+                  const matchedConcepts = getMatchingConcepts(item, searchTokens);
+
+                  return (
+                    <div
+                      className={`test-progress-row selectable ${isSelected ? "selected" : ""}`}
+                      key={item.id}
+                      onClick={() => {
+                        setCurrentBook(item);
+                        onSelectBook?.(item);
+                      }}
+                      title={`Click to select ${item.title}`}
+                    >
+                      <span className={`mini-cover ${item.color || "violet"}`}><MiniIcon name="book" /></span>
+                      <div className="test-row-main">
+                        <div className="test-row-header-wrap">
+                          <b>{item.title}</b>
+                        </div>
+                        <div className="test-row-meta">
+                          <span>{item.subject || "Textbook"}</span>
+                          {item.author && (
+                            <>
+                              <span className="meta-dot">•</span>
+                              <span>{item.author}</span>
+                            </>
+                          )}
+                          <span className="meta-dot">•</span>
+                          <span>{(item.concepts || []).length || 4} Concepts</span>
+                          {(item.total_pages || item.pages) ? (
+                            <>
+                              <span className="meta-dot">•</span>
+                              <span>{item.total_pages || item.pages} Pages</span>
+                            </>
+                          ) : null}
+                        </div>
+                        <i><span style={{ width: `${pct}%`, background: isCompleted ? "linear-gradient(90deg, #10b981, #059669)" : undefined }} /></i>
+                        {matchedConcepts.length > 0 && (
+                          <div className="test-matched-concepts" onClick={(e) => e.stopPropagation()}>
+                            <span className="test-matched-label">Matched:</span>
+                            {matchedConcepts.slice(0, 4).map((cName) => {
+                              const cIdx = (item.concepts || []).indexOf(cName);
+                              return (
+                                <button
+                                  type="button"
+                                  key={cName}
+                                  className="test-concept-chip"
+                                  title={`Start test on ${cName}`}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    begin(cName, item, cIdx >= 0 ? cIdx : 0);
+                                  }}
+                                >
+                                  <Icon name="spark" size={12} />
+                                  <span>{cName}</span>
+                                  <small style={{ opacity: 0.7, fontSize: "0.66rem" }}>→ Start</small>
+                                </button>
+                              );
+                            })}
+                            {matchedConcepts.length > 4 && (
+                              <span style={{ fontSize: "0.72rem", color: "#7458f5", fontWeight: 600 }}>
+                                +{matchedConcepts.length - 4} more
+                              </span>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                      <div className="test-row-actions">
+                        {isCompleted ? (
+                          <span className="test-badge completed">Completed</span>
+                        ) : inProgress ? (
+                          <span className="test-badge in-progress">In Progress</span>
+                        ) : (
+                          <span className="test-badge not-started">Not Started</span>
+                        )}
+                        <button
+                          type="button"
+                          className={`test-row-btn ${isSelected ? "primary" : ""}`}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            openRoadmap(item);
+                          }}
+                        >
+                          {isCompleted ? "🔁 Re-Test ↺" : inProgress ? "Continue →" : "Start Test →"}
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
         </>
       )}
     </section>
@@ -5302,7 +5815,7 @@ function Dashboard({ name, onHome }: { name: string; onHome: () => void }) {
   const userId = storedUser?.id;
   const userEmail: string = storedUser?.email || "";
 
-  const [collapsed, setCollapsed] = useState(false);
+  const [collapsed, setCollapsed] = useState(() => (typeof window !== "undefined" ? window.innerWidth <= 860 : false));
   const [active, setActive] = useState("Dashboard");
   const [selectedBook, setSelectedBook] = useState<LearningBook | null>(null);
   const [startedTests, setStartedTests] = useState<Set<number>>(() => {
@@ -5447,6 +5960,14 @@ function Dashboard({ name, onHome }: { name: string; onHome: () => void }) {
 
   return (
     <div className={`dashboard-shell ${collapsed ? "sidebar-collapsed" : ""}`}>
+      {/* Mobile backdrop overlay to close sidebar when open on small screens */}
+      {!collapsed && (
+        <div
+          className="mobile-sidebar-backdrop"
+          onClick={() => setCollapsed(true)}
+          aria-hidden="true"
+        />
+      )}
       <aside className="dash-nav">
         <div className="dash-brand">
           <Logo dark />
@@ -5458,6 +5979,7 @@ function Dashboard({ name, onHome }: { name: string; onHome: () => void }) {
               type="button"
               onClick={() => {
                 setActive(item.label);
+                if (window.innerWidth <= 860) setCollapsed(true);
               }}
               key={item.label}
             >
@@ -5471,7 +5993,10 @@ function Dashboard({ name, onHome }: { name: string; onHome: () => void }) {
           <button
             className={`dash-bottom-btn ${active === "Settings" ? "active" : ""}`}
             type="button"
-            onClick={() => setActive("Settings")}
+            onClick={() => {
+              setActive("Settings");
+              if (window.innerWidth <= 860) setCollapsed(true);
+            }}
           >
             <MiniIcon name="settings" />
             <span>Settings</span>
@@ -5703,6 +6228,15 @@ function Dashboard({ name, onHome }: { name: string; onHome: () => void }) {
             onStarted={handleStartTest}
             onCompleted={handleCompleteTest}
             onSelectBook={selectBookAndSave}
+            onDiscussInUpload={(targetBook, query) => {
+              selectBookAndSave(targetBook);
+              setActive("Upload");
+              setTimeout(() => {
+                window.dispatchEvent(new CustomEvent("aarva_discuss_in_upload", {
+                  detail: { book: targetBook, query }
+                }));
+              }, 120);
+            }}
           />
         )}
         {active === "Settings" && <SettingsView name={name} email={userEmail} user={storedUser} />}
@@ -5743,7 +6277,7 @@ export default function App() {
     // Invalidate server session
     const token = localStorage.getItem("aarva_token");
     if (token) {
-      fetch("http://127.0.0.1:8000/api/auth/logout", {
+      fetch(`${API_BASE}/api/auth/logout`, {
         method: "POST",
         headers: { Authorization: `Bearer ${token}` },
       }).catch(() => { });

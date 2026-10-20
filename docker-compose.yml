@@ -1,0 +1,151 @@
+# ==============================================================================
+#  AARVA AI Platform - Multi-Container Docker Compose Stack
+#  Services:
+#    - frontend: React + Vite + Tailwind CSS (Nginx Alpine reverse proxy)
+#    - backend:  FastAPI + ChromaDB + PyMuPDF + OCR (Python 3.11 Slim)
+#    - postgres: PostgreSQL 16 Alpine Database
+#    - ollama:   Optional self-hosted LLM service container (profile: with-ollama)
+# ==============================================================================
+
+services:
+  # ── PostgreSQL Database ────────────────────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    container_name: aarva-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-aarva_db}
+      POSTGRES_USER: ${POSTGRES_USER:-aarva_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-aarva_secure_password_2026}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - aarva_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-aarva_user} -d ${POSTGRES_DB:-aarva_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - aarva-net
+
+  # ── FastAPI Backend ────────────────────────────────────────────────────────
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: aarva-backend
+    restart: unless-stopped
+    environment:
+      APP_NAME: "AARVA AI Adaptive Learning Platform"
+      APP_ENV: ${APP_ENV:-production}
+      APP_HOST: "0.0.0.0"
+      APP_PORT: 8000
+      DEBUG: ${DEBUG:-false}
+      CORS_ORIGINS: ${CORS_ORIGINS:-*}
+
+      # PostgreSQL Connection
+      DATABASE_URL: postgresql://${POSTGRES_USER:-aarva_user}:${POSTGRES_PASSWORD:-aarva_secure_password_2026}@postgres:5432/${POSTGRES_DB:-aarva_db}
+
+      # Authentication Security
+      JWT_SECRET: ${JWT_SECRET:-aarva-secure-jwt-key-change-in-production-2026}
+      JWT_ALGORITHM: ${JWT_ALGORITHM:-HS256}
+      JWT_ACCESS_TOKEN_EXPIRE_MINUTES: ${JWT_ACCESS_TOKEN_EXPIRE_MINUTES:-10080}
+
+      # File Uploads & Vector Storage Paths
+      UPLOAD_DIR: /app/uploads
+      MAX_UPLOAD_SIZE_MB: 50
+      CHROMA_PERSIST_DIR: /app/vector_db/chroma
+      CHROMA_COLLECTION_NAME: aarva_knowledge_base
+
+      # Ollama & LLM Configuration
+      # (Defaults to host.docker.internal to use host machine's Ollama instance)
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
+      LLM_MODEL: ${LLM_MODEL:-qwen3:8b}
+      EMBEDDING_MODEL: ${EMBEDDING_MODEL:-bge-large:latest}
+      EMBEDDING_DIMENSION: ${EMBEDDING_DIMENSION:-1024}
+
+      # SMTP Mail Config (for verification OTPs)
+      SMTP_HOST: ${SMTP_HOST:-smtp.gmail.com}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_FROM_EMAIL: ${SMTP_FROM_EMAIL:-}
+      SMTP_FROM_NAME: "AARVA Learning"
+    ports:
+      - "${BACKEND_PORT:-8000}:8000"
+    volumes:
+      - aarva_uploads:/app/uploads
+      - aarva_chroma:/app/vector_db
+    extra_hosts:
+      # Allows backend container to connect directly to host Ollama
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
+      interval: 20s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    networks:
+      - aarva-net
+
+  # ── React + Vite Frontend (Served by Nginx) ────────────────────────────────
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        # Leave blank so Nginx reverse-proxies /api to backend automatically
+        VITE_API_URL: ${VITE_API_URL:-}
+    container_name: aarva-frontend
+    restart: unless-stopped
+    ports:
+      - "${FRONTEND_PORT:-80}:80"
+      - "${FRONTEND_ALT_PORT:-5173}:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost/healthz"]
+      interval: 20s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    networks:
+      - aarva-net
+
+  # ── Optional: Dedicated In-Container Ollama Service ─────────────────────────
+  # Run with: docker compose --profile with-ollama up -d
+  ollama:
+    image: ollama/ollama:latest
+    container_name: aarva-ollama
+    profiles:
+      - with-ollama
+    restart: unless-stopped
+    ports:
+      - "11434:11434"
+    volumes:
+      - aarva_ollama:/root/.ollama
+    networks:
+      - aarva-net
+
+# ── Persistent Storage Volumes ────────────────────────────────────────────────
+volumes:
+  aarva_pgdata:
+    name: aarva_pgdata
+  aarva_uploads:
+    name: aarva_uploads
+  aarva_chroma:
+    name: aarva_chroma
+  aarva_ollama:
+    name: aarva_ollama
+
+# ── Isolated Internal Bridge Network ──────────────────────────────────────────
+networks:
+  aarva-net:
+    name: aarva-net
+    driver: bridge

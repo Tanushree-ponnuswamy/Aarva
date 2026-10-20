@@ -99,13 +99,26 @@ def _clean_text(text: str) -> str:
     return text.strip()
 
 def _guess_chapter(text: str, page_num: int) -> str:
-    """Heuristically detect chapter headings from extracted text."""
-    for line in text.split('\n')[:8]:
-        line = line.strip()
-        if re.match(r'^(chapter|ch\.?|unit|section|part)\s+\d+', line, re.IGNORECASE):
-            return line[:80]
-        if re.match(r'^\d+\.\s+[A-Z]', line) and len(line) < 100:
-            return line[:80]
+    """Heuristically detect meaningful chapter/section headings from extracted text."""
+    lines = [l.strip() for l in text.split('\n') if l.strip()]
+    for line in lines[:12]:
+        # Filter out isolated page number markers
+        if re.match(r'^(page\s+\d+(\s+of\s+\d+)?|-?\s*\d+\s*-?)$', line, re.IGNORECASE):
+            continue
+        # Direct chapter/section/unit/module/topic/part patterns
+        if re.match(r'^(chapter|ch\.?|unit|section|part|module|topic|lecture|lesson|appendix)\s+([0-9]+|[ivxlcdm]+)[:.\s\-–—]?.*', line, re.IGNORECASE):
+            return line[:80].strip()
+        # Numbered headings: 1. Introduction, 1.1 Scope, etc.
+        if re.match(r'^\d+(\.\d+)*\s+([A-Z][a-zA-Z0-9\s_\-–—:,()]{2,60})', line):
+            return line[:80].strip()
+        # All uppercase or capitalized meaningful title headers (short lines)
+        if 4 <= len(line) <= 65 and not line.endswith(('.', ':', ';', ',')):
+            # Check if title-like: all caps or title cased without common conversational words
+            if line.isupper() and any(c.isalpha() for c in line) and len(line.split()) <= 8:
+                return line.title()[:80].strip()
+            if sum(1 for w in line.split() if w and w[0].isupper()) >= max(1, len(line.split()) // 2):
+                if not re.search(r'\b(the|is|are|was|were|in|at|on|for)\b$', line, re.IGNORECASE) and len(line.split()) <= 8:
+                    return line[:80].strip()
     return f"Page {page_num}"
 
 

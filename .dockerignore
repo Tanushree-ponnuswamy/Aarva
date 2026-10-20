@@ -1,0 +1,13 @@
+.git
+.gitignore
+*.md
+docs/
+backend/venv/
+backend/__pycache__/
+backend/aarva.db
+backend/uploads/*
+backend/chroma_db/*
+backend/vector_db/*
+frontend/node_modules/
+frontend/dist/
+*.log

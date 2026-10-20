@@ -336,8 +336,29 @@ Pre-seeded at startup via `database/postgres.py`:
 
 ---
 
+## 🐳 Running with Docker (Recommended for Deployment)
+
+Launch the entire stack (React frontend, FastAPI backend, and PostgreSQL database) with a single command:
+
+```bash
+# 1. Copy Docker environment file
+cp .env.docker.example .env
+
+# 2. Build and launch all services in detached mode
+docker compose up --build -d
+```
+
+- **Frontend Application**: `http://localhost` (or `http://localhost:5173`)
+- **FastAPI Backend & Docs**: `http://localhost:8000/docs`
+- **PostgreSQL Database**: `localhost:5432`
+
+See the full [Docker Deployment Guide](file:///d:/Aarva/docs/DEPLOYMENT.md) for production options, persistent storage, and GPU/Ollama setup.
+
+---
+
 ## 📚 Documentation Reference
 
+- 🐳 [Docker Deployment & Production Guide](file:///d:/Aarva/docs/DEPLOYMENT.md)
 - 📘 [Architecture Overview & Workflow Diagrams](file:///d:/Aarva/docs/ARCHITECTURE.md)
 - 🗄️ [Database Schema & ER Diagram](file:///d:/Aarva/docs/DB_SCHEMA.md)
 - 🔌 [API Endpoints Reference](file:///d:/Aarva/docs/API_OVERVIEW.md)

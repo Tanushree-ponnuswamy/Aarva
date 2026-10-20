@@ -12,6 +12,7 @@ import re
 import random
 import requests
 from typing import List, Dict, Any, Optional
+from config import settings
 
 
 FALLBACK_QUESTIONS_BANK: List[Dict[str, Any]] = [
