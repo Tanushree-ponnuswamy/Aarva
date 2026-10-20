@@ -18,9 +18,13 @@ from dotenv import load_dotenv
 # Base directory
 BASE_DIR = Path(__file__).resolve().parent
 
-# Load .env file
+# Load .env file (backend/.env or root .env)
 ENV_PATH = BASE_DIR / ".env"
 load_dotenv(dotenv_path=ENV_PATH)
+ROOT_ENV = BASE_DIR.parent / ".env"
+if ROOT_ENV.exists():
+    load_dotenv(dotenv_path=ROOT_ENV)
+
 
 
 def _int_env(key: str, default: int) -> int:

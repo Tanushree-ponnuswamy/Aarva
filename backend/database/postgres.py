@@ -10,8 +10,11 @@ from models.models import (
 )
 from datetime import datetime, timedelta
 
-# Load .env so DATABASE_URL is always available
+# Load .env so DATABASE_URL is always available (backend/.env or root .env)
 load_dotenv(dotenv_path=Path(__file__).resolve().parent.parent / ".env")
+root_env = Path(__file__).resolve().parent.parent.parent / ".env"
+if root_env.exists():
+    load_dotenv(dotenv_path=root_env)
 
 # Default to Postgres if env provided, or SQLite for local dev
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./aarva.db")
