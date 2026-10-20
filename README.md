@@ -342,7 +342,7 @@ Launch the entire stack (React frontend, FastAPI backend, and PostgreSQL databas
 
 ```bash
 # 1. Copy Docker environment file
-cp .env.docker.example .env
+cp .env.example .env
 
 # 2. Build and launch all services in detached mode
 docker compose up --build -d

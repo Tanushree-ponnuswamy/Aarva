@@ -57,7 +57,7 @@ The production deployment consists of 3 primary containers connected via an isol
 
 ```bash
 cd Aarva
-cp .env.docker.example .env
+cp .env.example .env
 ```
 
 *(Optional)* Review `.env` and set your preferred passwords or SMTP credentials for email verification.
