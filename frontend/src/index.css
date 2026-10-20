@@ -2875,6 +2875,43 @@ form button:hover {
   gap: 0.45rem;
 }
 
+.demo-cards-single {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+}
+
+.demo-card-top-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  margin-bottom: 0.25rem;
+}
+
+.demo-pass-hint {
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: #047857;
+  background: rgba(16, 185, 129, 0.1);
+  padding: 0.12rem 0.45rem;
+  border-radius: 999px;
+  letter-spacing: 0.02em;
+}
+
+.demo-card-item.sample-single {
+  width: 100%;
+  padding: 0.75rem 0.95rem;
+  background: linear-gradient(135deg, #ffffff 0%, #f8faff 100%);
+  border: 1.5px solid rgba(116, 88, 245, 0.28);
+}
+
+.demo-card-item.sample-single:hover {
+  background: linear-gradient(135deg, #fbfaff 0%, #f0f4ff 100%);
+  border-color: var(--violet);
+  box-shadow: 0 4px 16px rgba(116, 88, 245, 0.18);
+}
+
 @media (max-width: 640px) {
   .demo-cards-grid {
     grid-template-columns: 1fr;

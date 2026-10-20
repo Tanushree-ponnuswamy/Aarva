@@ -95,10 +95,8 @@ When the backend initializes, it seeds the PostgreSQL database with ready-to-tes
 
 | Role | Email | Password | Details |
 |---|---|---|---|
+| **Sample Student** | `student@college.edu` | `student123` | Alex Morgan (IIT Madras, CSE) |
 | **Admin** | `admin@aarva.edu` | `admin123` | Platform Admin Portal |
-| **College Student** | `student@college.edu` | `student123` | Alex Morgan (IIT Madras, CSE) |
-| **School Student** | `priya.patel@school.edu` | `student123` | Priya Patel (CBSE Class 11) |
-| **Professional** | `rohan.iyer@techcorp.com` | `student123` | Rohan Iyer (Cloud Solutions Architect) |
 
 ---
 

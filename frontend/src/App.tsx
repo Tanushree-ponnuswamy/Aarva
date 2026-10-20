@@ -674,25 +674,20 @@ function AuthPage({ onHome, onComplete }: { onHome: () => void; onComplete: (nam
   const [forgotMsg, setForgotMsg] = useState("");
   const [activeDemoLoading, setActiveDemoLoading] = useState<string | null>(null);
 
-  const loginDemoAccount = async (persona: "college" | "school" | "professional") => {
+  const loginDemoAccount = async () => {
     setLoginError("");
     setForgotMsg("");
     setLoginLoading(true);
-    setActiveDemoLoading(persona);
+    setActiveDemoLoading("sample");
     try {
-      const data = await apiPost("/api/auth/demo-login", { persona });
+      const data = await apiPost("/api/auth/demo-login", { email: "student@college.edu" });
       localStorage.setItem("aarva_token", data.access_token);
       localStorage.setItem("aarva_user", JSON.stringify(data.user));
       localStorage.removeItem("aarva_active_book_id");
       onComplete(data.user.name);
     } catch (err: unknown) {
       // Fallback direct login via regular /api/auth/login
-      const personaEmailMap = {
-        college: "student@college.edu",
-        school: "priya.patel@school.edu",
-        professional: "rohan.iyer@techcorp.com",
-      };
-      const email = personaEmailMap[persona];
+      const email = "student@college.edu";
       setLoginEmail(email);
       setLoginPassword("student123");
       try {
@@ -706,7 +701,7 @@ function AuthPage({ onHome, onComplete }: { onHome: () => void; onComplete: (nam
         localStorage.removeItem("aarva_active_book_id");
         onComplete(loginData.user.name);
       } catch (e: unknown) {
-        setLoginError(e instanceof Error ? e.message : "Failed to sign into demo account.");
+        setLoginError(e instanceof Error ? e.message : "Failed to sign into sample account.");
       }
     } finally {
       setLoginLoading(false);
@@ -715,7 +710,8 @@ function AuthPage({ onHome, onComplete }: { onHome: () => void; onComplete: (nam
   };
 
   const fillDemoCredentials = () => {
-    loginDemoAccount("college");
+    setLoginEmail("student@college.edu");
+    setLoginPassword("student123");
   };
 
 
@@ -1175,47 +1171,26 @@ function AuthPage({ onHome, onComplete }: { onHome: () => void; onComplete: (nam
 
               <div className="demo-accounts-container">
                 <div className="demo-accounts-header">
-                  <span>⚡ Instant Demo Login (Click to Sign In):</span>
+                  <span>⚡ Instant Sample Account Access:</span>
                   <button type="button" className="text-button" onClick={fillDemoCredentials}>
                     Auto-fill Form
                   </button>
                 </div>
-                <div className="demo-cards-grid">
+                <div className="demo-cards-single">
                   <button
                     type="button"
-                    className={`demo-card-item ${activeDemoLoading === "college" ? "loading" : ""}`}
-                    onClick={() => loginDemoAccount("college")}
+                    className={`demo-card-item sample-single ${activeDemoLoading ? "loading" : ""}`}
+                    onClick={() => loginDemoAccount()}
                     disabled={loginLoading}
-                    title="Click to sign in instantly as Alex Morgan (College Student - IIT Madras)"
+                    title="Click to sign in instantly as Alex Morgan (student@college.edu)"
                   >
-                    <span className="demo-badge college">College</span>
+                    <div className="demo-card-top-row">
+                      <span className="demo-badge college">Sample Student Account</span>
+                      <span className="demo-pass-hint">Password: student123</span>
+                    </div>
                     <b>Alex Morgan</b>
-                    <small>student@college.edu</small>
-                    <span className="demo-hint">{activeDemoLoading === "college" ? "Logging in…" : "IIT Madras • Networking →"}</span>
-                  </button>
-                  <button
-                    type="button"
-                    className={`demo-card-item ${activeDemoLoading === "school" ? "loading" : ""}`}
-                    onClick={() => loginDemoAccount("school")}
-                    disabled={loginLoading}
-                    title="Click to sign in instantly as Priya Patel (School Student - Class 11)"
-                  >
-                    <span className="demo-badge school">School</span>
-                    <b>Priya Patel</b>
-                    <small>priya.patel@school.edu</small>
-                    <span className="demo-hint">{activeDemoLoading === "school" ? "Logging in…" : "Class 11 • Physics →"}</span>
-                  </button>
-                  <button
-                    type="button"
-                    className={`demo-card-item ${activeDemoLoading === "professional" ? "loading" : ""}`}
-                    onClick={() => loginDemoAccount("professional")}
-                    disabled={loginLoading}
-                    title="Click to sign in instantly as Rohan Iyer (Senior Cloud Solutions Architect)"
-                  >
-                    <span className="demo-badge professional">Professional</span>
-                    <b>Rohan Iyer</b>
-                    <small>rohan.iyer@techcorp.com</small>
-                    <span className="demo-hint">{activeDemoLoading === "professional" ? "Logging in…" : "Cloud • Microservices →"}</span>
+                    <small>student@college.edu • Computer Science (IIT Madras)</small>
+                    <span className="demo-hint">{activeDemoLoading ? "Signing in & launching workspace…" : "⚡ 1-Click Instant Sign In →"}</span>
                   </button>
                 </div>
               </div>

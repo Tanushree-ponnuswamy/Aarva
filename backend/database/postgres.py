@@ -55,13 +55,18 @@ def init_db():
 def seed_demo_data():
     db = SessionLocal()
     try:
+        import bcrypt
+        def _hash_pw(pw: str) -> str:
+            pw_bytes = pw[:72].encode("utf-8")
+            return bcrypt.hashpw(pw_bytes, bcrypt.gensalt(12)).decode("utf-8")
+
         # 1. Admin Account
         admin = db.query(User).filter(User.email == "admin@aarva.edu").first()
         if not admin:
             admin = User(
                 name="AARVA Administrator",
                 email="admin@aarva.edu",
-                password_hash="admin123",
+                password_hash=_hash_pw("admin123"),
                 phone="+91 98765 43210",
                 role="admin",
                 is_active=True
@@ -70,16 +75,17 @@ def seed_demo_data():
             db.flush()
         else:
             admin.is_active = True
-            admin.password_hash = "admin123"
+            if not admin.password_hash or not admin.password_hash.startswith(("$2a$", "$2b$", "$2y$")):
+                admin.password_hash = _hash_pw("admin123")
             db.flush()
 
-        # 2. Student 1: College Student (Alex Morgan)
+        # 2. ONLY ONE Sample Student Account: Alex Morgan
         s1 = db.query(User).filter(User.email == "student@college.edu").first()
         if not s1:
             s1 = User(
                 name="Alex Morgan",
                 email="student@college.edu",
-                password_hash="student123",
+                password_hash=_hash_pw("student123"),
                 phone="+91 98123 45678",
                 dob="2003-05-14",
                 gender="Male",
@@ -90,8 +96,9 @@ def seed_demo_data():
             db.flush()
         else:
             s1.name = "Alex Morgan"
-            s1.password_hash = "student123"
             s1.is_active = True
+            if not s1.password_hash or not s1.password_hash.startswith(("$2a$", "$2b$", "$2y$")):
+                s1.password_hash = _hash_pw("student123")
             db.flush()
 
         if not db.query(StudentProfile).filter(StudentProfile.user_id == s1.id).first():
@@ -130,7 +137,7 @@ def seed_demo_data():
                 badges=["Quick Learner", "Algorithm Master", "10-Day Streak", "Quiz Ace"]
             ))
 
-        # Distinct Textbook for Alex Morgan (College)
+        # Sample Textbook for the single sample student account
         tb1 = db.query(Textbook).filter(Textbook.user_id == s1.id).first()
         if not tb1:
             tb1 = Textbook(
@@ -165,181 +172,20 @@ def seed_demo_data():
             db.add(tb1)
             db.flush()
 
-        # 3. Student 2: School Student (Priya Patel)
-        s2 = db.query(User).filter(User.email == "priya.patel@school.edu").first()
-        if not s2:
-            s2 = User(
-                name="Priya Patel",
-                email="priya.patel@school.edu",
-                password_hash="student123",
-                phone="+91 99887 76655",
-                dob="2008-11-20",
-                gender="Female",
-                role="student",
-                is_active=True
-            )
-            db.add(s2)
-            db.flush()
-        else:
-            s2.name = "Priya Patel"
-            s2.password_hash = "student123"
-            s2.is_active = True
-            db.flush()
-
-        if not db.query(StudentProfile).filter(StudentProfile.user_id == s2.id).first():
-            db.add(StudentProfile(
-                user_id=s2.id,
-                learner_type="school",
-                institution="Delhi Public School, R.K. Puram",
-                board="CBSE",
-                class_grade="Class 11 Science"
-            ))
-        if not db.query(StudentInterests).filter(StudentInterests.user_id == s2.id).first():
-            db.add(StudentInterests(
-                user_id=s2.id,
-                subjects=["Physics", "Organic Chemistry", "Mathematics"],
-                goals=["Clear JEE Advanced", "Board Exam Top 1%"],
-                personal_interests=["Astronomy", "Quiz Club"]
-            ))
-        if not db.query(LearningPreferences).filter(LearningPreferences.user_id == s2.id).first():
-            db.add(LearningPreferences(
-                user_id=s2.id,
-                preferred_language="English",
-                learning_style=["Diagrams and visual learning", "Practice questions", "Short summaries"],
-                simplified_explanations=True
-            ))
-        if not db.query(LearningProgress).filter(LearningProgress.user_id == s2.id).first():
-            db.add(LearningProgress(
-                user_id=s2.id,
-                completed_topics=14,
-                quiz_scores_avg=84.0,
-                streak_days=8,
-                strengths=["Electromagnetism", "Stoichiometry"],
-                areas_to_improve=["Thermodynamics Integration", "Reaction Mechanisms"],
-                badges=["Science Whiz", "Consistent Reader"]
-            ))
-
-        # Distinct Textbook for Priya Patel (School)
-        tb2 = db.query(Textbook).filter(Textbook.user_id == s2.id).first()
-        if not tb2:
-            tb2 = Textbook(
-                user_id=s2.id,
-                title="NCERT Physics Class 11: Mechanics & Laws of Motion",
-                author="National Council of Educational Research and Training",
-                file_name="ncert_physics_class11.pdf",
-                file_size="9.8 MB",
-                total_pages=312,
-                status="processed",
-                summary_data={
-                    "complete_summary": "Comprehensive Class 11 Physics guide covering Newton's Laws of Motion, Friction, Work, Energy, Power, Rotational Dynamics, Gravitation, and Harmonic Motion with conceptual diagrams and step-by-step numerical examples.",
-                    "chapters": [
-                        {"chapter": 1, "title": "Units and Measurements", "pages": "1-35", "summary": "SI units, dimensional analysis, significant figures, and error propagation in physical measurements."},
-                        {"chapter": 2, "title": "Motion in a Straight Line", "pages": "36-72", "summary": "Position, velocity, uniform acceleration, kinematics equations, and graphical analysis of motion."},
-                        {"chapter": 3, "title": "Laws of Motion & Friction", "pages": "73-125", "summary": "Newton's three laws, inertia, momentum conservation, static vs kinetic friction, and circular dynamics."},
-                        {"chapter": 4, "title": "Work, Energy and Power", "pages": "126-180", "summary": "Work-energy theorem, conservative forces, potential energy of springs, and collisions in 1D & 2D."}
-                    ],
-                    "key_points": [
-                        "Newton's First Law introduces inertia as the tendency to resist changes in motion state.",
-                        "Impulse is equal to change in linear momentum: J = F · dt = dp.",
-                        "Total mechanical energy is strictly conserved in isolated systems with conservative forces."
-                    ],
-                    "definitions": [
-                        {"term": "Inertia", "definition": "The inherent property of a body by virtue of which it opposes any change in its state of rest or uniform motion along a straight line."},
-                        {"term": "Work-Energy Theorem", "definition": "The net work done on an object equals the change in its kinetic energy: W_net = Delta K."}
-                    ]
-                }
-            )
-            db.add(tb2)
-            db.flush()
-
-        # 4. Student 3: Working Professional (Rohan Iyer)
-        s3 = db.query(User).filter(User.email == "rohan.iyer@techcorp.com").first()
-        if not s3:
-            s3 = User(
-                name="Rohan Iyer",
-                email="rohan.iyer@techcorp.com",
-                password_hash="student123",
-                phone="+91 97654 32109",
-                role="student",
-                is_active=True
-            )
-            db.add(s3)
-            db.flush()
-        else:
-            s3.name = "Rohan Iyer"
-            s3.password_hash = "student123"
-            s3.is_active = True
-            db.flush()
-
-        if not db.query(StudentProfile).filter(StudentProfile.user_id == s3.id).first():
-            db.add(StudentProfile(
-                user_id=s3.id,
-                learner_type="professional",
-                institution="TechCorp Cloud Solutions",
-                department="Cloud Infrastructure & AI",
-                job_role="Senior Cloud Solutions Architect",
-                industry="Fintech & Cloud Infrastructure"
-            ))
-        if not db.query(StudentInterests).filter(StudentInterests.user_id == s3.id).first():
-            db.add(StudentInterests(
-                user_id=s3.id,
-                subjects=["Distributed Systems", "Kubernetes", "Generative AI Systems"],
-                goals=["AWS Certified Solutions Architect Pro", "Scale LLM Microservices"],
-                personal_interests=["Cloud Native", "System Design"]
-            ))
-        if not db.query(LearningPreferences).filter(LearningPreferences.user_id == s3.id).first():
-            db.add(LearningPreferences(
-                user_id=s3.id,
-                preferred_language="English",
-                learning_style=["Examples and real-world applications", "Short summaries"],
-                voice_assistance=True
-            ))
-        if not db.query(LearningProgress).filter(LearningProgress.user_id == s3.id).first():
-            db.add(LearningProgress(
-                user_id=s3.id,
-                completed_topics=9,
-                quiz_scores_avg=92.0,
-                streak_days=5,
-                strengths=["Raft Consensus", "Microservices Security"],
-                areas_to_improve=["CUDA GPU Optimization"],
-                badges=["Cloud Guru"]
-            ))
-
-        # Distinct Textbook for Rohan Iyer (Professional)
-        tb3 = db.query(Textbook).filter(Textbook.user_id == s3.id).first()
-        if not tb3:
-            tb3 = Textbook(
-                user_id=s3.id,
-                title="Designing Distributed Systems & Cloud Microservices",
-                author="Brendan Burns & Martin Kleppmann",
-                file_name="distributed_systems_architecture.pdf",
-                file_size="18.5 MB",
-                total_pages=498,
-                status="processed",
-                summary_data={
-                    "complete_summary": "In-depth guide to distributed architectures, event-driven microservices, consensus protocols (Raft, Paxos), partitioning, caching patterns, and high-availability cloud deployments.",
-                    "chapters": [
-                        {"chapter": 1, "title": "Reliability, Scalability, and Maintainability", "pages": "1-45", "summary": "Core architectural trade-offs, service-level objectives (SLOs), fault tolerance, and load scaling patterns."},
-                        {"chapter": 2, "title": "Data Models and Query Languages", "pages": "46-95", "summary": "Relational vs document vs graph data models; read-heavy vs write-heavy architectural profiles."},
-                        {"chapter": 3, "title": "Storage and Retrieval Engines", "pages": "96-150", "summary": "LSM-Trees vs B-Trees, transaction logs, bloom filters, and column-oriented analytics engines."},
-                        {"chapter": 4, "title": "Replication and Consensus Protocols", "pages": "151-220", "summary": "Single-leader, multi-leader, leaderless quorum consensus (Dynamo style), split-brain mitigation, and Raft leader elections."}
-                    ],
-                    "key_points": [
-                        "CAP theorem and PACELC dictate fundamental trade-offs between consistency and latency during network partitions.",
-                        "Event-driven CQRS separates read queries from mutation commands for massive parallel scale.",
-                        "Raft consensus delivers deterministic replicated state machines across fault-tolerant clusters."
-                    ],
-                    "definitions": [
-                        {"term": "Idempotency", "definition": "A property of operations where making multiple identical requests has the same net effect as making a single request."},
-                        {"term": "Split-Brain", "definition": "A condition where two or more nodes simultaneously believe they are the authoritative cluster leader, risking state divergence."}
-                    ]
-                }
-            )
-            db.add(tb3)
-            db.flush()
+        # Clean up any legacy secondary demo users if present to enforce only one sample student account
+        legacy_emails = ["priya.patel@school.edu", "rohan.iyer@techcorp.com"]
+        for legacy_user in db.query(User).filter(User.email.in_(legacy_emails)).all():
+            db.query(Textbook).filter(Textbook.user_id == legacy_user.id).delete(synchronize_session=False)
+            db.query(StudentProfile).filter(StudentProfile.user_id == legacy_user.id).delete(synchronize_session=False)
+            db.query(StudentInterests).filter(StudentInterests.user_id == legacy_user.id).delete(synchronize_session=False)
+            db.query(LearningPreferences).filter(LearningPreferences.user_id == legacy_user.id).delete(synchronize_session=False)
+            db.query(LearningProgress).filter(LearningProgress.user_id == legacy_user.id).delete(synchronize_session=False)
+            db.query(LoginActivity).filter(LoginActivity.user_id == legacy_user.id).delete(synchronize_session=False)
+            db.delete(legacy_user)
+        db.flush()
 
         db.commit()
-        print("[DATABASE] Successfully synchronized all demo accounts (Alex, Priya, Rohan) and isolated demo textbooks!")
+        print("[DATABASE] Successfully synchronized single sample account (Alex Morgan: student@college.edu) and admin account!")
     except Exception as e:
         db.rollback()
         print(f"Error seeding database: {e}")

@@ -182,7 +182,7 @@ def reset_password(req: ResetPasswordRequest, request: Request, db: Session = De
         raise HTTPException(status_code=400, detail="Password must be at least 10 characters long.")
 
     is_valid = email_service.verify_otp(email, req.code)
-    if not is_valid and req.code not in ("2468", "123456"):
+    if not is_valid:
         raise HTTPException(status_code=400, detail="Invalid or expired verification code.")
 
     user = db.query(User).filter(User.email == email).first()
@@ -365,11 +365,11 @@ def login(req: LoginRequest, request: Request, db: Session = Depends(get_db)):
     if not user:
         raise HTTPException(status_code=401, detail="Invalid email or password.")
 
-    demo_emails = {"student@college.edu", "priya.patel@school.edu", "rohan.iyer@techcorp.com"}
+    demo_emails = {"student@college.edu"}
     is_valid = auth_service.verify_password(req.password, user.password_hash)
     if not is_valid and email_clean in demo_emails and req.password == "student123":
         is_valid = True
-        user.password_hash = "student123"
+        user.password_hash = auth_service.hash_password("student123")
 
     if not is_valid:
         raise HTTPException(status_code=401, detail="Invalid email or password.")
@@ -424,26 +424,19 @@ def login(req: LoginRequest, request: Request, db: Session = Depends(get_db)):
 @router.post("/demo-login")
 def demo_login(req: DemoLoginRequest, request: Request, db: Session = Depends(get_db)):
     """
-    Direct, instant demo login for Alex Morgan (college), Priya Patel (school), or Rohan Iyer (professional).
-    Guarantees immediate authentication with fully isolated user accounts and textbooks.
+    Direct, instant demo login for the single sample student account (Alex Morgan: student@college.edu).
+    Guarantees immediate authentication with sample learning workspace.
     """
-    persona_map = {
-        "college": "student@college.edu",
-        "school": "priya.patel@school.edu",
-        "professional": "rohan.iyer@techcorp.com",
-    }
     target_email = "student@college.edu"
-    if req.persona and req.persona.lower() in persona_map:
-        target_email = persona_map[req.persona.lower()]
-    elif req.email:
-        target_email = req.email.strip().lower()
+    if req.email and req.email.strip().lower() == "student@college.edu":
+        target_email = "student@college.edu"
 
     user = db.query(User).filter(User.email == target_email).first()
     if not user:
-        # Fallback to any student account
+        # Fallback to any active student account
         user = db.query(User).filter(User.role == "student").first()
     if not user:
-        raise HTTPException(status_code=404, detail="Demo account not found in database.")
+        raise HTTPException(status_code=404, detail="Sample student account not found in database.")
 
     user.is_active = True
     db.add(LoginActivity(

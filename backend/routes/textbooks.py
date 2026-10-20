@@ -48,9 +48,29 @@ async def upload_textbook(
         raise HTTPException(status_code=404, detail="User not found.")
 
     from services.knowledge_base_service import knowledge_base_service
+    import re
 
-    filename = file.filename if (file and file.filename) else f"{title.lower().replace(' ', '_')}.pdf"
-    
+    allowed_extensions = {
+        ".pdf", ".docx", ".doc", ".xlsx", ".xls",
+        ".txt", ".md", ".csv", ".png", ".jpg", ".jpeg", ".webp"
+    }
+
+    raw_filename = file.filename if (file and file.filename) else f"{title.lower().replace(' ', '_')}.pdf"
+    # Prevent directory traversal attacks by taking basename and stripping non-alphanumerics
+    safe_base = os.path.basename(raw_filename).strip()
+    safe_base = re.sub(r"[^\w\s\.\-_]", "_", safe_base).lstrip(".")
+    if not safe_base:
+        safe_base = f"document_{int(datetime.utcnow().timestamp())}.pdf"
+
+    ext = Path(safe_base).suffix.lower()
+    if file and ext not in allowed_extensions:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unsupported file format '{ext}'. Allowed: {', '.join(sorted(allowed_extensions))}"
+        )
+
+    filename = safe_base
+
     # Read uploaded file content or generate starter document
     if file:
         file_bytes = await file.read()
@@ -62,7 +82,7 @@ async def upload_textbook(
             f"Covers system architecture, protocols, performance metrics, and compliance guidelines.\n"
         )
         file_bytes = default_content.encode("utf-8")
-        filename = f"{title.lower().replace(' ', '_')}.txt"
+        filename = f"{re.sub(r'[^\w\s\.\-_]', '_', title.lower()).strip() or 'document'}.txt"
 
     # Execute end-to-end ingestion pipeline (Parsing -> Chunking -> Embedding -> DB)
     result = knowledge_base_service.ingest_document(
@@ -74,10 +94,13 @@ async def upload_textbook(
         db=db
     )
 
-    # Save file to disk for preview
-    file_path = UPLOADS_DIR / f"{result['document_id']}_{filename}"
+    # Save file to disk for preview securely within UPLOADS_DIR
+    target_path = (UPLOADS_DIR / f"{result['document_id']}_{filename}").resolve()
+    if not str(target_path).startswith(str(UPLOADS_DIR.resolve())):
+        raise HTTPException(status_code=400, detail="Invalid target file destination.")
+
     try:
-        with open(file_path, "wb") as f:
+        with open(target_path, "wb") as f:
             f.write(file_bytes)
     except Exception as e:
         print(f"[WARN] Failed to write preview file to disk: {e}")
@@ -134,8 +157,11 @@ def get_textbook_file(textbook_id: int, db: Session = Depends(get_db)):
     if not book:
         raise HTTPException(status_code=404, detail="Textbook not found.")
 
-    # Check disk for saved file
+    # Check disk for saved file securely
     for p in UPLOADS_DIR.glob(f"{textbook_id}_*"):
+        p_resolved = p.resolve()
+        if not str(p_resolved).startswith(str(UPLOADS_DIR.resolve())):
+            continue
         ext = p.suffix.lower()
         mime_map = {
             ".pdf":  "application/pdf",

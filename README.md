@@ -326,13 +326,10 @@ Open `http://localhost:5173` in your browser.
 
 Pre-seeded at startup via `database/postgres.py`:
 
-| Role | Email | Password | Learner Type |
+| Role | Email | Password | Details |
 |---|---|---|---|
-| **College Student** | `student@college.edu` | `student123` | College — Alex Morgan |
-| **School Student** | `priya.patel@school.edu` | `student123` | School — Priya Patel |
-| **Working Professional** | `rohan.iyer@techcorp.com` | `student123` | Professional — Rohan Iyer |
-| **Independent Learner** | `elena.rostova@global.org` | `student123` | Independent — Elena Rostova |
-| **Administrator** | `admin@aarva.edu` | `admin123` | Admin |
+| **Sample Student** | `student@college.edu` | `student123` | Alex Morgan — IIT Madras (CSE) |
+| **Administrator** | `admin@aarva.edu` | `admin123` | Platform Admin Portal |
 
 ---
 
