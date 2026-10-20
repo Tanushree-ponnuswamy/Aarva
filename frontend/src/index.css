@@ -3410,15 +3410,23 @@ form button:hover {
   min-height: 100vh;
   display: grid;
   grid-template-columns: 17rem 1fr;
+  grid-template-areas: "nav main";
   background: #f5f4fa;
   transition: grid-template-columns 0.38s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+  width: 100%;
 }
 
 .dashboard-shell.sidebar-collapsed {
   grid-template-columns: 4.4rem 1fr;
 }
 
+.mobile-sidebar-backdrop {
+  display: none;
+}
+
 .dash-nav {
+  grid-area: nav;
   position: sticky;
   top: 0;
   z-index: 5;
@@ -3431,6 +3439,12 @@ form button:hover {
   color: white;
   background: #1c1833;
   transition: width 0.38s cubic-bezier(0.4, 0, 0.2, 1), padding 0.38s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.dashboard-main {
+  grid-area: main;
+  min-width: 0;
+  width: 100%;
 }
 
 .dash-brand {

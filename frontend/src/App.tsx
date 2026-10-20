@@ -5816,6 +5816,15 @@ function Dashboard({ name, onHome }: { name: string; onHome: () => void }) {
   const userEmail: string = storedUser?.email || "";
 
   const [collapsed, setCollapsed] = useState(() => (typeof window !== "undefined" ? window.innerWidth <= 860 : false));
+  const [isMobile, setIsMobile] = useState(() => (typeof window !== "undefined" ? window.innerWidth <= 860 : false));
+
+  useEffect(() => {
+    const handleResize = () => {
+      setIsMobile(window.innerWidth <= 860);
+    };
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
   const [active, setActive] = useState("Dashboard");
   const [selectedBook, setSelectedBook] = useState<LearningBook | null>(null);
   const [startedTests, setStartedTests] = useState<Set<number>>(() => {
@@ -5960,14 +5969,6 @@ function Dashboard({ name, onHome }: { name: string; onHome: () => void }) {
 
   return (
     <div className={`dashboard-shell ${collapsed ? "sidebar-collapsed" : ""}`}>
-      {/* Mobile backdrop overlay to close sidebar when open on small screens */}
-      {!collapsed && (
-        <div
-          className="mobile-sidebar-backdrop"
-          onClick={() => setCollapsed(true)}
-          aria-hidden="true"
-        />
-      )}
       <aside className="dash-nav">
         <div className="dash-brand">
           <Logo dark />
@@ -6242,6 +6243,15 @@ function Dashboard({ name, onHome }: { name: string; onHome: () => void }) {
         {active === "Settings" && <SettingsView name={name} email={userEmail} user={storedUser} />}
         {active === "Profile" && <ProfileView name={name} email={userEmail} bookCount={books.length} user={storedUser} />}
       </main>
+
+      {/* Mobile backdrop overlay only on small screens when drawer is open */}
+      {isMobile && !collapsed && (
+        <div
+          className="mobile-sidebar-backdrop"
+          onClick={() => setCollapsed(true)}
+          aria-hidden="true"
+        />
+      )}
     </div>
   );
 }
