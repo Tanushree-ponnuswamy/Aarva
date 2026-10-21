@@ -17,5 +17,12 @@ export default defineConfig({
     host: '0.0.0.0',
     port: 5173,
     strictPort: false,
+    proxy: {
+      '/api': {
+        target: 'https://aarva-bkoc.onrender.com',
+        changeOrigin: true,
+        secure: false,
+      },
+    },
   },
 })
