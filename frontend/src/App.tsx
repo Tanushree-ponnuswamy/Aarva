@@ -1,6 +1,8 @@
 import { FormEvent, ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import * as pdfjsLib from "pdfjs-dist";
 import pdfWorker from "pdfjs-dist/build/pdf.worker.mjs?url";
+import { useTranslation, SUPPORTED_LANGUAGES, LanguageCode } from "./i18n";
+import { LanguageSelector } from "./LanguageSelector";
 
 if (typeof window !== "undefined") {
   pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorker;
@@ -417,6 +419,7 @@ function FeatureVisual({ type }: { type: string }) {
 }
 
 function LandingPage({ onStart, onLogin }: { onStart: () => void; onLogin: () => void }) {
+  const { t } = useTranslation();
   const [subscribed, setSubscribed] = useState(false);
 
   function subscribe(event: FormEvent<HTMLFormElement>) {
@@ -432,12 +435,15 @@ function LandingPage({ onStart, onLogin }: { onStart: () => void; onLogin: () =>
             <Logo />
             <div className="nav-links">
               <a href="#home">Home</a>
-              <a href="#features">Features</a>
-              <a href="#about">About us</a>
-              <a href="#contact">Contact</a>
+              <a href="#features">{t("features")}</a>
+              <a href="#about">{t("howItWorks")}</a>
+              <a href="#contact">{t("team")}</a>
             </div>
           </div>
-          <a className="login-link" href="/dashboard" onClick={(event) => { event.preventDefault(); onLogin(); }}>Log in <Icon name="arrow" size={17} /></a>
+          <div style={{ display: "flex", alignItems: "center", gap: "0.85rem" }}>
+            <LanguageSelector variant="pill" />
+            <a className="login-link" href="/dashboard" onClick={(event) => { event.preventDefault(); onLogin(); }}>{t("signIn")} <Icon name="arrow" size={17} /></a>
+          </div>
         </nav>
       </header>
 
@@ -455,8 +461,8 @@ function LandingPage({ onStart, onLogin }: { onStart: () => void; onLogin: () =>
               Upload dense textbooks, lecture notes, or syllabi. Aarva turns overwhelming chapters into interactive AI conversations, high-yield chapter summaries, and adaptive quizzes engineered for top scores and lifelong retention.
             </p>
             <div className="hero-actions reveal reveal-delay-three">
-              <a className="button button-primary" href="/login" onClick={(event) => { event.preventDefault(); onStart(); }}>Get started free <Icon name="arrow" /></a>
-              <a className="text-link" href="#features"><span className="play"><Icon name="play" size={16} /></span> Explore features</a>
+              <a className="button button-primary" href="/login" onClick={(event) => { event.preventDefault(); onStart(); }}>{t("getStarted")} <Icon name="arrow" /></a>
+              <a className="text-link" href="#features"><span className="play"><Icon name="play" size={16} /></span> {t("features")}</a>
             </div>
             <div className="trust-line reveal reveal-delay-three">
               <div className="avatar-stack"><span>A</span><span>N</span><span>S</span></div>
@@ -2419,6 +2425,7 @@ function UploadWorkspace({
   onUploaded: () => void;
   onSelectBook: (book: LearningBook | null) => void;
 }) {
+  const { t, languageObj } = useTranslation();
   const [leftView, setLeftView] = useState<"files" | "chat">("files");
   const [activeTab, setActiveTab] = useState<"AI Extraction" | "Summary" | "Chapters" | "Concepts" | "Definitions" | "Important Notes">("Summary");
   const [subFilter, setSubFilter] = useState<string>("All");
@@ -2426,7 +2433,11 @@ function UploadWorkspace({
   const [scale, setScale] = useState<number>(100);
   const [zenMode, setZenMode] = useState(false);
   const [selectedScope, setSelectedScope] = useState<string>("Entire Book");
-  const [selectedLang, setSelectedLang] = useState<string>("English");
+  const [selectedLang, setSelectedLang] = useState<string>(() => languageObj.name);
+
+  useEffect(() => {
+    setSelectedLang(languageObj.name);
+  }, [languageObj.name]);
   const [summaryLength, setSummaryLength] = useState<string>("Standard");
   const [defSearchQuery, setDefSearchQuery] = useState<string>("");
   const [copiedToast, setCopiedToast] = useState<boolean>(false);
@@ -2521,7 +2532,7 @@ function UploadWorkspace({
         key_points?: string[];
         definitions?: { term?: string; definition?: string }[];
         concepts?: string[];
-      }>(`/api/summary/${book.id}?mode=complete`)
+      }>(`/api/summary/${book.id}?mode=complete&language=${encodeURIComponent(selectedLang || languageObj.name)}`)
         .then((res) => {
           if (res) setSummaryData(res);
           setSummaryLoading(false);
@@ -3573,11 +3584,11 @@ function UploadWorkspace({
           {/* Main Top Tab Row with dynamic counts — only shown when a book is loaded */}
           <div className="right-main-tab-bar" style={{ display: (book || summaryData) ? "flex" : "none", alignItems: "center", borderBottom: "1px solid #eef0f3", padding: "0 1.25rem", background: "#ffffff", gap: "1.25rem", flexShrink: 0, overflowX: "auto" }}>
             {[
-              { id: "Summary", label: "Summary" },
-              { id: "Chapters", label: "Chapters", count: chapterList.length },
-              { id: "Concepts", label: "Concepts", count: conceptList.length },
-              { id: "Definitions", label: "Definitions", count: definitionList.length },
-              { id: "Important Notes", label: "Important Notes", count: notesList.length },
+              { id: "Summary", label: t("summary") },
+              { id: "Chapters", label: t("chapters"), count: chapterList.length },
+              { id: "Concepts", label: t("concepts"), count: conceptList.length },
+              { id: "Definitions", label: t("definitions"), count: definitionList.length },
+              { id: "Important Notes", label: t("importantNotes"), count: notesList.length },
             ].map((tab) => (
               <button
                 key={tab.id}
@@ -4367,6 +4378,7 @@ function TestView({
   onSelectBook?: (book: LearningBook) => void;
   onDiscussInUpload?: (book: LearningBook, query: string) => void;
 }) {
+  const { t, languageObj } = useTranslation();
   const [currentBook, setCurrentBook] = useState<LearningBook>(book);
   const [concept, setConcept] = useState("");
   const [conceptIndex, setConceptIndex] = useState(0);
@@ -4590,6 +4602,7 @@ function TestView({
           query: promptQuery,
           textbook_id: activeBook?.id || 1,
           user_id: 1,
+          language: languageObj.name,
           conversation_history: historyPayload,
         }),
       });
@@ -5642,6 +5655,7 @@ interface StoredUserData {
 }
 
 function ProfileView({ name, email, bookCount, user }: { name: string; email: string; bookCount: number; user?: StoredUserData | null }) {
+  const { t, languageObj } = useTranslation();
   const firstName = (user?.name || name).split(" ")[0] || "there";
   const fullName = user?.name || name;
   const userEmailAddress = user?.email || email;
@@ -5700,6 +5714,7 @@ function ProfileView({ name, email, bookCount, user }: { name: string; email: st
           <dl>
             <div><dt>Full name</dt><dd>{fullName}</dd></div>
             <div><dt>Email address</dt><dd>{userEmailAddress}</dd></div>
+            <div><dt>{t("preferredLanguage")}</dt><dd>{languageObj.flag} {languageObj.nativeName} ({languageObj.name})</dd></div>
             <div><dt>Primary goal</dt><dd>{goalsDisplay}</dd></div>
             <div><dt>Study streak</dt><dd>{streak} consecutive days</dd></div>
           </dl>
@@ -5744,6 +5759,7 @@ function Toggle({ checked, onChange, label }: { checked: boolean; onChange: () =
 }
 
 function SettingsView({ name, email, user }: { name: string; email: string; user?: StoredUserData | null }) {
+  const { t } = useTranslation();
   const [section, setSection] = useState("Learning");
   const [settings, setSettings] = useState({
     daily: true,
@@ -5762,16 +5778,16 @@ function SettingsView({ name, email, user }: { name: string; email: string; user
 
   return (
     <section className="settings-view">
-      <div className="settings-intro"><div><p className="kicker">Make Aarva yours</p><h2>Settings</h2><p>Shape your learning environment around how you focus best.</p></div><button type="button" onClick={() => { setSaved(true); window.setTimeout(() => setSaved(false), 1800); }}>{saved ? "Changes saved" : "Save changes"}</button></div>
+      <div className="settings-intro"><div><p className="kicker">{t("makeAarvaYours")}</p><h2>{t("settingsTitle")}</h2><p>{t("settingsSubtitle")}</p></div><button type="button" onClick={() => { setSaved(true); window.setTimeout(() => setSaved(false), 1800); }}>{saved ? t("changesSaved") : t("saveChanges")}</button></div>
       <div className="settings-layout">
         <nav className="settings-tabs" aria-label="Settings sections">
-          {["Account", "Learning", "Notifications", "Appearance", "Privacy"].map((item) => <button className={section === item ? "active" : ""} type="button" onClick={() => setSection(item)} key={item}><span>{item[0]}</span>{item}</button>)}
+          {["Account", "Learning", "Notifications", "Appearance", "Privacy"].map((item) => <button className={section === item ? "active" : ""} type="button" onClick={() => setSection(item)} key={item}><span>{item[0]}</span>{item === "Learning" ? t("learningPreferences") : item}</button>)}
         </nav>
 
         <div className="settings-panels">
           {section === "Account" && <article className="settings-card"><div className="settings-card-heading"><div><h3>Account information</h3><p>Update the details connected to your Aarva account.</p></div><span className="settings-avatar">{displayName[0]}</span></div><div className="settings-fields"><label>Full name<input defaultValue={displayName} key={`name_${displayName}`} /></label><label>Email address<input type="email" defaultValue={displayEmail || `${displayName.split(" ")[0].toLowerCase()}@college.edu`} key={`email_${displayEmail}`} /></label><label>Current password<input type="password" placeholder="Enter current password" /></label><label>New password<input type="password" placeholder="Create a new password" /></label></div><div className="danger-zone"><div><b>Delete account</b><small>Permanently remove your profile and learning data.</small></div><button type="button">Delete account</button></div></article>}
 
-          {section === "Learning" && <><article className="settings-card"><div className="settings-card-heading"><div><h3>Learning preferences</h3><p>Personalize your goals and the way recommendations are created.</p></div></div><div className="settings-fields"><label>Daily study goal<select defaultValue="30 minutes"><option>15 minutes</option><option>30 minutes</option><option>1 hour</option><option>2+ hours</option></select></label><label>Preferred study time<select defaultValue="Evening"><option>Morning</option><option>Afternoon</option><option>Evening</option></select></label><label>Question difficulty<select defaultValue="Adaptive"><option>Easy</option><option>Intermediate</option><option>Advanced</option><option>Adaptive</option></select></label><label>Weekly target<select defaultValue="5 days"><option>3 days</option><option>5 days</option><option>Every day</option></select></label></div></article><article className="settings-card"><div className="settings-card-heading"><div><h3>Smart learning</h3><p>Choose how Aarva supports your progress.</p></div></div><div className="setting-list"><div><span><b>Personalized recommendations</b><small>Suggest books and concepts based on your activity.</small></span><Toggle checked={settings.recommendations} onChange={() => update("recommendations")} label="Personalized recommendations" /></div><div><span><b>Study streaks</b><small>Keep track of consecutive learning days.</small></span><Toggle checked={settings.streaks} onChange={() => update("streaks")} label="Study streaks" /></div><div><span><b>Answer sounds</b><small>Play subtle feedback sounds during tests.</small></span><Toggle checked={settings.sounds} onChange={() => update("sounds")} label="Answer sounds" /></div></div></article></>}
+          {section === "Learning" && <><article className="settings-card"><div className="settings-card-heading"><div><h3>{t("learningPreferences")}</h3><p>{t("learningSubtitle")}</p></div></div><div className="settings-fields"><label style={{ gridColumn: "1 / -1" }}>{t("preferredLanguage")}<LanguageSelector variant="select" /><small style={{ color: "#64748b", marginTop: "0.35rem", display: "block", fontSize: "0.78rem" }}>{t("preferredLanguageDesc")}</small></label><label>{t("dailyGoal")}<select defaultValue="30 minutes"><option>15 minutes</option><option>30 minutes</option><option>1 hour</option><option>2+ hours</option></select></label><label>{t("preferredStudyTime")}<select defaultValue="Evening"><option>Morning</option><option>Afternoon</option><option>Evening</option></select></label><label>{t("questionDifficulty")}<select defaultValue="Adaptive"><option>Easy</option><option>Intermediate</option><option>Advanced</option><option>Adaptive</option></select></label><label>Weekly target<select defaultValue="5 days"><option>3 days</option><option>5 days</option><option>Every day</option></select></label></div></article><article className="settings-card"><div className="settings-card-heading"><div><h3>{t("smartLearning")}</h3><p>{t("smartLearningDesc")}</p></div></div><div className="setting-list"><div><span><b>{t("recommendations")}</b><small>{t("recommendationsDesc")}</small></span><Toggle checked={settings.recommendations} onChange={() => update("recommendations")} label={t("recommendations")} /></div><div><span><b>{t("studyStreaks")}</b><small>{t("studyStreaksDesc")}</small></span><Toggle checked={settings.streaks} onChange={() => update("streaks")} label={t("studyStreaks")} /></div><div><span><b>Answer sounds</b><small>Play subtle feedback sounds during tests.</small></span><Toggle checked={settings.sounds} onChange={() => update("sounds")} label="Answer sounds" /></div></div></article></>}
 
           {section === "Notifications" && <article className="settings-card"><div className="settings-card-heading"><div><h3>Notifications</h3><p>Stay encouraged without adding unnecessary noise.</p></div></div><div className="setting-list"><div><span><b>Daily study reminder</b><small>A gentle reminder at your preferred study time.</small></span><Toggle checked={settings.daily} onChange={() => update("daily")} label="Daily study reminder" /></div><div><span><b>Weekly progress recap</b><small>Your study hours, accuracy, and strongest concepts.</small></span><Toggle checked={settings.weekly} onChange={() => update("weekly")} label="Weekly recap" /></div><div><span><b>Email notifications</b><small>Receive account and learning updates by email.</small></span><Toggle checked={settings.email} onChange={() => update("email")} label="Email notifications" /></div></div><div className="quiet-hours"><span><MiniIcon name="clock" /></span><div><b>Quiet hours</b><small>Pause all reminders overnight</small></div><select defaultValue="10 PM – 7 AM"><option>10 PM – 7 AM</option><option>11 PM – 8 AM</option><option>Off</option></select></div></article>}
 
@@ -5785,10 +5801,23 @@ function SettingsView({ name, email, user }: { name: string; email: string; user
 }
 
 function Dashboard({ name, onHome }: { name: string; onHome: () => void }) {
+  const { t } = useTranslation();
   // Read the stored user object once — used for user-specific data throughout
   const storedUser: StoredUserData | null = (() => { try { return JSON.parse(localStorage.getItem("aarva_user") || "null"); } catch { return null; } })();
   const userId = storedUser?.id;
   const userEmail: string = storedUser?.email || "";
+
+  const getMenuLabel = (lbl: string) => {
+    switch (lbl) {
+      case "Dashboard": return t("dashboard");
+      case "Library": return t("library");
+      case "Upload": return t("upload");
+      case "Tests": return t("tests");
+      case "Settings": return t("settings");
+      case "Profile": return t("profile");
+      default: return lbl;
+    }
+  };
 
   const [collapsed, setCollapsed] = useState(() => (typeof window !== "undefined" ? window.innerWidth <= 860 : false));
   const [isMobile, setIsMobile] = useState(() => (typeof window !== "undefined" ? window.innerWidth <= 860 : false));
@@ -5960,7 +5989,7 @@ function Dashboard({ name, onHome }: { name: string; onHome: () => void }) {
               key={item.label}
             >
               <MiniIcon name={item.icon} />
-              <span>{item.label}</span>
+              <span>{getMenuLabel(item.label)}</span>
             </button>
           ))}
         </div>
@@ -5975,7 +6004,7 @@ function Dashboard({ name, onHome }: { name: string; onHome: () => void }) {
             }}
           >
             <MiniIcon name="settings" />
-            <span>Settings</span>
+            <span>{t("settings")}</span>
           </button>
           <button className="signout" type="button" onClick={onHome}>
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -5983,7 +6012,7 @@ function Dashboard({ name, onHome }: { name: string; onHome: () => void }) {
               <polyline points="16 17 21 12 16 7" />
               <line x1="21" y1="12" x2="9" y2="12" />
             </svg>
-            <span>Log out</span>
+            <span>{t("logout")}</span>
           </button>
           <button
             className="sidebar-collapse-btn"
@@ -6004,32 +6033,33 @@ function Dashboard({ name, onHome }: { name: string; onHome: () => void }) {
         <header className="dashboard-top">
           <button className="mobile-sidebar-toggle" type="button" onClick={() => setCollapsed(!collapsed)} aria-label="Toggle sidebar"><MiniIcon name="menu" /></button>
           <div>
-            <p className="kicker">My learning space</p>
-            <h1>{active}</h1>
+            <p className="kicker">{t("myLearningSpace")}</p>
+            <h1>{getMenuLabel(active)}</h1>
           </div>
           <div className="top-actions">
-            <div className="points"><Icon name="spark" size={16} /><span><b>{books.length * 80}</b><small>points</small></span></div>
+            <LanguageSelector variant="dashboard-bar" />
+            <div className="points"><Icon name="spark" size={16} /><span><b>{books.length * 80}</b><small>{t("points")}</small></span></div>
             <button className="notification" type="button" aria-label="Notifications"><MiniIcon name="bell" /><i /></button>
-            <button className="profile-chip" type="button" onClick={() => setActive("Profile")}><span>{firstName[0]}</span><span><b>{firstName}</b><small>Curious learner</small></span></button>
+            <button className="profile-chip" type="button" onClick={() => setActive("Profile")}><span>{firstName[0]}</span><span><b>{firstName}</b><small>{t("curiousLearner")}</small></span></button>
           </div>
         </header>
 
         {active === "Dashboard" && <section className="dashboard-content">
           <div className="welcome-card">
             <div>
-              <p>Welcome back, {firstName}</p>
-              <h2>Ready to turn curiosity into progress?</h2>
-              <span>“Success is the sum of small efforts, repeated day in and day out.”</span>
-              <button type="button" onClick={() => setActive("Library")}>Explore library <Icon name="arrow" size={17} /></button>
+              <p>{t("welcomeBack")}, {firstName}</p>
+              <h2>{t("readyToTurn")}</h2>
+              <span>{t("quote")}</span>
+              <button type="button" onClick={() => setActive("Library")}>{t("exploreLibrary")} <Icon name="arrow" size={17} /></button>
             </div>
           </div>
-          <div className="metric-card accuracy"><span className="metric-icon"><MiniIcon name="test" /></span><div><small>Average accuracy</small><strong>87%</strong><p><b>+6%</b> this month</p></div><i><span /></i></div>
+          <div className="metric-card accuracy"><span className="metric-icon"><MiniIcon name="test" /></span><div><small>{t("avgAccuracy")}</small><strong>87%</strong><p><b>+6%</b> this month</p></div><i><span /></i></div>
           <div className="metric-card books">
             <span className="metric-icon"><MiniIcon name="book" /></span>
             <div>
-              <small>Books uploaded</small>
+              <small>{t("booksUploaded")}</small>
               <strong>{booksLoading ? "…" : books.length}</strong>
-              <p>{books.length > 0 ? `${books.length} in your library` : "Upload your first book"}</p>
+              <p>{books.length > 0 ? `${books.length} in your library` : t("uploadFirstBook")}</p>
             </div>
             <div className="book-spines"><i /><i /><i /><i /></div>
           </div>
@@ -6037,8 +6067,8 @@ function Dashboard({ name, onHome }: { name: string; onHome: () => void }) {
           <article className="study-plan">
             <div className="card-title">
               <div>
-                <p className="kicker">Your focus</p>
-                <h3>Today&apos;s study plan</h3>
+                <p className="kicker">{t("yourFocus")}</p>
+                <h3>{t("todaysStudyPlan")}</h3>
               </div>
               <button
                 type="button"

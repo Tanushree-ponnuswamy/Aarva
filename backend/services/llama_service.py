@@ -309,7 +309,8 @@ class LlamaService:
         self,
         full_text: str,
         filename: str,
-        sections: Optional[List[Dict]] = None
+        sections: Optional[List[Dict]] = None,
+        language: str = "English"
     ) -> Dict[str, Any]:
         """
         Generates a comprehensive, learner-friendly study summary.
@@ -318,6 +319,12 @@ class LlamaService:
         """
         clean_text = full_text[:12000].strip()
         model_to_use = self._get_best_model()
+
+        lang_instruction = (
+            f"11. 'language': Write all titles, overviews, summaries, concepts, explanations, and definitions in {language}.\n"
+            if language and language != "English"
+            else ""
+        )
 
         prompt = (
             "You are an expert academic curriculum designer. Analyze the following document text and produce a clean, structured JSON study guide for learners.\n\n"
@@ -331,7 +338,8 @@ class LlamaService:
             "7. 'concepts': 3 to 5 key concepts with 'name', 'explanation' (simple explanation), 'how_it_works', and 'example' (intuitive analogy).\n"
             "8. 'definitions': 3 to 6 terms with 'term' and 'definition' found in the document.\n"
             "9. 'important_notes': 3 to 6 critical requirements, dates, names, or technical facts with 'note', 'type' ('Exam Focus' or 'Requirement'), and 'page'.\n"
-            "10. 'privacy': NEVER mention chunks, embeddings, vectors, indexing, or ChromaDB in ANY part of your response. Focus ONLY on the document's actual content and subject matter.\n\n"
+            "10. 'privacy': NEVER mention chunks, embeddings, vectors, indexing, or ChromaDB in ANY part of your response. Focus ONLY on the document's actual content and subject matter.\n"
+            f"{lang_instruction}\n"
             "OUTPUT FORMAT: Return ONLY valid JSON with this exact schema:\n"
             "{\n"
             '  "title": "...",\n'

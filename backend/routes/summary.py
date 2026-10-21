@@ -53,6 +53,7 @@ def get_chat_history(
 def get_summary(
     textbook_id: int,
     mode: str = Query("complete", description="complete, chapter, page, concept"),
+    language: Optional[str] = Query("English", description="Target language for summary and concepts"),
     chapter: Optional[int] = None,
     concept: Optional[str] = None,
     db: Session = Depends(get_db)

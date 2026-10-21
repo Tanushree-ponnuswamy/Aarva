@@ -147,9 +147,16 @@ def get_student_dashboard(user_id: int, db: Session = Depends(get_db)):
                 "percentage": q.percentage,
                 "date": q.completed_at.strftime("%b %d, %Y")
             }
-            for q in quizzes[:5]
         ],
         "adaptive_recommendations": adaptive_insights["personalized_recommendations"],
+        "preferences": {
+            "preferred_language": user.preferences.preferred_language if user.preferences else "English",
+            "voice_assistance": user.preferences.voice_assistance if user.preferences else False,
+            "text_to_speech": user.preferences.text_to_speech if user.preferences else False,
+            "speech_input": user.preferences.speech_input if user.preferences else False,
+            "larger_text": user.preferences.larger_text if user.preferences else False,
+            "simplified_explanations": user.preferences.simplified_explanations if user.preferences else False,
+        },
         "badges": [
             {"id": "first_summary", "title": "First Summary", "icon": "✨", "description": "Generated first chapter AI synthesis", "unlocked": True},
             {"id": "chapter_explorer", "title": "Chapter Explorer", "icon": "🧭", "description": "Summarized 3 consecutive chapters", "unlocked": True},

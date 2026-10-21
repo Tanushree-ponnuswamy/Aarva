@@ -3,7 +3,11 @@ from datetime import datetime, timedelta
 from typing import Optional, Dict, Any
 import uuid
 import bcrypt
-from jose import jwt, JWTError
+try:
+    import jwt
+    from jwt.exceptions import PyJWTError as JWTError
+except ImportError:
+    from jose import jwt, JWTError
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session

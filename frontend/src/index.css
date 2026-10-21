@@ -10518,3 +10518,331 @@ button {
   from { transform: rotate(0deg); }
   to { transform: rotate(360deg); }
 }
+
+/* ==============================================================================
+   AARVA Multilingual Language Selector & Localized UI Elements
+   ============================================================================== */
+
+.aarva-lang-pill-container {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  z-index: 60;
+}
+
+.aarva-lang-pill-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.4rem 0.85rem;
+  background: rgba(255, 255, 255, 0.85);
+  border: 1px solid rgba(116, 88, 245, 0.22);
+  border-radius: 9999px;
+  color: #1e1b4b;
+  font-size: 0.84rem;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(116, 88, 245, 0.08);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  user-select: none;
+}
+
+.aarva-lang-pill-btn:hover {
+  background: #ffffff;
+  border-color: rgba(116, 88, 245, 0.45);
+  box-shadow: 0 4px 14px rgba(116, 88, 245, 0.16);
+  transform: translateY(-1px);
+}
+
+.aarva-lang-pill-btn.open {
+  background: #ffffff;
+  border-color: #7458f5;
+  box-shadow: 0 0 0 3px rgba(116, 88, 245, 0.18), 0 6px 18px rgba(116, 88, 245, 0.14);
+}
+
+.aarva-lang-pill-btn .lang-icon {
+  font-size: 0.95rem;
+  opacity: 0.85;
+}
+
+.aarva-lang-pill-btn .lang-flag {
+  font-size: 1rem;
+  line-height: 1;
+}
+
+.aarva-lang-pill-btn .lang-name {
+  font-weight: 650;
+  letter-spacing: -0.01em;
+}
+
+.aarva-lang-pill-btn .lang-chevron {
+  color: #7458f5;
+  transition: transform 0.22s ease;
+}
+
+.aarva-lang-pill-btn .lang-chevron.rotate {
+  transform: rotate(180deg);
+}
+
+/* Minimal variant for clean headers */
+.aarva-lang-pill-btn.minimal {
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
+  padding: 0.35rem 0.65rem;
+}
+
+.aarva-lang-pill-btn.minimal:hover {
+  background: rgba(116, 88, 245, 0.08);
+  border-color: rgba(116, 88, 245, 0.15);
+}
+
+/* Dropdown Menu */
+.aarva-lang-dropdown {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  min-width: 230px;
+  background: rgba(255, 255, 255, 0.98);
+  border: 1px solid rgba(116, 88, 245, 0.2);
+  border-radius: 1rem;
+  box-shadow: 0 12px 36px -4px rgba(17, 12, 46, 0.18), 0 0 0 1px rgba(0, 0, 0, 0.03);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  overflow: hidden;
+  z-index: 100;
+  animation: aarvaLangFadeIn 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes aarvaLangFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-6px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.aarva-lang-dropdown-header {
+  padding: 0.6rem 0.9rem;
+  border-bottom: 1px solid #f1f0f7;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #64748b;
+  background: #fbfaff;
+}
+
+.aarva-lang-dropdown-list {
+  padding: 0.35rem;
+  max-height: 290px;
+  overflow-y: auto;
+}
+
+.aarva-lang-item {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.55rem 0.75rem;
+  border: none;
+  background: transparent;
+  border-radius: 0.65rem;
+  cursor: pointer;
+  text-align: left;
+  transition: all 0.12s ease;
+  color: #1e293b;
+}
+
+.aarva-lang-item:hover {
+  background: #f4f0ff;
+  color: #4f32c7;
+}
+
+.aarva-lang-item.selected {
+  background: rgba(116, 88, 245, 0.12);
+  color: #7458f5;
+  font-weight: 700;
+}
+
+.aarva-lang-item .item-flag {
+  font-size: 1.15rem;
+  line-height: 1;
+}
+
+.aarva-lang-item .item-text {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.aarva-lang-item .item-native {
+  font-size: 0.88rem;
+  font-weight: 650;
+  line-height: 1.25;
+}
+
+.aarva-lang-item .item-en {
+  font-size: 0.72rem;
+  color: #64748b;
+}
+
+.aarva-lang-item.selected .item-en {
+  color: #7458f5;
+  opacity: 0.85;
+}
+
+.aarva-lang-item .item-check {
+  color: #7458f5;
+  flex-shrink: 0;
+}
+
+/* Native select fallback */
+.aarva-lang-select-wrap {
+  position: relative;
+  width: 100%;
+}
+
+.aarva-lang-native-select {
+  width: 100%;
+  padding: 0.65rem 0.95rem;
+  background: #ffffff;
+  border: 1px solid rgba(116, 88, 245, 0.25);
+  border-radius: 0.65rem;
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: #1e1b4b;
+  cursor: pointer;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.aarva-lang-native-select:focus {
+  outline: none;
+  border-color: #7458f5;
+  box-shadow: 0 0 0 3px rgba(116, 88, 245, 0.15);
+}
+
+/* ==============================================================================
+   Dashboard Top Bar Quick Language Switcher
+   ============================================================================== */
+
+.aarva-dashboard-lang-bar {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  background: rgba(255, 255, 255, 0.9);
+  padding: 0.28rem 0.4rem;
+  border: 1px solid rgba(116, 88, 245, 0.22);
+  border-radius: 9999px;
+  box-shadow: 0 2px 10px rgba(116, 88, 245, 0.08);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+.quick-lang-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.lang-bar-kicker {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.2rem 0.45rem 0.2rem 0.35rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #64748b;
+  user-select: none;
+}
+
+.lang-globe-pulse {
+  font-size: 0.95rem;
+  line-height: 1;
+}
+
+.quick-lang-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.25rem 0.6rem;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 9999px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #475569;
+  cursor: pointer;
+  transition: all 0.16s ease;
+  user-select: none;
+  white-space: nowrap;
+}
+
+.quick-lang-btn:hover {
+  background: rgba(116, 88, 245, 0.1);
+  color: #5b3ce6;
+  border-color: rgba(116, 88, 245, 0.2);
+}
+
+.quick-lang-btn.active {
+  background: linear-gradient(135deg, #7458f5, #5f3fe8);
+  color: #ffffff;
+  border-color: #5f3fe8;
+  box-shadow: 0 2px 8px rgba(116, 88, 245, 0.3);
+  font-weight: 700;
+}
+
+.quick-lang-btn .quick-flag {
+  font-size: 0.92rem;
+  line-height: 1;
+}
+
+.quick-lang-btn .quick-native {
+  letter-spacing: -0.01em;
+}
+
+.aarva-lang-more-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.25rem 0.55rem;
+  background: rgba(116, 88, 245, 0.08);
+  border: 1px solid rgba(116, 88, 245, 0.2);
+  border-radius: 9999px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #5b3ce6;
+  cursor: pointer;
+  transition: all 0.16s ease;
+  white-space: nowrap;
+}
+
+.aarva-lang-more-btn:hover {
+  background: rgba(116, 88, 245, 0.16);
+  border-color: rgba(116, 88, 245, 0.35);
+}
+
+.aarva-lang-more-btn.open {
+  background: #ffffff;
+  border-color: #7458f5;
+  box-shadow: 0 0 0 2px rgba(116, 88, 245, 0.18);
+}
+
+/* Mobile responsive collapse */
+@media (max-width: 900px) {
+  .lang-bar-kicker .lang-label-text {
+    display: none;
+  }
+}
+
+@media (max-width: 680px) {
+  .quick-lang-group button:nth-child(n+4) {
+    display: none;
+  }
+}
+
