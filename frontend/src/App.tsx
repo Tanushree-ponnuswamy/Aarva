@@ -1256,32 +1256,22 @@ function AuthPage({ onHome, onComplete }: { onHome: () => void; onComplete: (nam
             <>
               <p className="kicker">Student portal</p>
               <h2>Continue your learning journey.</h2>
-              <p className="auth-subtitle">Sign in with your student account to pick up exactly where you left off.</p>
+              <p className="auth-subtitle">Sign in to your student workspace to pick up exactly where you left off.</p>
 
-              <div className="demo-accounts-container">
-                <div className="demo-accounts-header">
-                  <span>⚡ Instant Sample Account Access:</span>
-                  <button type="button" className="text-button" onClick={fillDemoCredentials}>
-                    Auto-fill Form
-                  </button>
+              <div className="demo-chip-bar">
+                <div className="demo-chip-left">
+                  <span className="demo-chip-bolt">⚡</span>
+                  <span>Sample Student: <b>Alex Morgan</b> (<code>student@college.edu</code>)</span>
                 </div>
-                <div className="demo-cards-single">
-                  <button
-                    type="button"
-                    className={`demo-card-item sample-single ${activeDemoLoading ? "loading" : ""}`}
-                    onClick={() => loginDemoAccount()}
-                    disabled={loginLoading}
-                    title="Click to sign in instantly as Alex Morgan (student@college.edu)"
-                  >
-                    <div className="demo-card-top-row">
-                      <span className="demo-badge college">Sample Student Account</span>
-                      <span className="demo-pass-hint">Password: student123</span>
-                    </div>
-                    <b>Alex Morgan</b>
-                    <small>student@college.edu • Computer Science (IIT Madras)</small>
-                    <span className="demo-hint">{activeDemoLoading ? "Signing in & launching workspace…" : "⚡ 1-Click Instant Sign In →"}</span>
-                  </button>
-                </div>
+                <button
+                  type="button"
+                  className="demo-chip-btn"
+                  onClick={() => loginDemoAccount()}
+                  disabled={loginLoading}
+                  title="Click to sign in instantly as Alex Morgan"
+                >
+                  {activeDemoLoading ? "Signing in…" : "1-Click Login →"}
+                </button>
               </div>
 
               <form className="auth-form" id="login-form" onSubmit={submitLogin}>
@@ -1339,14 +1329,14 @@ function AuthPage({ onHome, onComplete }: { onHome: () => void; onComplete: (nam
                 {forgotMsg && <p className="form-success" style={{ padding: "0.6rem 0.9rem", borderRadius: "0.8rem", background: "#f0fdf4", color: "#166534", border: "1px solid #bbf7d0", fontSize: "0.8rem" }}>{forgotMsg}</p>}
                 <button
                   id="login-submit"
-                  className="auth-primary"
+                  className="auth-btn-azure"
                   type="submit"
                   disabled={loginLoading}
                 >
-                  {loginLoading ? "Signing in…" : <><span>Log in securely</span> <Icon name="arrow" size={18} /></>}
+                  {loginLoading ? "Signing in…" : <><span>Sign in</span> <Icon name="arrow" size={18} /></>}
                 </button>
               </form>
-              <p className="auth-switch">New to Aarva? <button type="button" onClick={() => { setStage("signup-personal"); setLoginError(""); setForgotMsg(""); }}>Create an account</button></p>
+              <p className="auth-switch">Don&apos;t have an account? <button type="button" onClick={() => { setStage("signup-personal"); setLoginError(""); setForgotMsg(""); }}>Create an account</button></p>
             </>
           )}
 
