@@ -224,9 +224,8 @@ export function LanguageSelector({
         onClick={() => setOpen((prev) => !prev)}
         aria-expanded={open}
         aria-haspopup="listbox"
-        title={t("selectLanguage")}
+        title="AI Response Language"
       >
-        <span className="lang-icon" aria-hidden="true">🌐</span>
         <span className="lang-flag">{languageObj.flag}</span>
         <span className="lang-name">{languageObj.nativeName}</span>
         <svg

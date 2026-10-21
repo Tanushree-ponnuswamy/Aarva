@@ -1,5 +1,6 @@
+import { useState, useEffect } from "react";
 import i18n from "i18next";
-import { initReactI18next, useTranslation as useReactI18nTranslation } from "react-i18next";
+import { initReactI18next } from "react-i18next";
 
 import en from "./locales/en.json";
 import ta from "./locales/ta.json";
@@ -31,7 +32,7 @@ export const SUPPORTED_LANGUAGES: LanguageOption[] = [
   { code: "bn", name: "Bengali", nativeName: "বাংলা", flag: "🇮🇳", region: "indian" },
 ];
 
-// Helper to determine initial language from user profile or cache
+// Helper to determine initial LLM language from user profile or cache
 export const getInitialLanguage = (): LanguageCode => {
   if (typeof window === "undefined") return "en";
 
@@ -55,6 +56,10 @@ export const getInitialLanguage = (): LanguageCode => {
         if (found) return found.code;
       }
     }
+    const globalSaved = localStorage.getItem("aarva_language") as LanguageCode;
+    if (globalSaved && SUPPORTED_LANGUAGES.some((l) => l.code === globalSaved)) {
+      return globalSaved;
+    }
   } catch {
     // Fall back to default
   }
@@ -62,7 +67,7 @@ export const getInitialLanguage = (): LanguageCode => {
   return "en";
 };
 
-// Initialize i18next
+// Initialize i18next locked to English for the UI interface
 i18n.use(initReactI18next).init({
   resources: {
     en: { translation: en },
@@ -74,31 +79,32 @@ i18n.use(initReactI18next).init({
     or: { translation: or },
     bn: { translation: bn }
   },
-  lng: getInitialLanguage(),
+  lng: "en",
   fallbackLng: "en",
   interpolation: { escapeValue: false }
 });
 
-// Sync HTML document language and script attribute on change
-if (typeof document !== "undefined") {
-  const currentLang = i18n.resolvedLanguage || "en";
-  document.documentElement.lang = currentLang;
-  document.documentElement.setAttribute("data-lang", currentLang);
+const enMap = en as Record<string, string>;
 
-  i18n.on("languageChanged", (lng) => {
-    document.documentElement.lang = lng;
-    document.documentElement.setAttribute("data-lang", lng);
-  });
-}
-
-// React custom hook for ergonomic use across dashboard components
+// React custom hook: Keeps UI in English while directing LLM responses in the chosen language
 export function useTranslation() {
-  const { t, i18n: instance } = useReactI18nTranslation();
-  const currentCode = (instance.resolvedLanguage || instance.language || "en") as LanguageCode;
+  const [currentCode, setCurrentCode] = useState<LanguageCode>(getInitialLanguage);
+
+  useEffect(() => {
+    const handleLangChange = (e: any) => {
+      const newL = e?.detail?.lang;
+      if (newL && SUPPORTED_LANGUAGES.some((l) => l.code === newL)) {
+        setCurrentCode(newL);
+      }
+    };
+    window.addEventListener("aarva-language-change", handleLangChange);
+    return () => window.removeEventListener("aarva-language-change", handleLangChange);
+  }, []);
+
   const currentObj = SUPPORTED_LANGUAGES.find((l) => l.code === currentCode) || SUPPORTED_LANGUAGES[0];
 
   const setLanguage = (newCode: LanguageCode) => {
-    instance.changeLanguage(newCode);
+    setCurrentCode(newCode);
 
     // 1. Scoped localStorage persistence
     try {
@@ -129,11 +135,12 @@ export function useTranslation() {
     lang: currentCode,
     languageObj: currentObj,
     setLanguage,
-    t: (key: string, defaultText?: string) => t(key, defaultText || key) as string,
+    // Entire UI remains strictly in English; LLM generates in languageObj
+    t: (key: string, defaultText?: string) => enMap[key] || defaultText || key,
     languages: SUPPORTED_LANGUAGES,
     indianLanguages: SUPPORTED_LANGUAGES.filter((l) => l.region === "indian"),
     globalLanguages: SUPPORTED_LANGUAGES.filter((l) => l.region === "global"),
-    i18n: instance
+    i18n
   };
 }
 
