@@ -361,6 +361,31 @@ def login(req: LoginRequest, request: Request, db: Session = Depends(get_db)):
     email_clean = req.email.strip().lower()
     user = db.query(User).filter(User.email == email_clean).first()
 
+    # Auto-provision sample student account if missing
+    if not user and email_clean == "student@college.edu" and req.password == "student123":
+        user = User(
+            name="Alex Morgan",
+            email="student@college.edu",
+            password_hash=auth_service.hash_password("student123"),
+            role="student",
+            is_active=True
+        )
+        db.add(user)
+        db.flush()
+        db.add(StudentProfile(
+            user_id=user.id,
+            learner_type="college",
+            institution="IIT Madras",
+            department="Computer Science",
+            year="3rd Year",
+            semester="6th Semester"
+        ))
+        db.add(StudentInterests(user_id=user.id, subjects=["Computer Networks", "Operating Systems"]))
+        db.add(LearningPreferences(user_id=user.id, preferred_language="English"))
+        db.add(LearningProgress(user_id=user.id, total_study_minutes=120, total_points=120, streak_days=14))
+        db.commit()
+        db.refresh(user)
+
     # Generic error to avoid email enumeration
     if not user:
         raise HTTPException(status_code=401, detail="Invalid email or password.")
@@ -436,7 +461,28 @@ def demo_login(req: DemoLoginRequest, request: Request, db: Session = Depends(ge
         # Fallback to any active student account
         user = db.query(User).filter(User.role == "student").first()
     if not user:
-        raise HTTPException(status_code=404, detail="Sample student account not found in database.")
+        user = User(
+            name="Alex Morgan",
+            email="student@college.edu",
+            password_hash=auth_service.hash_password("student123"),
+            role="student",
+            is_active=True
+        )
+        db.add(user)
+        db.flush()
+        db.add(StudentProfile(
+            user_id=user.id,
+            learner_type="college",
+            institution="IIT Madras",
+            department="Computer Science",
+            year="3rd Year",
+            semester="6th Semester"
+        ))
+        db.add(StudentInterests(user_id=user.id, subjects=["Computer Networks", "Operating Systems"]))
+        db.add(LearningPreferences(user_id=user.id, preferred_language="English"))
+        db.add(LearningProgress(user_id=user.id, total_study_minutes=120, total_points=120, streak_days=14))
+        db.commit()
+        db.refresh(user)
 
     user.is_active = True
     db.add(LoginActivity(
