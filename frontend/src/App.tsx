@@ -435,12 +435,15 @@ function LandingPage({ onStart, onLogin }: { onStart: () => void; onLogin: () =>
             <div className="nav-links">
               <a href="#home">Home</a>
               <a href="#features">Features</a>
-              <a href="#about">About Us</a>
+              <a href="#about">About us</a>
               <a href="#contact">Contact</a>
             </div>
           </div>
-          <div style={{ display: "flex", alignItems: "center", gap: "0.85rem" }}>
-            <a className="login-link" href="/dashboard" onClick={(event) => { event.preventDefault(); onLogin(); }}>Sign in <Icon name="arrow" size={17} /></a>
+          <div style={{ display: "flex", alignItems: "center" }}>
+            <a className="login-link" href="/dashboard" onClick={(event) => { event.preventDefault(); onLogin(); }}>
+              <span>Log in</span>
+              <Icon name="arrow" size={16} />
+            </a>
           </div>
         </nav>
       </header>
@@ -459,8 +462,12 @@ function LandingPage({ onStart, onLogin }: { onStart: () => void; onLogin: () =>
               Upload dense textbooks, lecture notes, or syllabi. Aarva turns overwhelming chapters into interactive AI conversations, high-yield chapter summaries, and adaptive quizzes engineered for top scores and lifelong retention.
             </p>
             <div className="hero-actions reveal reveal-delay-three">
-              <a className="button button-primary" href="/login" onClick={(event) => { event.preventDefault(); onStart(); }}>Get started <Icon name="arrow" /></a>
-              <a className="text-link" href="#features"><span className="play"><Icon name="play" size={16} /></span> Features</a>
+              <a className="button button-primary" href="/login" onClick={(event) => { event.preventDefault(); onStart(); }}>
+                Get started free <Icon name="arrow" size={16} />
+              </a>
+              <a className="text-link" href="#features">
+                <span className="play"><Icon name="play" size={14} /></span> Explore features
+              </a>
             </div>
             <div className="trust-line reveal reveal-delay-three">
               <div className="avatar-stack"><span>A</span><span>N</span><span>S</span></div>
