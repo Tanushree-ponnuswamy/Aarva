@@ -10520,7 +10520,7 @@ button {
 }
 
 /* ==============================================================================
-   AARVA Multilingual Language Selector & Localized UI Elements
+   AARVA Multilingual Single Dropdown Language Selector
    ============================================================================== */
 
 .aarva-lang-pill-container {
@@ -10533,20 +10533,22 @@ button {
 .aarva-lang-pill-btn {
   display: inline-flex;
   align-items: center;
-  gap: 0.45rem;
-  padding: 0.4rem 0.85rem;
-  background: rgba(255, 255, 255, 0.85);
-  border: 1px solid rgba(116, 88, 245, 0.22);
+  gap: 0.5rem;
+  min-height: 2.5rem;
+  padding: 0.4rem 0.95rem;
+  background: #ffffff;
+  border: 1px solid var(--line, rgba(116, 88, 245, 0.22));
   border-radius: 9999px;
   color: #1e1b4b;
-  font-size: 0.84rem;
-  font-weight: 600;
+  font-size: 0.85rem;
+  font-weight: 650;
   cursor: pointer;
   box-shadow: 0 2px 8px rgba(116, 88, 245, 0.08);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
   transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
   user-select: none;
+  white-space: nowrap;
 }
 
 .aarva-lang-pill-btn:hover {
@@ -10564,29 +10566,31 @@ button {
 
 .aarva-lang-pill-btn .lang-icon {
   font-size: 0.95rem;
-  opacity: 0.85;
+  opacity: 0.9;
 }
 
 .aarva-lang-pill-btn .lang-flag {
-  font-size: 1rem;
+  font-size: 1.05rem;
   line-height: 1;
 }
 
 .aarva-lang-pill-btn .lang-name {
   font-weight: 650;
   letter-spacing: -0.01em;
+  color: #1e293b;
 }
 
 .aarva-lang-pill-btn .lang-chevron {
   color: #7458f5;
   transition: transform 0.22s ease;
+  margin-left: 0.1rem;
 }
 
 .aarva-lang-pill-btn .lang-chevron.rotate {
   transform: rotate(180deg);
 }
 
-/* Minimal variant for clean headers */
+/* Minimal variant for public landing / clean headers */
 .aarva-lang-pill-btn.minimal {
   background: transparent;
   border-color: transparent;
@@ -10604,15 +10608,15 @@ button {
   position: absolute;
   top: calc(100% + 8px);
   right: 0;
-  min-width: 230px;
+  width: 275px;
   background: rgba(255, 255, 255, 0.98);
   border: 1px solid rgba(116, 88, 245, 0.2);
   border-radius: 1rem;
-  box-shadow: 0 12px 36px -4px rgba(17, 12, 46, 0.18), 0 0 0 1px rgba(0, 0, 0, 0.03);
+  box-shadow: 0 16px 40px -4px rgba(17, 12, 46, 0.2), 0 0 0 1px rgba(0, 0, 0, 0.04);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
   overflow: hidden;
-  z-index: 100;
+  z-index: 1000;
   animation: aarvaLangFadeIn 0.18s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
@@ -10627,8 +10631,54 @@ button {
   }
 }
 
+/* Search Box inside dropdown */
+.aarva-lang-search-box {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.6rem 0.85rem;
+  background: #fbfaff;
+  border-bottom: 1px solid #f1f0f7;
+}
+
+.aarva-lang-search-box .search-icon {
+  color: #7458f5;
+  flex-shrink: 0;
+}
+
+.aarva-lang-search-input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  outline: none;
+  font-size: 0.82rem;
+  color: #1e293b;
+  font-family: inherit;
+}
+
+.aarva-lang-search-input::placeholder {
+  color: #94a3b8;
+  font-size: 0.8rem;
+}
+
+.clear-search-btn {
+  background: transparent;
+  border: none;
+  color: #94a3b8;
+  font-size: 0.75rem;
+  cursor: pointer;
+  padding: 0.15rem 0.35rem;
+  border-radius: 999px;
+  line-height: 1;
+}
+
+.clear-search-btn:hover {
+  background: rgba(0, 0, 0, 0.06);
+  color: #475569;
+}
+
 .aarva-lang-dropdown-header {
-  padding: 0.6rem 0.9rem;
+  padding: 0.55rem 0.9rem;
   border-bottom: 1px solid #f1f0f7;
   font-size: 0.72rem;
   font-weight: 700;
@@ -10640,7 +10690,7 @@ button {
 
 .aarva-lang-dropdown-list {
   padding: 0.35rem;
-  max-height: 290px;
+  max-height: 310px;
   overflow-y: auto;
 }
 
@@ -10702,6 +10752,13 @@ button {
   flex-shrink: 0;
 }
 
+.aarva-lang-no-results {
+  padding: 1.5rem 1rem;
+  text-align: center;
+  font-size: 0.82rem;
+  color: #64748b;
+}
+
 /* Native select fallback */
 .aarva-lang-select-wrap {
   position: relative;
@@ -10725,124 +10782,5 @@ button {
   outline: none;
   border-color: #7458f5;
   box-shadow: 0 0 0 3px rgba(116, 88, 245, 0.15);
-}
-
-/* ==============================================================================
-   Dashboard Top Bar Quick Language Switcher
-   ============================================================================== */
-
-.aarva-dashboard-lang-bar {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.45rem;
-  background: rgba(255, 255, 255, 0.9);
-  padding: 0.28rem 0.4rem;
-  border: 1px solid rgba(116, 88, 245, 0.22);
-  border-radius: 9999px;
-  box-shadow: 0 2px 10px rgba(116, 88, 245, 0.08);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-}
-
-.quick-lang-group {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.25rem;
-}
-
-.lang-bar-kicker {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.3rem;
-  padding: 0.2rem 0.45rem 0.2rem 0.35rem;
-  font-size: 0.78rem;
-  font-weight: 700;
-  color: #64748b;
-  user-select: none;
-}
-
-.lang-globe-pulse {
-  font-size: 0.95rem;
-  line-height: 1;
-}
-
-.quick-lang-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.3rem;
-  padding: 0.25rem 0.6rem;
-  background: transparent;
-  border: 1px solid transparent;
-  border-radius: 9999px;
-  font-size: 0.8rem;
-  font-weight: 600;
-  color: #475569;
-  cursor: pointer;
-  transition: all 0.16s ease;
-  user-select: none;
-  white-space: nowrap;
-}
-
-.quick-lang-btn:hover {
-  background: rgba(116, 88, 245, 0.1);
-  color: #5b3ce6;
-  border-color: rgba(116, 88, 245, 0.2);
-}
-
-.quick-lang-btn.active {
-  background: linear-gradient(135deg, #7458f5, #5f3fe8);
-  color: #ffffff;
-  border-color: #5f3fe8;
-  box-shadow: 0 2px 8px rgba(116, 88, 245, 0.3);
-  font-weight: 700;
-}
-
-.quick-lang-btn .quick-flag {
-  font-size: 0.92rem;
-  line-height: 1;
-}
-
-.quick-lang-btn .quick-native {
-  letter-spacing: -0.01em;
-}
-
-.aarva-lang-more-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.3rem;
-  padding: 0.25rem 0.55rem;
-  background: rgba(116, 88, 245, 0.08);
-  border: 1px solid rgba(116, 88, 245, 0.2);
-  border-radius: 9999px;
-  font-size: 0.78rem;
-  font-weight: 700;
-  color: #5b3ce6;
-  cursor: pointer;
-  transition: all 0.16s ease;
-  white-space: nowrap;
-}
-
-.aarva-lang-more-btn:hover {
-  background: rgba(116, 88, 245, 0.16);
-  border-color: rgba(116, 88, 245, 0.35);
-}
-
-.aarva-lang-more-btn.open {
-  background: #ffffff;
-  border-color: #7458f5;
-  box-shadow: 0 0 0 2px rgba(116, 88, 245, 0.18);
-}
-
-/* Mobile responsive collapse */
-@media (max-width: 900px) {
-  .lang-bar-kicker .lang-label-text {
-    display: none;
-  }
-}
-
-@media (max-width: 680px) {
-  .quick-lang-group button:nth-child(n+4) {
-    display: none;
-  }
 }
 

@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import { useTranslation, LanguageCode, SUPPORTED_LANGUAGES, LanguageOption } from "./i18n";
 
 interface LanguageSelectorProps {
@@ -14,31 +14,68 @@ export function LanguageSelector({
 }: LanguageSelectorProps) {
   const { lang, languageObj, setLanguage, languages, indianLanguages, globalLanguages, t } = useTranslation();
   const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState("");
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
 
-  // Close dropdown on outside click
+  // Close dropdown on outside click or Escape key
   useEffect(() => {
     const handleOutsideClick = (e: MouseEvent) => {
       if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
         setOpen(false);
+        setSearch("");
+      }
+    };
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setOpen(false);
+        setSearch("");
       }
     };
     if (open) {
       document.addEventListener("mousedown", handleOutsideClick);
+      document.addEventListener("keydown", handleKeyDown);
+      // Auto-focus search input when opened
+      setTimeout(() => searchInputRef.current?.focus(), 50);
     }
     return () => {
       document.removeEventListener("mousedown", handleOutsideClick);
+      document.removeEventListener("keydown", handleKeyDown);
     };
   }, [open]);
 
   const handleSelect = (code: LanguageCode) => {
     setLanguage(code);
     setOpen(false);
+    setSearch("");
     const chosen = languages.find((l) => l.code === code);
     if (onLanguageChange && chosen) {
       onLanguageChange(code, chosen.name);
     }
   };
+
+  // Filtered lists based on search
+  const filteredIndian = useMemo(() => {
+    if (!search.trim()) return indianLanguages;
+    const q = search.trim().toLowerCase();
+    return indianLanguages.filter(
+      (l) =>
+        l.name.toLowerCase().includes(q) ||
+        l.nativeName.toLowerCase().includes(q) ||
+        l.code.toLowerCase().includes(q)
+    );
+  }, [indianLanguages, search]);
+
+  const filteredGlobal = useMemo(() => {
+    if (!search.trim()) return globalLanguages;
+    const q = search.trim().toLowerCase();
+    return globalLanguages.filter(
+      (l) =>
+        l.name.toLowerCase().includes(q) ||
+        l.nativeName.toLowerCase().includes(q) ||
+        l.code.toLowerCase().includes(q)
+    );
+  }, [globalLanguages, search]);
 
   // Render native select for form fields / settings
   if (variant === "select") {
@@ -50,17 +87,17 @@ export function LanguageSelector({
           className="aarva-lang-native-select"
           aria-label={t("preferredLanguage")}
         >
-          <optgroup label="🇮🇳 Indian Languages (भारतीय भाषाएं)">
-            {indianLanguages.map((l) => (
-              <option key={l.code} value={l.code}>
-                {l.flag} {l.nativeName} — {l.name}
-              </option>
-            ))}
-          </optgroup>
           <optgroup label="🌐 Global Languages">
             {globalLanguages.map((l) => (
               <option key={l.code} value={l.code}>
                 {l.flag} {l.nativeName} ({l.name})
+              </option>
+            ))}
+          </optgroup>
+          <optgroup label="🇮🇳 Indian Languages (भारतीय भाषाएं)">
+            {indianLanguages.map((l) => (
+              <option key={l.code} value={l.code}>
+                {l.flag} {l.nativeName} — {l.name}
               </option>
             ))}
           </optgroup>
@@ -69,152 +106,116 @@ export function LanguageSelector({
     );
   }
 
-  const renderDropdownList = () => (
-    <div className="aarva-lang-dropdown" role="listbox">
-      <div className="aarva-lang-dropdown-header">
-        <span>🇮🇳 {t("indianLanguages")}</span>
-      </div>
-      <div className="aarva-lang-dropdown-list">
-        {indianLanguages.map((item) => {
-          const isSelected = item.code === lang;
-          return (
-            <button
-              key={item.code}
-              type="button"
-              role="option"
-              aria-selected={isSelected}
-              className={`aarva-lang-item ${isSelected ? "selected" : ""}`}
-              onClick={() => handleSelect(item.code)}
-            >
-              <span className="item-flag">{item.flag}</span>
-              <div className="item-text">
-                <span className="item-native">{item.nativeName}</span>
-                <span className="item-en">{item.name}</span>
-              </div>
-              {isSelected && (
-                <svg
-                  className="item-check"
-                  width="16"
-                  height="16"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2.5"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <polyline points="20 6 9 17 4 12" />
-                </svg>
-              )}
-            </button>
-          );
-        })}
-      </div>
-
-      <div className="aarva-lang-dropdown-header" style={{ borderTop: "1px solid #f1f0f7" }}>
-        <span>🌐 {t("globalLanguages")}</span>
-      </div>
-      <div className="aarva-lang-dropdown-list">
-        {globalLanguages.map((item) => {
-          const isSelected = item.code === lang;
-          return (
-            <button
-              key={item.code}
-              type="button"
-              role="option"
-              aria-selected={isSelected}
-              className={`aarva-lang-item ${isSelected ? "selected" : ""}`}
-              onClick={() => handleSelect(item.code)}
-            >
-              <span className="item-flag">{item.flag}</span>
-              <div className="item-text">
-                <span className="item-native">{item.nativeName}</span>
-                <span className="item-en">{item.name}</span>
-              </div>
-              {isSelected && (
-                <svg
-                  className="item-check"
-                  width="16"
-                  height="16"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2.5"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <polyline points="20 6 9 17 4 12" />
-                </svg>
-              )}
-            </button>
-          );
-        })}
-      </div>
-    </div>
-  );
-
-  // Dedicated Dashboard Top Bar widget with quick Indian language buttons
-  if (variant === "dashboard-bar") {
-    const quickLangs: LanguageCode[] = ["ta", "hi", "te", "en"];
+  const renderDropdownItem = (item: LanguageOption) => {
+    const isSelected = item.code === lang;
     return (
-      <div className={`aarva-dashboard-lang-bar ${className}`} ref={dropdownRef}>
-        <div className="quick-lang-group" role="group" aria-label="Quick language switch">
-          <span className="lang-bar-kicker">
-            <span className="lang-globe-pulse">🌐</span>
-            <span className="lang-label-text">{t("language")}:</span>
-          </span>
+      <button
+        key={item.code}
+        type="button"
+        role="option"
+        aria-selected={isSelected}
+        className={`aarva-lang-item ${isSelected ? "selected" : ""}`}
+        onClick={() => handleSelect(item.code)}
+      >
+        <span className="item-flag">{item.flag}</span>
+        <div className="item-text">
+          <span className="item-native">{item.nativeName}</span>
+          <span className="item-en">{item.name}</span>
+        </div>
+        {isSelected && (
+          <svg
+            className="item-check"
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <polyline points="20 6 9 17 4 12" />
+          </svg>
+        )}
+      </button>
+    );
+  };
 
-          {quickLangs.map((qCode) => {
-            const item = languages.find((l) => l.code === qCode);
-            if (!item) return null;
-            const isActive = item.code === lang;
-            return (
-              <button
-                key={item.code}
-                type="button"
-                className={`quick-lang-btn ${isActive ? "active" : ""}`}
-                onClick={() => handleSelect(item.code)}
-                title={`${item.name} (${item.nativeName})`}
-              >
-                <span className="quick-flag">{item.flag}</span>
-                <span className="quick-native">{item.nativeName}</span>
-              </button>
-            );
-          })}
+  const renderDropdownList = () => {
+    const hasAnyResults = filteredIndian.length > 0 || filteredGlobal.length > 0;
+
+    return (
+      <div className="aarva-lang-dropdown" role="listbox">
+        {/* Quick Search Input */}
+        <div className="aarva-lang-search-box">
+          <svg
+            className="search-icon"
+            width="14"
+            height="14"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <circle cx="11" cy="11" r="8" />
+            <path d="m21 21-4.3-4.3" />
+          </svg>
+          <input
+            ref={searchInputRef}
+            type="text"
+            className="aarva-lang-search-input"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search language / भाषा..."
+            aria-label="Search language"
+          />
+          {search && (
+            <button
+              type="button"
+              className="clear-search-btn"
+              onClick={() => setSearch("")}
+              aria-label="Clear search"
+            >
+              ✕
+            </button>
+          )}
         </div>
 
-        {/* More languages dropdown trigger */}
-        <div className="aarva-lang-pill-container">
-          <button
-            type="button"
-            className={`aarva-lang-more-btn ${open ? "open" : ""}`}
-            onClick={() => setOpen((prev) => !prev)}
-            aria-expanded={open}
-            aria-haspopup="listbox"
-            title={t("selectLanguage")}
-          >
-            <span>{languageObj.region === "indian" && !quickLangs.includes(lang) ? `${languageObj.flag} ${languageObj.nativeName}` : "+ More"}</span>
-            <svg
-              className={`lang-chevron ${open ? "rotate" : ""}`}
-              width="13"
-              height="13"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2.5"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <path d="m6 9 6 6 6-6" />
-            </svg>
-          </button>
-          {open && renderDropdownList()}
+        <div className="aarva-lang-dropdown-list">
+          {filteredGlobal.length > 0 && (
+            <>
+              <div className="aarva-lang-dropdown-header">
+                <span>🌐 {t("globalLanguages")}</span>
+              </div>
+              {filteredGlobal.map(renderDropdownItem)}
+            </>
+          )}
+
+          {filteredIndian.length > 0 && (
+            <>
+              <div
+                className="aarva-lang-dropdown-header"
+                style={{ borderTop: filteredGlobal.length > 0 ? "1px solid #f1f0f7" : "none" }}
+              >
+                <span>🇮🇳 {t("indianLanguages")}</span>
+              </div>
+              {filteredIndian.map(renderDropdownItem)}
+            </>
+          )}
+
+          {!hasAnyResults && (
+            <div className="aarva-lang-no-results">
+              <span>No language found matching "{search}"</span>
+            </div>
+          )}
         </div>
       </div>
     );
-  }
+  };
 
-  // Standard Pill variant
+  // Single dropdown button trigger: Only ONE language visible at any time, English default
   return (
     <div className={`aarva-lang-pill-container ${className}`} ref={dropdownRef}>
       <button

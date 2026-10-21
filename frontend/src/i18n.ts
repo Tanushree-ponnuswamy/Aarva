@@ -25,6 +25,9 @@ export interface LanguageOption {
 }
 
 export const SUPPORTED_LANGUAGES: LanguageOption[] = [
+  // Global & Default Language
+  { code: "en", name: "English", nativeName: "English", flag: "🇬🇧", region: "global" },
+
   // Indian Languages (First-class priority)
   { code: "ta", name: "Tamil", nativeName: "தமிழ்", flag: "🇮🇳", region: "indian" },
   { code: "hi", name: "Hindi", nativeName: "हिन्दी", flag: "🇮🇳", region: "indian" },
@@ -37,8 +40,7 @@ export const SUPPORTED_LANGUAGES: LanguageOption[] = [
   { code: "pa", name: "Punjabi", nativeName: "ਪੰਜਾਬੀ", flag: "🇮🇳", region: "indian" },
   { code: "or", name: "Odia", nativeName: "ଓଡ଼ିଆ", flag: "🇮🇳", region: "indian" },
 
-  // Global Languages
-  { code: "en", name: "English", nativeName: "English", flag: "🇬🇧", region: "global" },
+  // Other Global Languages
   { code: "es", name: "Spanish", nativeName: "Español", flag: "🇪🇸", region: "global" },
   { code: "fr", name: "French", nativeName: "Français", flag: "🇫🇷", region: "global" },
   { code: "de", name: "German", nativeName: "Deutsch", flag: "🇩🇪", region: "global" },
@@ -1365,26 +1367,16 @@ export const translations: Record<LanguageCode, Record<string, string>> = {
 export function getInitialLanguage(): LanguageCode {
   if (typeof window === "undefined") return "en";
   try {
-    const saved = localStorage.getItem("aarva_language");
-    if (saved && (saved in translations)) return saved as LanguageCode;
+    // If user explicitly chose a language previously in v2, use it
+    const savedV2 = localStorage.getItem("aarva_language_v2");
+    if (savedV2 && (savedV2 in translations)) return savedV2 as LanguageCode;
 
-    // Check user profile in localStorage
-    const storedUser = JSON.parse(localStorage.getItem("aarva_user") || "null");
-    if (storedUser?.preferred_language) {
-      const match = SUPPORTED_LANGUAGES.find(
-        (l) => l.name.toLowerCase() === storedUser.preferred_language.toLowerCase() ||
-               l.code.toLowerCase() === storedUser.preferred_language.toLowerCase()
-      );
-      if (match) return match.code;
-    }
-
-    // Check browser language
-    const navLang = navigator.language.slice(0, 2).toLowerCase();
-    if (navLang in translations) return navLang as LanguageCode;
+    // Default is strictly English as requested
+    return "en";
   } catch {
     // fallback
+    return "en";
   }
-  return "en";
 }
 
 export function useTranslation() {
@@ -1392,7 +1384,7 @@ export function useTranslation() {
 
   useEffect(() => {
     const handleStorageChange = (e: StorageEvent) => {
-      if (e.key === "aarva_language" && e.newValue && e.newValue in translations) {
+      if ((e.key === "aarva_language_v2" || e.key === "aarva_language") && e.newValue && e.newValue in translations) {
         setCurrentLangState(e.newValue as LanguageCode);
       }
     };
@@ -1403,6 +1395,7 @@ export function useTranslation() {
   const setLanguage = (lang: LanguageCode, persistToBackend = true) => {
     setCurrentLangState(lang);
     try {
+      localStorage.setItem("aarva_language_v2", lang);
       localStorage.setItem("aarva_language", lang);
 
       // Also update stored user if present

@@ -6037,7 +6037,7 @@ function Dashboard({ name, onHome }: { name: string; onHome: () => void }) {
             <h1>{getMenuLabel(active)}</h1>
           </div>
           <div className="top-actions">
-            <LanguageSelector variant="dashboard-bar" />
+            <LanguageSelector variant="pill" />
             <div className="points"><Icon name="spark" size={16} /><span><b>{books.length * 80}</b><small>{t("points")}</small></span></div>
             <button className="notification" type="button" aria-label="Notifications"><MiniIcon name="bell" /><i /></button>
             <button className="profile-chip" type="button" onClick={() => setActive("Profile")}><span>{firstName[0]}</span><span><b>{firstName}</b><small>{t("curiousLearner")}</small></span></button>
