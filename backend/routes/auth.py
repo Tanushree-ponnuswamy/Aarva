@@ -160,7 +160,6 @@ def send_verification_otp(req: SendOtpRequest, db: Session = Depends(get_db)):
         "status": "success" if dispatch_result.get("success") else "dispatched_with_fallback",
         "email": email,
         "message": dispatch_result.get("message", "Verification code dispatched."),
-        "preview_code": code,  # Available for development / test flows
         "is_registered": bool(user)
     }
 

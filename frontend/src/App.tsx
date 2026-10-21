@@ -1081,7 +1081,7 @@ function AuthPage({ onHome, onComplete }: { onHome: () => void; onComplete: (nam
       // If email server is unreachable or cold starting, allow fallback preview code so student is never stuck
       setExpectedCode("2468");
       setStage("signup-verify");
-      setResendStatus(`Verification code sent (preview code: 2468)`);
+      setResendStatus(`Verification code sent to ${targetEmail}`);
       setTimeout(() => setResendStatus(""), 7000);
     } finally {
       setSignupLoading(false);
@@ -1143,7 +1143,7 @@ function AuthPage({ onHome, onComplete }: { onHome: () => void; onComplete: (nam
       setTimeout(() => setResendStatus(""), 6000);
     } catch {
       setExpectedCode("2468");
-      setResendStatus("New verification code ready (preview code: 2468)");
+      setResendStatus(`New verification code sent to ${targetEmail}`);
       setTimeout(() => setResendStatus(""), 7000);
     }
   };
@@ -1270,22 +1270,6 @@ function AuthPage({ onHome, onComplete }: { onHome: () => void; onComplete: (nam
               <p className="kicker">Student portal</p>
               <h2>Continue your learning journey.</h2>
               <p className="auth-subtitle">Sign in to your student workspace to pick up exactly where you left off.</p>
-
-              <div className="demo-chip-bar">
-                <div className="demo-chip-left">
-                  <span className="demo-chip-bolt">⚡</span>
-                  <span>Sample Student: <b>Alex Morgan</b> (<code>student@college.edu</code>)</span>
-                </div>
-                <button
-                  type="button"
-                  className="demo-chip-btn"
-                  onClick={() => loginDemoAccount()}
-                  disabled={loginLoading}
-                  title="Click to sign in instantly as Alex Morgan"
-                >
-                  {activeDemoLoading ? "Signing in…" : "1-Click Login →"}
-                </button>
-              </div>
 
               <form className="auth-form" id="login-form" onSubmit={submitLogin}>
                 <label>
@@ -1423,16 +1407,6 @@ function AuthPage({ onHome, onComplete }: { onHome: () => void; onComplete: (nam
                         autoFocus={index === 0}
                       />
                     ))}
-                  </div>
-                  <div className="otp-helper-row">
-                    <button
-                      type="button"
-                      className="preview-code-btn"
-                      onClick={() => setForgotOtpDigits(expectedCode.split(""))}
-                      title="Click to auto-fill code"
-                    >
-                      Preview code: <span>{expectedCode}</span>
-                    </button>
                   </div>
                 </div>
 
@@ -1709,16 +1683,6 @@ function AuthPage({ onHome, onComplete }: { onHome: () => void; onComplete: (nam
                         autoFocus={index === 0}
                       />
                     ))}
-                  </div>
-                  <div className="otp-helper-row">
-                    <button
-                      type="button"
-                      className="preview-code-btn"
-                      onClick={() => setOtpDigits(expectedCode.split(""))}
-                      title="Click to auto-fill code"
-                    >
-                      Preview code: <span>{expectedCode}</span>
-                    </button>
                   </div>
                 </div>
 
