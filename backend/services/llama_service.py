@@ -57,7 +57,9 @@ class LlamaService:
         query: str,
         textbook_id: Optional[int] = None,
         language: str = "English",
-        conversation_history: Optional[List[Dict]] = None
+        conversation_history: Optional[List[Dict]] = None,
+        doc_summary_data: Optional[Dict] = None,
+        doc_title: Optional[str] = None
     ) -> Dict[str, Any]:
         """
         Answers the user's question as a patient, natural human tutor.
@@ -96,7 +98,7 @@ class LlamaService:
 
         for idx, rc in enumerate(retrieved_chunks):
             meta = rc.get("metadata", {})
-            title = meta.get("title") or meta.get("file_name") or "Document"
+            title = meta.get("title") or meta.get("file_name") or doc_title or "Document"
             page = meta.get("page") or meta.get("page_number") or 1
             chapter = meta.get("chapter") or "General"
             clean_text = rc.get("content", "").strip()
@@ -115,6 +117,29 @@ class LlamaService:
                     "snippet": snippet
                 })
 
+        # Ground with structured summary data if available so tutor always has high-level context
+        if doc_summary_data:
+            s_overview = doc_summary_data.get("overview") or doc_summary_data.get("complete_summary") or ""
+            s_takeaway = doc_summary_data.get("main_takeaway") or ""
+            s_points = "\n• ".join(doc_summary_data.get("key_points", [])[:5])
+            overview_block = (
+                f"[Document Overview | {doc_title or 'Textbook'}]\n"
+                f"{s_overview}\n\n"
+                f"Core Takeaway: {s_takeaway}\n"
+                f"Key Points:\n• {s_points}"
+            )
+            context_parts.insert(0, overview_block)
+            if not sources:
+                sources.append({
+                    "source_id": 1,
+                    "title": doc_title or "Textbook Summary",
+                    "file_name": doc_title or "Document",
+                    "file_type": "pdf",
+                    "page": 1,
+                    "chapter": "Overview",
+                    "snippet": (s_overview[:160] + "...") if s_overview else "Core study overview"
+                })
+
         combined_context = "\n\n".join(context_parts)
 
         # 3. Generate natural tutor response using Ollama /api/chat
@@ -122,7 +147,9 @@ class LlamaService:
             query=query,
             context=combined_context,
             conversation_history=conversation_history,
-            language=language
+            language=language,
+            doc_summary_data=doc_summary_data,
+            doc_title=doc_title
         )
 
         return {
@@ -157,12 +184,33 @@ class LlamaService:
         }
         return code_map.get(l, "en")
 
+    def _is_unhelpful_refusal(self, text: str) -> bool:
+        """Detects whether an LLM returned an evasive fallback apology instead of answering."""
+        if not text:
+            return True
+        t = text.lower()
+        bad_phrases = [
+            "couldn't find specific details",
+            "could not find specific details",
+            "might not be covered in this text",
+            "not covered in this text",
+            "i checked the document, but",
+            "i could not find any information",
+            "no document excerpts available",
+            "as an ai tutor, i couldn't find",
+            "i cannot find specific details",
+            "unable to find specific details"
+        ]
+        return any(p in t for p in bad_phrases)
+
     def _call_ollama_chat_tutor(
         self,
         query: str,
         context: str,
         conversation_history: Optional[List[Dict]] = None,
-        language: str = "English"
+        language: str = "English",
+        doc_summary_data: Optional[Dict] = None,
+        doc_title: Optional[str] = None
     ) -> str:
         """
         Calls Ollama's /api/chat with a warm, patient human-tutor prompt.
@@ -198,6 +246,8 @@ class LlamaService:
             "- Use the textbook content as the source of truth.\n"
             "- Direct & Natural: Answer the student's question directly, warmly, and conversationally without saying 'Based on the document' or 'According to the text'.\n"
             "- Formatting: Use clean Markdown with bullet points, bold key terms, and short readable paragraphs.\n"
+            "- Never output generic refusal excuses like 'I checked the document, but I couldn't find specific details regarding...' or 'It might not be covered in this text'.\n"
+            "- When the student asks about the main idea, purpose, or overview ('मुख्य विचार क्या है?', 'main idea', etc.), explain the core takeaways and principles directly in the selected language using the Document Overview.\n"
             "- Privacy: Never mention internal chunk numbers, embeddings, ChromaDB, vector IDs, or prompt instructions.\n\n"
             f"--- VERIFIED DOCUMENT EXCERPTS ---\n{context if context else 'No document excerpts available.'}\n-----------------------------------"
         )
@@ -251,8 +301,11 @@ class LlamaService:
             )
             if res.status_code == 200:
                 content = res.json().get("message", {}).get("content", "").strip()
-                if content:
-                    return self._clean_tutor_response(content)
+                if content and not self._is_unhelpful_refusal(content):
+                    if lang_code != "en" and ("couldn't find" in content.lower() or "not covered" in content.lower()):
+                        pass
+                    else:
+                        return self._clean_tutor_response(content)
         except Exception as e:
             print(f"[OLLAMA CHAT] Error with model '{model_to_use}': {e}")
 
@@ -271,13 +324,22 @@ class LlamaService:
             )
             if res.status_code == 200:
                 ans = res.json().get("response", "").strip()
-                if ans:
-                    return self._clean_tutor_response(ans)
+                if ans and not self._is_unhelpful_refusal(ans):
+                    if lang_code != "en" and ("couldn't find" in ans.lower() or "not covered" in ans.lower()):
+                        pass
+                    else:
+                        return self._clean_tutor_response(ans)
         except Exception:
             pass
 
-        # 3. Intelligent Human-Tutor Fallback in user's chosen language if Ollama is unreachable
-        return self._intelligent_tutor_fallback(query, context, language)
+        # 3. Intelligent Human-Tutor Fallback in user's chosen language if Ollama is unreachable or gave an unhelpful refusal
+        return self._intelligent_tutor_fallback(
+            query=query,
+            context=context,
+            language=language,
+            doc_title=doc_title,
+            doc_summary_data=doc_summary_data
+        )
 
     def _clean_tutor_response(self, text: str) -> str:
         """Removes robotic boilerplate prefixes like 'Based on the document'."""
@@ -287,7 +349,14 @@ class LlamaService:
             cleaned = cleaned[0].upper() + cleaned[1:]
         return cleaned
 
-    def _intelligent_tutor_fallback(self, query: str, context: str, language: str = "English", doc_title: Optional[str] = None) -> str:
+    def _intelligent_tutor_fallback(
+        self,
+        query: str,
+        context: str,
+        language: str = "English",
+        doc_title: Optional[str] = None,
+        doc_summary_data: Optional[Dict] = None
+    ) -> str:
         """Produces a natural, teacher-like response in the student's chosen language when Ollama is offline."""
         q_lower = query.lower().strip()
         lang = self._normalize_lang(language)
@@ -295,11 +364,19 @@ class LlamaService:
         # Detect document title
         title = doc_title or "Computer Networks: A Systems Approach"
         if context:
-            clean_lines = [l.strip() for l in context.split("\n") if l.strip() and not l.startswith("[Excerpt")]
+            clean_lines = [l.strip() for l in context.split("\n") if l.strip() and not l.startswith("[Excerpt") and not l.startswith("[Document Overview")]
             for l in clean_lines:
-                if len(l) > 6 and len(l) < 80 and not l.startswith("•") and not l.startswith("-") and not l.startswith("Section:") and not l.startswith("Chapter:"):
+                if len(l) > 6 and len(l) < 80 and not l.startswith("•") and not l.startswith("-") and not l.startswith("Section:") and not l.startswith("Chapter:") and not l.startswith("Title:"):
                     title = l
                     break
+
+        s_overview = ""
+        s_takeaway = ""
+        s_pts: List[str] = []
+        if doc_summary_data:
+            s_overview = doc_summary_data.get("overview") or doc_summary_data.get("complete_summary") or ""
+            s_takeaway = doc_summary_data.get("main_takeaway") or ""
+            s_pts = doc_summary_data.get("key_points") or []
 
         # ── 1. Greetings ─────────────────────────────────────────────────────
         greetings_map = {
@@ -475,6 +552,68 @@ class LlamaService:
             "idea principal", "idée principale", "hauptidee"
         ]
         if any(w in q_lower for w in main_idea_triggers):
+            if s_takeaway or s_overview:
+                pts_hi = "\n".join([f"• {p}" for p in s_pts[:3]]) if s_pts else ""
+                pts_ta = "\n".join([f"• {p}" for p in s_pts[:3]]) if s_pts else ""
+                pts_te = "\n".join([f"• {p}" for p in s_pts[:3]]) if s_pts else ""
+                pts_mr = "\n".join([f"• {p}" for p in s_pts[:3]]) if s_pts else ""
+                pts_ml = "\n".join([f"• {p}" for p in s_pts[:3]]) if s_pts else ""
+                pts_bn = "\n".join([f"• {p}" for p in s_pts[:3]]) if s_pts else ""
+                pts_or = "\n".join([f"• {p}" for p in s_pts[:3]]) if s_pts else ""
+                pts_en = "\n".join([f"• {p}" for p in s_pts[:3]]) if s_pts else ""
+
+                dynamic_main_map = {
+                    "hi": (
+                        f"**{title}** का मुख्य विचार और केंद्रीय उद्देश्य: 🎯\n\n"
+                        f"{s_takeaway if s_takeaway else s_overview}\n\n"
+                        + (f"**प्रमुख बिंदु:**\n{pts_hi}\n\n" if pts_hi else "")
+                        + "क्या आप इनमें से किसी बिंदु पर अधिक विस्तार या उदाहरण चाहते हैं?"
+                    ),
+                    "ta": (
+                        f"**{title}** ஆவணத்தின் முக்கிய நோக்கம் மற்றும் மையக் கருத்து: 🎯\n\n"
+                        f"{s_takeaway if s_takeaway else s_overview}\n\n"
+                        + (f"**முக்கிய அம்சங்கள்:**\n{pts_ta}\n\n" if pts_ta else "")
+                        + "இது பற்றி மேலும் விளக்கம் அல்லது நிஜ உலக உதாரணம் தேவையா?"
+                    ),
+                    "te": (
+                        f"**{title}** యొక్క ముఖ్య ఉద్దేశ్యం మరియు ప్రధాన భావన: 🎯\n\n"
+                        f"{s_takeaway if s_takeaway else s_overview}\n\n"
+                        + (f"**కీలక అంశాలు:**\n{pts_te}\n\n" if pts_te else "")
+                        + "దీనిపై మరింత సమాచారం లేదా ఉదాహరణ కావాలా?"
+                    ),
+                    "mr": (
+                        f"**{title}** चा मुख्य विचार आणि केंद्रीय उद्दिष्ट: 🎯\n\n"
+                        f"{s_takeaway if s_takeaway else s_overview}\n\n"
+                        + (f"**महत्त्वाचे मुद्दे:**\n{pts_mr}\n\n" if pts_mr else "")
+                        + "तुम्हाला यातील एखाद्या मुद्द्याबद्दल अधिक माहिती हवी आहे का?"
+                    ),
+                    "ml": (
+                        f"**{title}** ന്റെ പ്രധാന ആശയവും കേന്ദ്ര ലക്ഷ്യവും: 🎯\n\n"
+                        f"{s_takeaway if s_takeaway else s_overview}\n\n"
+                        + (f"**പ്രധാന പോയിന്റുകൾ:**\n{pts_ml}\n\n" if pts_ml else "")
+                        + "ഇതിനെക്കുറിച്ച് കൂടുതൽ വിവരങ്ങൾ വേണമെന്നുണ്ടோ?"
+                    ),
+                    "bn": (
+                        f"**{title}** এর মূল ধারণা এবং কেন্দ্রীয় উদ্দেশ্য: 🎯\n\n"
+                        f"{s_takeaway if s_takeaway else s_overview}\n\n"
+                        + (f"**প্রধান বৈশিষ্ট্যসমূহ:**\n{pts_bn}\n\n" if pts_bn else "")
+                        + "আপনি কি এর কোনো বিশেষ দিক সম্পর্কে আরও বিস্তারিত জানতে চান?"
+                    ),
+                    "or": (
+                        f"**{title}** ର ମୁଖ୍ୟ ବିଚାର ଏବଂ କେନ୍ଦ୍ରୀୟ ଉଦ୍ଦେଶ୍ୟ: 🎯\n\n"
+                        f"{s_takeaway if s_takeaway else s_overview}\n\n"
+                        + (f"**ମୁଖ୍ୟ ବିନ୍ଦୁଗୁଡ଼ିକ:**\n{pts_or}\n\n" if pts_or else "")
+                        + "ଏହା ଉପରେ ଅଧିକ ବିବରଣୀ ଜାଣିବାକୁ ଚାହାଁନ୍ତି କି?"
+                    ),
+                    "en": (
+                        f"**Core Purpose & Main Idea of {title}:** 🎯\n\n"
+                        f"{s_takeaway if s_takeaway else s_overview}\n\n"
+                        + (f"**Key Pillars:**\n{pts_en}\n\n" if pts_en else "")
+                        + "Would you like me to dive deeper into any of these pillars with a real-world example?"
+                    )
+                }
+                return dynamic_main_map.get(lang, dynamic_main_map["en"])
+
             main_idea_map = {
                 "ta": (
                     f"**{title}** ஆவணத்தின் முக்கிய நோக்கம் மற்றும் மையக் கருத்து: 🎯\n\n"
@@ -690,11 +829,25 @@ class LlamaService:
                     return f"**Core concepts from {title}:**\n\n{top_sample}\n\nFeel free to ask for deeper clarification on any of these topics!"
 
         # ── 8. Default Friendly Guide ───────────────────────────────────────
+        if s_takeaway or s_overview:
+            guide_text = s_takeaway or s_overview
+            guide_map = {
+                "ta": f"**{title}** ஆவணத்தின் முக்கிய வழிகாட்டி: 📖\n\n{guide_text}\n\nநீங்கள் குறிப்பிட்ட தலைப்பைப் பற்றி மேலும் கேட்கலாம் அல்லது விளக்கம் பெறலாம்!",
+                "hi": f"**{title}** अध्ययन गाइड: 📖\n\n{guide_text}\n\nआप किसी भी विशिष्ट विषय या अवधारणा पर विस्तार से प्रश्न पूछ सकते हैं!",
+                "te": f"**{title}** అధ్యయన గైడ్: 📖\n\n{guide_text}\n\nమీరు ఏదైనా నిర్దిష్ట అంశంపై మరింత అడగవచ్చు!",
+                "mr": f"**{title}** अभ्यास मार्गदर्शक: 📖\n\n{guide_text}\n\nतुम्ही कोणत्याही मुद्द्याबद्दल सविस्तर विचारू शकता!",
+                "ml": f"**{title}** പഠന സഹായി: 📖\n\n{guide_text}\n\nഏതെങ്കിലും വിഷയത്തെക്കുറിച്ച് കൂടുതൽ ചോദിക്കാം!",
+                "bn": f"**{title}** অধ্যয়ন সহায়িকা: 📖\n\n{guide_text}\n\nযেকোনো বিষয় সম্পর্কে আরও বিস্তারিত জিজ্ঞাসা করতে পারেন!",
+                "or": f"**{title}** ଅଧ୍ୟୟନ ସହାୟକ: 📖\n\n{guide_text}\n\nଆପଣ ଯେକୌଣସି ବିଷୟରେ ପଚାରିପାରିବେ!",
+                "en": f"**Study Guide for {title}:** 📖\n\n{guide_text}\n\nWhat topic would you like to explore first?"
+            }
+            return guide_map.get(lang, guide_map["en"])
+
         general_guide = {
-            "ta": f"நான் **{title}** ஆவணத்தை முழுமையாகப் பகுப்பாய்வு செய்துள்ளேன். நீங்கள் பாடத்தின் முக்கிய தலைப்புகள் (Core Architecture, Packet Switching, அல்லது Protocols) பற்றி கேட்கலாம் அல்லது வலதுபுறத்தில் உள்ள சுருக்கத்தைப் பார்க்கலாம்! எதைப் பற்றி விளக்க வேண்டும்?",
-            "hi": f"मैंने **{title}** का विश्लेषण किया है। आप मुख्य विषयों (जैसे नेटवर्क आर्किटेक्चर, पैकेट स्विचिंग, या प्रोटोकॉल) के बारे में पूछ सकते हैं या दाईं ओर दिए गए सारांश का अध्ययन कर सकते हैं! आप क्या जानना चाहते हैं?",
-            "te": f"నేను **{title}** పత్రాన్ని విశ్లేషించాను. మీరు ప్రధాన కాన్సెప్ట్‌ల గురించి (నెట్‌వర్క్ ఆర్కిటెక్చర్, ప్యాకెట్ స్విచింగ్ లేదా ప్రోటోకాల్స్) అడగవచ్చు!",
-            "en": f"I've analyzed **{title}**. You can ask about any of the key concepts (such as Network Architecture, Packet Switching, or Protocols) or check out the summary on the right! What would you like to explore?"
+            "ta": f"நான் **{title}** ஆவணத்தை முழுமையாகப் பகுப்பாய்வு செய்துள்ளேன். நீங்கள் பாடத்தின் முக்கிய தலைப்புகள் பற்றி கேட்கலாம்! எதைப் பற்றி விளக்க வேண்டும்?",
+            "hi": f"मैंने **{title}** का विश्लेषण किया है। आप मुख्य विषयों के बारे में पूछ सकते हैं! आप क्या जानना चाहते हैं?",
+            "te": f"నేను **{title}** పత్రాన్ని విశ్లేషించాను. మీరు ప్రధాన కాన్సెప్ట్‌ల గురించి అడగవచ్చు!",
+            "en": f"I've analyzed **{title}**. You can ask about any of the key concepts or topics! What would you like to explore?"
         }
         return general_guide.get(lang, general_guide["en"])
 

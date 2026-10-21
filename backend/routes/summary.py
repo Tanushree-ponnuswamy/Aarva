@@ -156,13 +156,26 @@ def chat_with_tutor(req: ChatMessageRequest, db: Session = Depends(get_db)):
     stores chat history, and returns AI answer with cited sources.
     """
     target_id = req.document_id if req.document_id is not None else req.textbook_id
+    doc_summary_data = None
+    doc_title = None
+
+    if target_id:
+        try:
+            book = db.query(Textbook).filter(Textbook.id == target_id).first()
+            if book:
+                doc_title = book.title
+                doc_summary_data = book.summary_data
+        except Exception as e:
+            print(f"[CHAT_ROUTE] Could not load book metadata: {e}")
 
     # Execute RAG query
     reply = llama_service.chat_response(
         query=req.query,
         textbook_id=target_id,
         language=req.language or "English",
-        conversation_history=req.conversation_history
+        conversation_history=req.conversation_history,
+        doc_summary_data=doc_summary_data,
+        doc_title=doc_title
     )
 
     # Persist chat session & messages if user_id & textbook_id provided
