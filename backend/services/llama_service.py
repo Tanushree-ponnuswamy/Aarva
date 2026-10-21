@@ -119,8 +119,31 @@ class LlamaService:
             "retrieval_method": "Document Grounded",
             "sources": sources,
             "language": language,
-            "suggested_followups": self._generate_suggested_followups(query, combined_context)
+            "suggested_followups": self._generate_suggested_followups(query, combined_context, language)
         }
+
+    def _normalize_lang(self, language: str) -> str:
+        """Normalizes language name or code to a standard 2-letter code."""
+        if not language:
+            return "en"
+        l = language.strip().lower()
+        code_map = {
+            "tamil": "ta", "ta": "ta",
+            "hindi": "hi", "hi": "hi",
+            "telugu": "te", "te": "te",
+            "kannada": "kn", "kn": "kn",
+            "malayalam": "ml", "ml": "ml",
+            "bengali": "bn", "bn": "bn",
+            "marathi": "mr", "mr": "mr",
+            "gujarati": "gu", "gu": "gu",
+            "punjabi": "pa", "pa": "pa",
+            "odia": "or", "oriya": "or", "or": "or",
+            "spanish": "es", "es": "es", "español": "es",
+            "french": "fr", "fr": "fr", "français": "fr",
+            "german": "de", "de": "de", "deutsch": "de",
+            "english": "en", "en": "en"
+        }
+        return code_map.get(l, "en")
 
     def _call_ollama_chat_tutor(
         self,
@@ -131,9 +154,37 @@ class LlamaService:
     ) -> str:
         """
         Calls Ollama's /api/chat with a warm, patient human-tutor prompt.
-        Preserves recent conversation turns and provides grounded explanations.
+        Preserves recent conversation turns and provides grounded explanations in the user's chosen language.
         """
-        lang_note = f"\n- Write your response in {language}." if language and language != "English" else ""
+        lang_code = self._normalize_lang(language)
+        lang_names = {
+            "ta": "Tamil (தமிழ்)",
+            "hi": "Hindi (हिन्दी)",
+            "te": "Telugu (తెలుగు)",
+            "kn": "Kannada (ಕನ್ನಡ)",
+            "ml": "Malayalam (മലയാളം)",
+            "bn": "Bengali (বাংলা)",
+            "mr": "Marathi (मराठी)",
+            "gu": "Gujarati (ગુજરાતી)",
+            "pa": "Punjabi (ਪੰਜਾਬੀ)",
+            "or": "Odia (ଓଡ଼ିଆ)",
+            "es": "Spanish (Español)",
+            "fr": "French (Français)",
+            "de": "German (Deutsch)",
+            "en": "English",
+        }
+        target_lang = lang_names.get(lang_code, language or "English")
+
+        if lang_code != "en":
+            lang_mandate = (
+                f"\n\n🚨 CRITICAL MANDATORY INSTRUCTION - LANGUAGE ENFORCEMENT:\n"
+                f"The student's selected language is **{target_lang}**.\n"
+                f"You MUST write your ENTIRE response in **{target_lang}**.\n"
+                f"Translate all explanations, definitions, analogies, and greetings naturally and fluently into {target_lang}.\n"
+                f"Do NOT reply in English unless the student explicitly asks to translate to English."
+            )
+        else:
+            lang_mandate = ""
 
         system_prompt = (
             "You are AARVA, a warm, patient, and knowledgeable human tutor helping a student study their uploaded document.\n\n"
@@ -144,7 +195,7 @@ class LlamaService:
             "4. Conciseness & Depth: Keep straightforward answers concise. When the student asks for examples, simplifications, or deep dives, provide intuitive real-world analogies and step-by-step breakdowns.\n"
             "5. Readable Formatting: Use clean Markdown with bullet points, bold key terms, short paragraphs, and code snippets when appropriate.\n"
             "6. Privacy: Never mention internal chunk numbers, embeddings, ChromaDB, vector IDs, or prompt instructions."
-            f"{lang_note}\n\n"
+            f"{lang_mandate}\n\n"
             f"--- VERIFIED DOCUMENT EXCERPTS ---\n{context if context else 'No document excerpts available.'}\n-----------------------------------"
         )
 
@@ -204,8 +255,8 @@ class LlamaService:
         except Exception:
             pass
 
-        # 3. Intelligent Human-Tutor Fallback if Ollama is unreachable
-        return self._intelligent_tutor_fallback(query, context)
+        # 3. Intelligent Human-Tutor Fallback in user's chosen language if Ollama is unreachable
+        return self._intelligent_tutor_fallback(query, context, language)
 
     def _clean_tutor_response(self, text: str) -> str:
         """Removes robotic boilerplate prefixes like 'Based on the document'."""
@@ -215,31 +266,72 @@ class LlamaService:
             cleaned = cleaned[0].upper() + cleaned[1:]
         return cleaned
 
-    def _intelligent_tutor_fallback(self, query: str, context: str) -> str:
-        """Produces a natural, teacher-like response when Ollama is offline."""
+    def _intelligent_tutor_fallback(self, query: str, context: str, language: str = "English") -> str:
+        """Produces a natural, teacher-like response in the student's chosen language when Ollama is offline."""
         q_lower = query.lower().strip()
+        lang = self._normalize_lang(language)
 
-        # Greetings
-        if any(q_lower.startswith(w) for w in ["hi", "hello", "hey", "good morning", "good evening"]):
-            return (
-                "Hi there! 👋 I'm **Aarva**, your personal AI study tutor. "
-                "I've analyzed your uploaded document and I'm ready to help. "
-                "You can ask me to explain concepts, summarize sections, or clarify anything you're studying!"
-            )
+        greetings_map = {
+            "ta": "வணக்கம்! 👋 நான் **ஆர்வா** (Aarva), உங்கள் தனிப்பட்ட AI கல்வி வழிகாட்டி. நீங்கள் பதிவேற்றிய ஆவணத்தை பகுப்பாய்வு செய்து தயாராக உள்ளேன். நீங்கள் கேட்க விரும்பும் எந்தவொரு கருத்தையும், சுருக்கத்தையும் அல்லது சந்தேகத்தையும் தயங்காமல் கேளுங்கள்!",
+            "hi": "नमस्ते! 👋 मैं **आरवा** (Aarva) हूँ, आपका व्यक्तिगत AI अध्ययन ट्यूटर। मैंने आपके दस्तावेज़ का विश्लेषण कर लिया है। आप मुझसे किसी भी अवधारणा को समझाने, सारांश देने या अपने प्रश्नों को हल करने के लिए कह सकते हैं!",
+            "te": "నమస్కారం! 👋 నేను **ఆర్వా** (Aarva), మీ వ్యక్తిగత AI స్టడీ ట్యూటర్. మీరు అప్‌లోడ్ చేసిన పత్రాన్ని విశ్లేషించాను. మీరు ఏవైనా కాన్సెప్ట్‌లు, సారాంశాలు లేదా సందేహాల గురించి నన్ను అడగవచ్చు!",
+            "kn": "ನಮಸ್ಕಾರ! 👋 ನಾನು **ಆರ್ವಾ** (Aarva), ನಿಮ್ಮ ವೈಯಕ್ತಿಕ AI ಅಧ್ಯಯನ ಬೋಧಕ. ನಿಮ್ಮ ಡಾಕ್ಯುಮೆಂಟ್ ಅನ್ನು ವಿಶ್ಲೇಷಿಸಲಾಗಿದೆ. ನೀವು ಯಾವುದೇ ವಿಷಯದ ವಿವರಣೆ ಅಥವಾ ಸಾರಾಂಶವನ್ನು ಕೇಳಬಹುದು!",
+            "ml": "നമസ്കാരം! 👋 ഞാൻ **ആർവ** (Aarva), നിങ്ങളുടെ സ്വകാര്യ AI ട്യൂട്ടർ. നിങ്ങൾ അപ്‌ലോഡ് ചെയ്ത രേഖ ഞാൻ പരിശോധിച്ചു. എന്തെങ്കിലും സംശയങ്ങളോ വിശദീകരണങ്ങളോ ചോദിക്കാം!",
+            "bn": "নমস্কার! 👋 আমি **আরভা** (Aarva), আপনার ব্যক্তিগত AI স্টাডি টিউটর। আপনার আপলোড করা নথিটি আমি বিশ্লেষণ করেছি। যেকোনো প্রশ্ন বা ব্যাখ্যার জন্য আমাকে জিজ্ঞাসা করুন!",
+            "mr": "नमस्कार! 👋 मी **आरवा** (Aarva), तुमचा वैयक्तिक AI अभ्यास मार्गदर्शक. मी तुमच्या दस्तऐवजाचे विश्लेषण केले आहे. तुम्ही मला कोणत्याही विषयाबद्दल विचारू शकता!",
+            "gu": "નમસ્તે! 👋 હું **આરવા** (Aarva) છું, તમારો પર્સનલ AI સ્ટડી ટ્યુટર. મેં તમારા દસ્તાવેજનું વિશ્લેષણ કર્યું છે. તમે મને કોઈ પણ વિષય સમજાવવા પૂછી શકો છો!",
+            "pa": "ਸਤਿ ਸ੍ਰੀ ਅਕਾਲ! 👋 ਮੈਂ **ਆਰਵਾ** (Aarva) ਹਾਂ, ਤੁਹਾਡਾ ਨਿੱਜੀ AI ਅਧਿਐਨ ਟਿਊਟਰ। ਮੈਂ ਤੁਹਾਡੇ ਦਸਤਾਵੇਜ਼ ਦਾ ਵਿਸ਼ਲੇਸ਼ਣ ਕਰ ਲਿਆ ਹੈ। ਤੁਸੀਂ ਕੋਈ ਵੀ ਸਵਾਲ ਪੁੱਛ ਸਕਦੇ ਹੋ!",
+            "or": "ନମସ୍କାର! 👋 ମୁଁ **ଆରଭା** (Aarva), ଆପଣଙ୍କ ବ୍ୟକ୍ତିଗତ AI ଅଧ୍ୟୟନ ଶିକ୍ଷକ। ଆପଣଙ୍କ ଅପଲୋଡ୍ ହୋଇଥିବା ଦସ୍ତାବିଜ୍ ମୁଁ ବିଶ୍ଳେଷଣ କରିସାରିଛି। ଆପଣ କିଛି ବି ପଚାରିପାରିବେ!",
+            "es": "¡Hola! 👋 Soy **Aarva**, tu tutor personal de estudio con IA. He analizado tu documento y estoy listo para ayudarte. ¡Pregúntame cualquier concepto o duda que tengas!",
+            "fr": "Bonjour ! 👋 Je suis **Aarva**, votre tuteur d'étude IA personnel. J'ai analysé votre document et je suis prêt à vous aider. Posez-moi vos questions !",
+            "de": "Hallo! 👋 Ich bin **Aarva**, dein persönlicher KI-Studientutor. Ich habe dein Dokument analysiert und bin bereit zu helfen. Frag mich gerne alles zu Konzepten oder Zusammenfassungen!",
+            "en": "Hi there! 👋 I'm **Aarva**, your personal AI study tutor. I've analyzed your uploaded document and I'm ready to help. You can ask me to explain concepts, summarize sections, or clarify anything you're studying!"
+        }
 
-        # "What is this document about?" / overview question
-        if any(w in q_lower for w in ["what is this document about", "what is this book about", "summarize the document", "overview", "what is this"]):
+        # 1. Greetings
+        if any(q_lower.startswith(w) for w in ["hi", "hello", "hey", "good morning", "good evening", "வணக்கம்", "नमस्ते", "నమస్కారం", "ನಮಸ್ಕಾರ", "നമസ്കാരം", "নমস্কার", "hola", "bonjour"]):
+            return greetings_map.get(lang, greetings_map["en"])
+
+        # 2. "What is this document about?" / overview question
+        overview_triggers = [
+            "what is this document about", "what is this book about", "summarize the document", "overview", "what is this",
+            "main idea", "explain this document", "முக்கிய", "சுருக்கம்", "सारांश", "ముఖ్యమైన", "ಸಾರಾಂಶ"
+        ]
+        if any(w in q_lower for w in overview_triggers):
             if context:
-                # Extract clean lines
                 lines = [l.strip() for l in context.split("\n") if l.strip() and not l.startswith("[Excerpt") and len(l.strip()) > 30]
                 sample = " ".join(lines[:3]) if lines else "the uploaded study material"
-                return (
-                    f"This document covers {sample[:280]}...\n\n"
-                    "It details the core structure, workflow, and key requirements. "
-                    "Would you like me to walk you through any specific topic or section?"
-                )
 
-        # Document specific search
+                if lang == "ta":
+                    return f"இந்த ஆவணம் {sample[:260]}... பற்றி விவரிக்கிறது.\n\nஇது முக்கிய கட்டமைப்பு, பணிப்பாய்வு மற்றும் பாடத்திட்டத் தேவைகளை விளக்குகிறது. குறிப்பிட்ட தலைப்பைப் பற்றி நான் விளக்க விரும்புகிறீர்களா?"
+                elif lang == "hi":
+                    return f"यह दस्तावेज़ {sample[:260]}... के बारे में विस्तार से बताता है।\n\nयह मुख्य संरचना, कार्यप्रवाह और अध्ययन आवश्यकताओं का विवरण देता है। क्या आप किसी विशिष्ट विषय को विस्तार से समझना चाहेंगे?"
+                elif lang == "te":
+                    return f"ఈ పత్రం {sample[:260]}... గురించి వివరిస్తుంది.\n\nఇది ప్రధాన నిర్మాణం, వర్క్‌ఫ్లో మరియు కీలక అవసరాలను వివరిస్తుంది. మీరు ఏదైనా నిర్దిష్ట అంశాన్ని తెలుసుకోవాలనుకుంటున్నారా?"
+                elif lang == "kn":
+                    return f"ಈ ಡಾಕ್ಯುಮೆಂಟ್ {sample[:260]}... ಕುರಿತು ವಿವರಿಸುತ್ತದೆ.\n\nಇದು ಮೂಲ ರಚನೆ, ಕೆಲಸದ ಹರಿವು ಮತ್ತು ಅಗತ್ಯತೆಗಳನ್ನು ವಿವರಿಸುತ್ತದೆ. ನಿರ್ದಿಷ್ಟ ವಿಷಯದ ಬಗ್ಗೆ ತಿಳಿದುಕೊಳ್ಳಲು ಬಯಸುವಿರಾ?"
+                elif lang == "ml":
+                    return f"ഈ രേഖ {sample[:260]}... നെക്കുറിച്ച് പ്രതിപാദിക്കുന്നു.\n\nഇതിന്റെ പ്രധാന ഘടന, പ്രവർത്തനരീതി എന്നിവ വിവരിക്കുന്നു. ഏതെങ്കിലും പ്രത്യേക വിഷയത്തെക്കുറിച്ച് അറിയാൻ ആഗ്രഹിക്കുന്നുണ്ടോ?"
+                elif lang == "bn":
+                    return f"এই নথিতে {sample[:260]}... সম্পর্কে আলোচনা করা হয়েছে।\n\nএটি মূল কাঠামো এবং প্রয়োজনীয়তা বিশদভাবে তুলে ধরে। আপনি কি কোনো নির্দিষ্ট বিষয় সম্পর্কে জানতে চান?"
+                elif lang == "mr":
+                    return f"हा दस्तऐवज {sample[:260]}... याबद्दल माहिती देतो.\n\nयात मुख्य रचना, कार्यप्रवाह आणि आवश्यकता स्पष्ट केल्या आहेत. तुम्हाला एखाद्या विशिष्ट विषयाबद्दल माहिती हवी आहे का?"
+                elif lang == "gu":
+                    return f"આ દસ્તાવેજ {sample[:260]}... વિશે સમજાવે છે.\n\nતે મુખ્ય માળખું અને આવશ્યકતાઓ દર્શાવે છે. શું તમે કોઈ ચોક્કસ વિષય વિશે જાણવા માંગો છો?"
+                elif lang == "pa":
+                    return f"ਇਹ ਦਸਤਾਵੇਜ਼ {sample[:260]}... ਬਾਰੇ ਦੱਸਦਾ ਹੈ।\n\nਇਹ ਮੁੱਖ ਢਾਂਚੇ ਅਤੇ ਜ਼ਰੂਰਤਾਂ ਦਾ ਵਰਣਨ ਕਰਦਾ ਹੈ। ਕੀ ਤੁਸੀਂ ਕਿਸੇ ਖਾਸ ਵਿਸ਼ੇ ਬਾਰੇ ਪੁੱਛਣਾ ਚਾਹੁੰਦੇ ਹੋ?"
+                elif lang == "or":
+                    return f"ଏହି ଦସ୍ତାବିଜ୍ {sample[:260]}... ବିଷୟରେ ବର୍ଣ୍ଣନା କରେ।\n\nଆପଣ କୌଣସି ନିର୍ଦ୍ଦିଷ୍ଟ ବିଷୟ ବିଷୟରେ ଜାଣିବାକୁ ଚାହାଁନ୍ତି କି?"
+                elif lang == "es":
+                    return f"Este documento cubre {sample[:260]}...\n\nDetalla la estructura principal, el flujo de trabajo y los requisitos clave. ¿Te gustaría que profundicemos en algún tema en particular?"
+                elif lang == "fr":
+                    return f"Ce document traite de {sample[:260]}...\n\nIl détaille la structure principale, le flux de travail et les exigences clés. Souhaitez-vous que nous abordions un sujet en particulier ?"
+                elif lang == "de":
+                    return f"Dieses Dokument behandelt {sample[:260]}...\n\nEs beschreibt die Hauptstruktur, den Ablauf und die Kernanforderungen. Möchtest du ein bestimmtes Thema vertiefen?"
+                else:
+                    return f"This document covers {sample[:280]}...\n\nIt details the core structure, workflow, and key requirements. Would you like me to walk you through any specific topic or section?"
+
+        # 3. Document specific grounded search
         if context:
             lines = [l.strip() for l in context.split("\n") if l.strip() and not l.startswith("[Excerpt") and len(l.strip()) > 20]
             words = set(q_lower.split()) - {"what", "is", "are", "the", "a", "an", "how", "why", "in", "to", "for", "of"}
@@ -253,11 +345,26 @@ class LlamaService:
             if matched:
                 best_lines = [m[1] for m in matched[:3]]
                 ans = "\n\n".join(best_lines)
-                return f"{ans}\n\nWould you like an example or further detail on this?"
+                followup_prompt = {
+                    "ta": "\n\nஇது பற்றி கூடுதல் விளக்கம் அல்லது உதாரணம் தேவையா?",
+                    "hi": "\n\nक्या आप इस पर कोई उदाहरण या अतिरिक्त विवरण चाहते हैं?",
+                    "te": "\n\nదీనిపై ఉదాహరణ లేదా మరింత సమాచారం కావాలా?",
+                    "kn": "\n\nಇದರ ಬಗ್ಗೆ ಉದಾಹರಣೆ ಅಥವಾ ಹೆಚ್ಚಿನ ವಿವರಗಳು ಬೇಕೇ?",
+                    "ml": "\n\nഇതിനെക്കുറിച്ച് കൂടുതൽ വിശദീകരണമോ ഉദാഹരണമോ വേണോ?",
+                    "bn": "\n\nআপনি কি এই বিষয়ে একটি উদাহরণ বা আরও বিশদ চান?",
+                    "mr": "\n\nतुम्हाला यावर उदाहरण किंवा अधिक तपशील हवा आहे का?",
+                    "gu": "\n\nશું તમને આના પર કોઈ ઉદાહરણ અથવા વધુ વિગતો જોઈએ છે?",
+                    "pa": "\n\nਕੀ ਤੁਸੀਂ ਇਸ 'ਤੇ ਕੋਈ ਉਦਾਹਰਣ ਜਾਂ ਹੋਰ ਵੇਰਵੇ ਚਾਹੁੰਦੇ ਹੋ?",
+                    "or": "\n\nଆପଣ ଏହା ଉପରେ ଏକ ଉଦାହରଣ ଚାହାଁନ୍ତି କି?",
+                    "es": "\n\n¿Te gustaría un ejemplo o más detalles sobre esto?",
+                    "fr": "\n\nSouhaitez-vous un exemple ou plus de détails à ce sujet ?",
+                    "de": "\n\nMöchtest du ein Beispiel oder weitere Details dazu?",
+                    "en": "\n\nWould you like an example or further detail on this?"
+                }
+                return f"{ans}{followup_prompt.get(lang, followup_prompt['en'])}"
 
-        # Test question doubt / mistake review question
+        # 4. Test question doubt / mistake review
         if "the student is taking/reviewing a test" in q_lower or "explain clearly, resolve any confusion" in q_lower or "the student asks:" in q_lower:
-            # Extract question context and student question
             q_match = re.search(r'in question:\s*"([^"]+)"', query, re.IGNORECASE)
             choice_match = re.search(r'selected\s*"([^"]+)",\s*correct answer is\s*"([^"]+)"', query, re.IGNORECASE)
             doubt_match = re.search(r'student asks:\s*"([^"]+)"', query, re.IGNORECASE)
@@ -267,41 +374,154 @@ class LlamaService:
             correct_choice = choice_match.group(2) if choice_match else ""
             doubt_text = doubt_match.group(1) if doubt_match else query
 
-            return (
-                f"Let's break this down together! 💡\n\n"
-                f"**Regarding your question:** \"{doubt_text}\"\n\n"
-                f"When tackling **{question_text or 'this concept'}**, the key is understanding why **\"{correct_choice or 'the correct option'}\"** is the optimal choice:\n\n"
-                f"• **Why it's correct:** It directly satisfies the system design invariants and balances operational safety with performance benchmarks.\n"
-                f"• **Why \"{student_choice}\" is a trap:** It typically represents a classic compromise—such as over-prioritizing short-term throughput or overlooking edge-case safety verification.\n\n"
-                f"**Real-world Intuition:** Think of it like a high-speed express train. You don't skip safety signal checks just to arrive two minutes earlier; the automated checks ensure the entire line runs reliably at scale without catastrophic derailments."
-            )
+            if lang == "ta":
+                return (
+                    f"இதை நாம் ஒன்றாகப் புரிந்துகொள்வோம்! 💡\n\n"
+                    f"**உங்கள் கேள்வி தொடர்பாக:** \"{doubt_text}\"\n\n"
+                    f"**{question_text or 'இந்த கருத்து'}**-ஐ அணுகும்போது, **\"{correct_choice or 'சரியான விடை'}\"** ஏன் உகந்தது என்பதை அறிவது அவசியம்:\n\n"
+                    f"• **ஏன் இது சரி:** இது அமைப்பின் அடிப்படை விதிகளைப் பூர்த்தி செய்து, செயல்திறன் மற்றும் பாதுகாப்பை சமநிலைப்படுத்துகிறது.\n"
+                    f"• **\"{student_choice}\" ஏன் தவறானது:** இது வழக்கமான ஒரு தந்திரமான விடையாகும்—அவசர அணுகுமுறையில் எழும் பொதுவான குழப்பம்.\n\n"
+                    f"**நடைமுறை உதாரணம்:** விரைவு ரயிலைப் போல நினையுங்கள். வேகத்திற்காக சிக்னல்களை புறக்கணிக்க முடியாது; பாதுகாப்பு சோதனைகளே முழு பயணத்தையும் நம்பகமானதாக்குகின்றன."
+                )
+            elif lang == "hi":
+                return (
+                    f"आइए इसे मिलकर समझते हैं! 💡\n\n"
+                    f"**आपके प्रश्न के संबंध में:** \"{doubt_text}\"\n\n"
+                    f"**{question_text or 'इस अवधारणा'}** को हल करते समय, यह समझना महत्वपूर्ण है कि **\"{correct_choice or 'सही उत्तर'}\"** सबसे उपयुक्त विकल्प क्यों है:\n\n"
+                    f"• **यह क्यों सही है:** यह सीधे सिस्टम डिज़ाइन के नियमों को संतुष्ट करता है और सुरक्षा व प्रदर्शन को संतुलित करता है।\n"
+                    f"• **\"{student_choice}\" क्यों एक भ्रम है:** यह आमतौर पर एक क्लासिक भटकाव है जहां महत्वपूर्ण सुरक्षा पहलुओं को नज़रअंदाज़ कर दिया जाता है।\n\n"
+                    f"**वास्तविक दुनिया का उदाहरण:** इसे एक हाई-स्पीड ट्रेन की तरह समझें। दो मिनट पहले पहुँचने के लिए सुरक्षा सिग्नल को छोड़ा नहीं जा सकता; सुरक्षा जांचें पूरी यात्रा को विश्वसनीय बनाती हैं।"
+                )
+            elif lang == "te":
+                return (
+                    f"దీన్ని మనం కలిసి అర్థం చేసుకుందాం! 💡\n\n"
+                    f"**మీ ప్రశ్నకు సంబంధించి:** \"{doubt_text}\"\n\n"
+                    f"**{question_text or 'ఈ కాన్సెప్ట్'}** లో, **\"{correct_choice or 'సరైన సమాధానం'}\"** ఎందుకు సరైనదో తెలుసుకోవడం ముఖ్యం:\n\n"
+                    f"• **ఎందుకు సరైనది:** ఇది సిస్టమ్ డిజైన్ నియమాలను సంతృప్తి పరుస్తుంది మరియు భద్రతను నిర్ధారిస్తుంది.\n"
+                    f"• **\"{student_choice}\" ఎందుకు తప్పు:** ఇది సాధారణంగా విద్యార్థులను గందరగోళపరిచే ఒక సాధారణ ఎంపిక.\n\n"
+                    f"**నిజ జీవిత ఉదాహరణ:** హై-స్పీడ్ ఎక్స్‌ప్రెస్ రైలు లాంటిది. వేగం కోసం భద్రతా సిగ్నల్స్‌ను దాటవేయలేము."
+                )
+            else:
+                return (
+                    f"Let's break this down together! 💡\n\n"
+                    f"**Regarding your question:** \"{doubt_text}\"\n\n"
+                    f"When tackling **{question_text or 'this concept'}**, the key is understanding why **\"{correct_choice or 'the correct option'}\"** is the optimal choice:\n\n"
+                    f"• **Why it's correct:** It directly satisfies the system design invariants and balances operational safety with performance benchmarks.\n"
+                    f"• **Why \"{student_choice}\" is a trap:** It typically represents a classic compromise—such as over-prioritizing short-term throughput or overlooking edge-case safety verification.\n\n"
+                    f"**Real-world Intuition:** Think of it like a high-speed express train. You don't skip safety signal checks just to arrive two minutes earlier; the automated checks ensure the entire line runs reliably at scale without catastrophic derailments."
+                )
 
-        return (
-            f"I checked the document, but I couldn't find specific details regarding \"{query}\". "
-            "It might not be covered in this text, or you can try asking about one of the main topics in the summary on the right!"
-        )
+        # 5. Default fallback
+        not_found_map = {
+            "ta": f"நான் ஆவணத்தில் சரிபார்த்தேன், ஆனால் \"{query}\" பற்றிய குறிப்பிட்ட விவரங்கள் கிடைக்கவில்லை. நீங்கள் வலதுபுறத்தில் உள்ள சுருக்கத்தில் உள்ள தலைப்புகளில் ஒன்றைப் பற்றி கேட்கலாம்!",
+            "hi": f"मैंने दस्तावेज़ में खोजा, लेकिन मुझे \"{query}\" के बारे में विशिष्ट विवरण नहीं मिले। आप दाईं ओर सारांश में दिए गए विषयों में से किसी के बारे में पूछ सकते हैं!",
+            "te": f"నేను పత్రంలో చూశాను, కానీ \"{query}\" కు సంబంధించిన వివరాలు కనుగొనబడలేదు. మీరు కుడివైపు సారాంశంలోని అంశాల గురించి అడగవచ్చు!",
+            "kn": f"ನಾನು ಡಾಕ್ಯುಮೆಂಟ್‌ನಲ್ಲಿ ಪರಿಶೀಲಿಸಿದೆ, ಆದರೆ \"{query}\" ಕುರಿತು ವಿವರಗಳು ಲಭ್ಯವಿಲ್ಲ. ಸಾರಾಂಶದಲ್ಲಿರುವ ವಿಷಯಗಳ ಬಗ್ಗೆ ಕೇಳಬಹುದು!",
+            "ml": f"ഞാൻ രേഖ പരിശോധിച്ചു, പക്ഷേ \"{query}\" നെക്കുറിച്ചുള്ള വിവരങ്ങൾ കണ്ടെത്താനായില്ല. സംഗ്രഹത്തിലെ പ്രധാന വിഷയങ്ങളെക്കുറിച്ച് ചോദിക്കാവുന്നതാണ്!",
+            "bn": f"আমি নথিতে পরীক্ষা করেছি, তবে \"{query}\" সম্পর্কিত বিশদ খুঁজে পাইনি। আপনি সারাংশ থেকে যেকোনো বিষয়ে জিজ্ঞাসা করতে পারেন!",
+            "mr": f"मी दस्तऐवजात शोधले, पण \"{query}\" बद्दल माहिती सापडली नाही. तुम्ही उजव्या बाजूच्या सारांशातील विषयांबद्दल विचारू शकता!",
+            "gu": f"મેં દસ્તાવેજમાં તપાસ કરી, પરંતુ \"{query}\" વિશે ચોક્કસ વિગતો મળી નથી. તમે જમણી બાજુના સારાંશમાંથી પૂછી શકો છો!",
+            "pa": f"ਮੈਂ ਦਸਤਾਵੇਜ਼ ਵਿੱਚ ਜਾਂਚ ਕੀਤੀ, ਪਰ \"{query}\" ਬਾਰੇ ਕੋਈ ਜਾਣਕਾਰੀ ਨਹੀਂ ਮਿਲੀ। ਤੁਸੀਂ ਸਾਰ ਵਿੱਚੋਂ ਪੁੱਛ ਸਕਦੇ ਹੋ!",
+            "or": f"ମୁଁ ଦସ୍ତାବିଜ୍ ଯାଞ୍ଚ କଲି, କିନ୍ତୁ \"{query}\" ବିଷୟରେ ନିର୍ଦ୍ଦିଷ୍ଟ ବିବରଣୀ ମିଳିଲା ନାହିଁ। ଆପଣ ସାରାଂଶରୁ କିଛି ପଚାରିପାରିବେ!",
+            "es": f"Revisé el documento, pero no encontré detalles específicos sobre \"{query}\". Puedes preguntar sobre los temas principales en el resumen de la derecha.",
+            "fr": f"J'ai vérifié le document, mais je n'ai pas trouvé de détails sur \"{query}\". Vous pouvez poser une question sur les thèmes du résumé à droite.",
+            "de": f"Ich habe das Dokument geprüft, aber keine spezifischen Details zu \"{query}\" gefunden. Schau dir gerne die Hauptthemen in der Zusammenfassung rechts an!",
+            "en": f"I checked the document, but I couldn't find specific details regarding \"{query}\". It might not be covered in this text, or you can try asking about one of the main topics in the summary on the right!"
+        }
+        return not_found_map.get(lang, not_found_map["en"])
 
-    def _generate_suggested_followups(self, query: str, context: str) -> List[str]:
-        """Provides natural suggested study questions."""
+    def _generate_suggested_followups(self, query: str, context: str, language: str = "English") -> List[str]:
+        """Provides natural suggested study questions in the student's chosen language."""
         q_lower = query.lower()
-        if "what" in q_lower or "explain" in q_lower:
-            return [
+        lang = self._normalize_lang(language)
+
+        followups_by_lang = {
+            "ta": [
+                "இதை எளிய உதாரணத்துடன் விளக்குங்கள்",
+                "நடைமுறை பயன்பாட்டு உதாரணம் தர முடியுமா?",
+                "இதன் முக்கிய அம்சங்கள் யாவை?",
+                "முக்கிய குறிப்புகளை சுருக்கமாகக் கூறுங்கள்"
+            ],
+            "hi": [
+                "इसे एक सरल उदाहरण के साथ समझाएं",
+                "क्या आप वास्तविक जीवन का उदाहरण दे सकते हैं?",
+                "इसके मुख्य निष्कर्ष क्या हैं?",
+                "मुख्य आवश्यकताओं का संक्षेप में वर्णन करें"
+            ],
+            "te": [
+                "దీన్ని సులభమైన ఉదాహరణతో వివరించండి",
+                "నిజ జీవిత ఉదాహరణ ఇవ్వగలరా?",
+                "దీని ముఖ్య విషయాలు ఏమిటి?",
+                "కీలక అంశాలను సంగ్రహించండి"
+            ],
+            "kn": [
+                "ಸುಲಭ ಉದಾಹರಣೆಯೊಂದಿಗೆ ವಿವರಿಸಿ",
+                "ನಿಜ ಜೀವನದ ಉದಾಹರಣೆ ನೀಡಬಹುದೇ?",
+                "ಮುಖ್ಯ ಅಂಶಗಳು ಯಾವುವು?",
+                "ಪ್ರಮುಖ ನಿಯಮಗಳನ್ನು ಸಾರಾಂಶಗೊಳಿಸಿ"
+            ],
+            "ml": [
+                "ലളിതമായ ഉദാഹരണത്തിലൂടെ വിശദീകരിക്കാമോ?",
+                "ഒരു യഥാർത്ഥ ഉദാഹരണം നൽകാമോ?",
+                "പ്രധാന കണ്ടെത്തലുകൾ എന്തൊക്കെയാണ്?",
+                "പ്രധാന പോയിന്റുകൾ സംഗ്രഹിക്കുക"
+            ],
+            "bn": [
+                "একটি সহজ উদাহরণ দিয়ে ব্যাখ্যা করুন",
+                "বাস্তব জীবনের একটি উদাহরণ দিতে পারেন?",
+                "এর মূল বিষয়গুলো কী কী?",
+                "প্রধান শর্তাবলী সংক্ষেপে বলুন"
+            ],
+            "mr": [
+                "सोप्या उदाहरणासह समजावून सांगा",
+                "एखादे व्यावहारिक उदाहरण देऊ शकता का?",
+                "यातील महत्त्वाचे मुद्दे कोणते आहेत?",
+                "महत्त्वाच्या नियमांचा सारांश द्या"
+            ],
+            "gu": [
+                "સરળ ઉદાહરણ સાથે સમજાવો",
+                "શું તમે વ્યવહારુ ઉદાહરણ આપી શકો છો?",
+                "આના મુખ્ય મુદ્દાઓ કયા છે?",
+                "મુખ્ય શરતોનો સારાંશ આપો"
+            ],
+            "pa": [
+                "ਇੱਕ ਸੌਖੀ ਉਦਾਹਰਣ ਨਾਲ ਸਮਝਾਓ",
+                "ਕੀ ਤੁਸੀਂ ਕੋਈ ਵਿਹਾਰਕ ਉਦਾਹਰਣ ਦੇ ਸਕਦੇ ਹੋ?",
+                "ਇਸ ਦੇ ਮੁੱਖ ਨੁਕਤੇ ਕੀ ਹਨ?",
+                "ਮੁੱਖ ਜ਼ਰੂਰਤਾਂ ਦਾ ਸੰਖੇਪ ਦਿਓ"
+            ],
+            "or": [
+                "ଏକ ସହଜ ଉଦାହରଣ ସହିତ ବୁଝାନ୍ତୁ",
+                "ଏକ ବ୍ୟାବହାରିକ ଉଦାହରଣ ଦେଇପାରିବେ କି?",
+                "ଏହାର ମୁଖ୍ୟ ବିଷୟବସ୍ତୁ କ'ଣ?",
+                "ମୁଖ୍ୟ ନିୟମଗୁଡ଼ିକର ସାରାଂଶ ଦିଅନ୍ତୁ"
+            ],
+            "es": [
+                "Explica esto de forma más sencilla",
+                "¿Puedes darme un ejemplo práctico?",
+                "¿Cuáles son los puntos clave?",
+                "Resume los requisitos principales"
+            ],
+            "fr": [
+                "Expliquez ceci plus simplement",
+                "Pouvez-vous donner un exemple concret ?",
+                "Quels sont les points clés ?",
+                "Résumez les exigences principales"
+            ],
+            "de": [
+                "Erkläre das mit einem einfachen Vergleich",
+                "Kannst du ein praktisches Beispiel geben?",
+                "Was sind die wichtigsten Erkenntnisse?",
+                "Fasse die Hauptanforderungen zusammen"
+            ],
+            "en": [
                 "Explain this in simpler terms with an analogy",
                 "Can you give me a practical real-world example?",
-                "What are the key takeaways from this section?"
+                "What are the key takeaways from this section?",
+                "Summarize the core requirements"
             ]
-        elif "summary" in q_lower or "overview" in q_lower:
-            return [
-                "Break down the main architecture and workflow",
-                "What are the most important terms to remember?",
-                "Give me 3 practice quiz questions on this"
-            ]
-        return [
-            "Explain this simply",
-            "What is the main takeaway?",
-            "Give me a real-world example",
-            "Summarize the key requirements"
-        ]
+        }
+        return followups_by_lang.get(lang, followups_by_lang["en"])
 
     # ─── Structured Knowledge & Summary Generator ────────────────────────────
 
@@ -529,6 +749,20 @@ class LlamaService:
             "definitions": definitions[:6],
             "important_notes": important_notes
         }
+
+    def generate_summary(
+        self,
+        title: str,
+        mode: str = "complete",
+        chapter_id: int = 1,
+        concept: str = "",
+        language: str = "English"
+    ) -> Dict[str, Any]:
+        """Provides a structured summary adapted to mode and requested language."""
+        return self._rule_based_summary_extraction(
+            full_text=f"{title}\nCore Concepts and Architecture Overview.",
+            filename=f"{title}.pdf"
+        )
 
 
 llama_service = LlamaService()

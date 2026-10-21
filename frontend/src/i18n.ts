@@ -139,6 +139,12 @@ export const translations: Record<LanguageCode, Record<string, string>> = {
     indianLanguages: "Indian Languages",
     globalLanguages: "Global Languages",
     languageUpdated: "Language preference updated!",
+    initialBookGreeting: "Hi, I'm Aarva 👋 — I've loaded \"{title}\". Ask me anything about it!",
+    initialConvoGreeting: "Hi, I'm Aarva 👋 — let's start the convo! Upload a book or just ask me anything to get going.",
+    explainSimply: "Explain this simply",
+    mainIdea: "What is the main idea?",
+    giveExample: "Give me an example",
+    summarizeSection: "Summarize this section",
   },
 
   ta: {
@@ -233,6 +239,12 @@ export const translations: Record<LanguageCode, Record<string, string>> = {
     indianLanguages: "இந்திய மொழிகள்",
     globalLanguages: "உலகளாவிய மொழிகள்",
     languageUpdated: "மொழி விருப்பத்தேர்வு புதுப்பிக்கப்பட்டது!",
+    initialBookGreeting: "வணக்கம், நான் ஆர்வா 👋 — \"{title}\" ஆவணத்தை ஏற்றியுள்ளேன். இதைப் பற்றி எதையும் கேளுங்கள்!",
+    initialConvoGreeting: "வணக்கம், நான் ஆர்வா 👋 — உரையாடலைத் தொடங்குவோம்! ஒரு புத்தகத்தைப் பதிவேற்றவும் அல்லது எதையும் கேட்கவும்.",
+    explainSimply: "எளிமையாக விளக்குங்கள்",
+    mainIdea: "முக்கிய யோசனை என்ன?",
+    giveExample: "ஒரு உதாரணம் கொடுங்கள்",
+    summarizeSection: "இந்த பகுதியை சுருக்கவும்",
   },
 
   hi: {
@@ -327,6 +339,12 @@ export const translations: Record<LanguageCode, Record<string, string>> = {
     indianLanguages: "भारतीय भाषाएं",
     globalLanguages: "वैश्विक भाषाएं",
     languageUpdated: "भाषा प्राथमिकता अपडेट की गई!",
+    initialBookGreeting: "नमस्ते, मैं आरवा हूँ 👋 — मैंने \"{title}\" लोड कर लिया है। इसके बारे में मुझसे कुछ भी पूछें!",
+    initialConvoGreeting: "नमस्ते, मैं आरवा हूँ 👋 — आइए बातचीत शुरू करें! कोई किताब अपलोड करें या कुछ भी पूछें।",
+    explainSimply: "इसे सरलता से समझाएं",
+    mainIdea: "मुख्य विचार क्या है?",
+    giveExample: "मुझे एक उदाहरण दें",
+    summarizeSection: "इस भाग का सारांश दें",
   },
 
   te: {
@@ -421,6 +439,12 @@ export const translations: Record<LanguageCode, Record<string, string>> = {
     indianLanguages: "భారతీయ భాషలు",
     globalLanguages: "ప్రపంచ భాషలు",
     languageUpdated: "భాషా ప్రాధాన్యత నవీకరించబడింది!",
+    initialBookGreeting: "నమస్కారం, నేను ఆర్వా 👋 — నేను \"{title}\" లోడ్ చేసాను. దీని గురించి నన్ను ఏదైనా అడగండి!",
+    initialConvoGreeting: "నమస్కారం, నేను ఆర్వా 👋 — సంభాషణను ప్రారంభిద్దాం! పుస్తకాన్ని అప్‌లోడ్ చేయండి లేదా ఏదైనా అడగండి.",
+    explainSimply: "సులభంగా వివరించండి",
+    mainIdea: "ముఖ్యమైన అంశం ఏమిటి?",
+    giveExample: "ఒక ఉదాహరణ ఇవ్వండి",
+    summarizeSection: "ఈ విభాగాన్ని సంగ్రహించండి",
   },
 
   kn: {
@@ -515,6 +539,12 @@ export const translations: Record<LanguageCode, Record<string, string>> = {
     indianLanguages: "ಭಾರತೀಯ ಭಾಷೆಗಳು",
     globalLanguages: "ಜಾಗತಿಕ ಭಾಷೆಗಳು",
     languageUpdated: "ಭಾಷಾ ಆದ್ಯತೆಯನ್ನು ನವೀಕರಿಸಲಾಗಿದೆ!",
+    initialBookGreeting: "ನಮಸ್ಕಾರ, ನಾನು ಆರ್ವಾ 👋 — ನಾನು \"{title}\" ಲೋಡ್ ಮಾಡಿದ್ದೇನೆ. ಇದರ ಬಗ್ಗೆ ಏನಾದರೂ ಕೇಳಿ!",
+    initialConvoGreeting: "ನಮಸ್ಕಾರ, ನಾನು ಆರ್ವಾ 👋 — ಸಂಭಾಷಣೆ ಪ್ರಾರಂಭಿಸೋಣ! ಪುಸ್ತಕವನ್ನು ಅಪ್‌ಲೋಡ್ ಮಾಡಿ ಅಥವಾ ಏನಾದರೂ ಕೇಳಿ.",
+    explainSimply: "ಸುಲಭವಾಗಿ ವಿವರಿಸಿ",
+    mainIdea: "ಮುಖ್ಯ ಕಲ್ಪನೆ ಏನು?",
+    giveExample: "ಒಂದು ಉದಾಹರಣೆ ನೀಡಿ",
+    summarizeSection: "ಈ ವಿಭಾಗವನ್ನು ಸಾರಾಂಶಗೊಳಿಸಿ",
   },
 
   ml: {
@@ -609,6 +639,12 @@ export const translations: Record<LanguageCode, Record<string, string>> = {
     indianLanguages: "ഭാരതീയ ഭാഷകൾ",
     globalLanguages: "ആഗോള ഭാഷകൾ",
     languageUpdated: "ഭാഷാ മുൻഗണന അപ്ഡേറ്റ് ചെയ്തു!",
+    initialBookGreeting: "നമസ്കാരം, ഞാൻ ആർവ 👋 — ഞാൻ \"{title}\" ലോഡ് ചെയ്തു. ഇതിനെക്കുറിച്ച് എന്തും ചോദിക്കാം!",
+    initialConvoGreeting: "നമസ്കാരം, ഞാൻ ആർവ 👋 — നമുക്ക് സംഭാഷണം ആരംഭിക്കാം! ഒരു പുസ്തകം അപ്‌ലോഡ് ചെയ്യുകയോ ചോദിക്കുകയോ ചെയ്യാം.",
+    explainSimply: "ലളിതമായി വിശദീകരിക്കുക",
+    mainIdea: "പ്രധാന ആശയം എന്താണ്?",
+    giveExample: "ഒരു ഉദാഹരണം തരൂ",
+    summarizeSection: "ഈ ഭാഗം സംഗ്രഹിക്കുക",
   },
 
   bn: {
@@ -703,6 +739,12 @@ export const translations: Record<LanguageCode, Record<string, string>> = {
     indianLanguages: "ভারতীয় ভাষাসমূহ",
     globalLanguages: "আন্তর্জাতিক ভাষাসমূহ",
     languageUpdated: "ভাষার পছন্দ আপডেট করা হয়েছে!",
+    initialBookGreeting: "নমস্কার, আমি আরভা 👋 — আমি \"{title}\" লোড করেছি। এটি সম্পর্কে আমাকে যেকোনো কিছু জিজ্ঞাসা করুন!",
+    initialConvoGreeting: "নমস্কার, আমি আরভা 👋 — আসুন কথোপকথন শুরু করি! একটি বই আপলোড করুন বা যেকোনো কিছু জিজ্ঞাসা করুন।",
+    explainSimply: "সহজে ব্যাখ্যা করুন",
+    mainIdea: "মূল ধারণাটি কী?",
+    giveExample: "একটি উদাহরণ দিন",
+    summarizeSection: "এই অংশটি সংক্ষেপ করুন",
   },
 
   mr: {
@@ -797,6 +839,12 @@ export const translations: Record<LanguageCode, Record<string, string>> = {
     indianLanguages: "भारतीय भाषा",
     globalLanguages: "जागतिक भाषा",
     languageUpdated: "भाषा प्राधान्य अद्यतनित केले!",
+    initialBookGreeting: "नमस्कार, मी आरवा 👋 — मी \"{title}\" लोड केले आहे. याबद्दल मला काहीही विचारा!",
+    initialConvoGreeting: "नमस्कार, मी आरवा 👋 — चला संभाषण सुरू करूया! पुस्तक अपलोड करा किंवा काहीही विचारा.",
+    explainSimply: "सोप्या भाषेत समजावून सांगा",
+    mainIdea: "मुख्य कल्पना काय आहे?",
+    giveExample: "मला एक उदाहरण द्या",
+    summarizeSection: "या भागाचा सारांश द्या",
   },
 
   gu: {
@@ -891,6 +939,12 @@ export const translations: Record<LanguageCode, Record<string, string>> = {
     indianLanguages: "ભારતીય ભાષાઓ",
     globalLanguages: "વૈશ્વિક ભાષાઓ",
     languageUpdated: "ભાષા પસંદગી અપડેટ થઈ!",
+    initialBookGreeting: "નમસ્તે, હું આરવા છું 👋 — મેં \"{title}\" લોડ કર્યું છે. આ વિશે મને કંઈ પણ પૂછો!",
+    initialConvoGreeting: "નમસ્તે, હું આરવા છું 👋 — ચાલો વાતચીત શરૂ કરીએ! પુસ્તક અપલોડ કરો અથવા કંઈપણ પૂછો.",
+    explainSimply: "સરળતાથી સમજાવો",
+    mainIdea: "મુખ્ય વિચાર શું છે?",
+    giveExample: "મને એક ઉદાહરણ આપો",
+    summarizeSection: "આ વિભાગનો સારાંશ આપો",
   },
 
   pa: {
@@ -985,6 +1039,12 @@ export const translations: Record<LanguageCode, Record<string, string>> = {
     indianLanguages: "ਭਾਰਤੀ ਭਾਸ਼ਾਵਾਂ",
     globalLanguages: "ਗਲੋਬਲ ਭਾਸ਼ਾਵਾਂ",
     languageUpdated: "ਭਾਸ਼ਾ ਤਰਜੀਹ ਅੱਪਡੇਟ ਕੀਤੀ ਗਈ!",
+    initialBookGreeting: "ਸਤਿ ਸ੍ਰੀ ਅਕਾਲ, ਮੈਂ ਆਰਵਾ ਹਾਂ 👋 — ਮੈਂ \"{title}\" ਲੋਡ ਕੀਤਾ ਹੈ। ਇਸ ਬਾਰੇ ਮੈਨੂੰ ਕੁਝ ਵੀ ਪੁੱਛੋ!",
+    initialConvoGreeting: "ਸਤਿ ਸ੍ਰੀ ਅਕਾਲ, ਮੈਂ ਆਰਵਾ ਹਾਂ 👋 — ਆਓ ਗੱਲਬਾਤ ਸ਼ੁਰੂ ਕਰੀਏ! ਕਿਤਾਬ ਅੱਪਲੋਡ ਕਰੋ ਜਾਂ ਕੁਝ ਵੀ ਪੁੱਛੋ।",
+    explainSimply: "ਸੌਖੇ ਤਰੀਕੇ ਨਾਲ ਸਮਝਾਓ",
+    mainIdea: "ਮੁੱਖ ਵਿਚਾਰ ਕੀ ਹੈ?",
+    giveExample: "ਮੈਨੂੰ ਇੱਕ ਉਦਾਹਰਣ ਦਿਓ",
+    summarizeSection: "ਇਸ ਭਾਗ ਦਾ ਸਾਰ ਦਿਓ",
   },
 
   or: {
@@ -1079,6 +1139,12 @@ export const translations: Record<LanguageCode, Record<string, string>> = {
     indianLanguages: "ଭାରତୀୟ ଭାଷାସମୂହ",
     globalLanguages: "ଅନ୍ତର୍ଜାତୀୟ ଭାଷାସମୂହ",
     languageUpdated: "ଭାଷା ପସନ୍ଦ ଅଦ୍ୟତନ ହୋଇଛି!",
+    initialBookGreeting: "ନମସ୍କାର, ମୁଁ ଆରଭା 👋 — ମୁଁ \"{title}\" ଲୋଡ୍ କରିଛି। ଏହା ବିଷୟରେ ମୋତେ କିଛି ବି ପଚାରନ୍ତୁ!",
+    initialConvoGreeting: "ନମସ୍କାର, ମୁଁ ଆରଭା 👋 — ଆସନ୍ତୁ କଥାବାର୍ତ୍ତା ଆରମ୍ଭ କରିବା! ବହି ଅପଲୋଡ୍ କରନ୍ତୁ କିମ୍ବା କିଛି ବି ପଚାରନ୍ତୁ।",
+    explainSimply: "ସହଜରେ ବୁଝାନ୍ତୁ",
+    mainIdea: "ମୁଖ୍ୟ ବିଚାର କ'ଣ?",
+    giveExample: "ଗୋଟିଏ ଉଦାହରଣ ଦିଅନ୍ତୁ",
+    summarizeSection: "ଏହି ଅଂଶର ସାରାଂଶ ଦିଅନ୍ତୁ",
   },
 
   es: {
@@ -1173,6 +1239,12 @@ export const translations: Record<LanguageCode, Record<string, string>> = {
     indianLanguages: "Idiomas de la India",
     globalLanguages: "Idiomas Globales",
     languageUpdated: "¡Preferencia de idioma actualizada!",
+    initialBookGreeting: "¡Hola! Soy Aarva 👋 — He cargado \"{title}\". ¡Pregúntame cualquier cosa al respecto!",
+    initialConvoGreeting: "¡Hola! Soy Aarva 👋 — ¡Comencemos la conversación! Sube un libro o pregúntame lo que sea.",
+    explainSimply: "Explica esto de forma sencilla",
+    mainIdea: "¿Cuál es la idea principal?",
+    giveExample: "Dame un ejemplo",
+    summarizeSection: "Resume esta sección",
   },
 
   fr: {
@@ -1267,6 +1339,12 @@ export const translations: Record<LanguageCode, Record<string, string>> = {
     indianLanguages: "Langues indiennes",
     globalLanguages: "Langues mondiales",
     languageUpdated: "Préférence linguistique mise à jour !",
+    initialBookGreeting: "Bonjour ! Je suis Aarva 👋 — J'ai chargé \"{title}\". Posez-moi vos questions !",
+    initialConvoGreeting: "Bonjour ! Je suis Aarva 👋 — Commençons la conversation ! Téléversez un livre ou posez-moi vos questions.",
+    explainSimply: "Expliquez ceci simplement",
+    mainIdea: "Quelle est l'idée principale ?",
+    giveExample: "Donnez-moi un exemple",
+    summarizeSection: "Résumez cette section",
   },
 
   de: {
@@ -1361,6 +1439,12 @@ export const translations: Record<LanguageCode, Record<string, string>> = {
     indianLanguages: "Indische Sprachen",
     globalLanguages: "Globale Sprachen",
     languageUpdated: "Spracheinstellung aktualisiert!",
+    initialBookGreeting: "Hallo, ich bin Aarva 👋 — Ich habe \"{title}\" geladen. Frag mich gerne alles dazu!",
+    initialConvoGreeting: "Hallo, ich bin Aarva 👋 — Lass uns die Unterhaltung starten! Lade ein Buch hoch oder frag mich einfach alles.",
+    explainSimply: "Erkläre das einfach",
+    mainIdea: "Was ist die Hauptidee?",
+    giveExample: "Gib mir ein Beispiel",
+    summarizeSection: "Fasse diesen Abschnitt zusammen",
   },
 };
 

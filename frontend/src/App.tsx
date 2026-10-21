@@ -2511,14 +2511,16 @@ function UploadWorkspace({
             if (res.messages && res.messages.length > 0) {
               setMessages(res.messages);
             } else {
+              const bookGreeting = t("initialBookGreeting", `Hi, I'm Aarva 👋 — I've loaded "${book.title}". Ask me anything about it!`).replace("{title}", book.title);
               setMessages([
-                { from: "ai", text: `Hi, I'm Aarva 👋 — I've loaded "${book.title}". Ask me anything about it!` },
+                { from: "ai", text: bookGreeting },
               ]);
             }
           })
           .catch(() => {
+            const bookGreeting = t("initialBookGreeting", `Hi, I'm Aarva 👋 — I've loaded "${book.title}". Ask me anything about it!`).replace("{title}", book.title);
             setMessages([
-              { from: "ai", text: `Hi, I'm Aarva 👋 — I've loaded "${book.title}". Ask me anything about it!` },
+              { from: "ai", text: bookGreeting },
             ]);
           });
       }
@@ -2532,7 +2534,7 @@ function UploadWorkspace({
         key_points?: string[];
         definitions?: { term?: string; definition?: string }[];
         concepts?: string[];
-      }>(`/api/summary/${book.id}?mode=complete&language=${encodeURIComponent(selectedLang || languageObj.name)}`)
+      }>(`/api/summary/${book.id}?mode=complete&language=${encodeURIComponent(languageObj.name)}`)
         .then((res) => {
           if (res) setSummaryData(res);
           setSummaryLoading(false);
@@ -2545,12 +2547,12 @@ function UploadWorkspace({
       setMessages([
         {
           from: "ai",
-          text: "Hi, I'm Aarva 👋 — let's start the convo! Upload a book or just ask me anything to get going.",
+          text: t("initialConvoGreeting", "Hi, I'm Aarva 👋 — let's start the convo! Upload a book or just ask me anything to get going."),
         },
       ]);
       setSummaryData(null);
     }
-  }, [book?.id, userId]);
+  }, [book?.id, userId, languageObj.code]);
 
   const [isListening, setIsListening] = useState(false);
   const [voiceAssistantActive, setVoiceAssistantActive] = useState(false);
@@ -2821,7 +2823,7 @@ function UploadWorkspace({
           query: queryText,
           textbook_id: targetBookId,
           user_id: uId,
-          language: selectedLang,
+          language: languageObj.name,
           conversation_history: historyPayload
         }),
       });
@@ -3469,10 +3471,10 @@ function UploadWorkspace({
               {/* Quick Prompt Suggestion Chips */}
               <div style={{ display: "flex", gap: "0.3rem", padding: "0.25rem 0.75rem", overflowX: "auto", background: "#ffffff", borderTop: "1px solid #f1f5f9" }}>
                 {[
-                  "Explain this simply",
-                  "What is the main idea?",
-                  "Give me an example",
-                  "Summarize this section"
+                  t("explainSimply", "Explain this simply"),
+                  t("mainIdea", "What is the main idea?"),
+                  t("giveExample", "Give me an example"),
+                  t("summarizeSection", "Summarize this section")
                 ].map((chip, idx) => (
                   <button
                     key={idx}
