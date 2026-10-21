@@ -2616,8 +2616,20 @@ form button:hover {
 .auth-page {
   min-height: 100vh;
   display: grid;
-  grid-template-columns: minmax(22rem, .88fr) minmax(35rem, 1.12fr);
+  grid-template-columns: minmax(20rem, .85fr) minmax(30rem, 1.15fr);
   background: #f7f5fd;
+}
+
+@media (max-width: 960px) {
+  .auth-page {
+    grid-template-columns: 1fr;
+  }
+  .auth-visual {
+    display: none !important;
+  }
+  .auth-panel {
+    padding: 2.5rem 1.25rem !important;
+  }
 }
 
 .auth-back {
@@ -2741,26 +2753,30 @@ form button:hover {
 
 .auth-panel {
   min-height: 100vh;
-  padding: 6rem clamp(2rem, 7vw, 7rem);
-  display: grid;
+  padding: 3rem clamp(1.5rem, 5vw, 5rem);
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
   align-items: center;
+  overflow-y: auto;
 }
 
 .auth-panel-inner {
-  width: min(100%, 39rem);
-  margin: auto;
+  width: min(100%, 38rem);
+  margin: 1.5rem auto 3rem;
   animation: reveal .55s both;
 }
 
 .auth-panel h2 {
-  font-size: clamp(2.4rem, 4vw, 4.2rem);
-  line-height: 1.08;
+  font-size: clamp(1.9rem, 3.2vw, 2.75rem);
+  line-height: 1.18;
+  letter-spacing: -0.02em;
 }
 
 .auth-subtitle {
   color: var(--ink-soft);
-  line-height: 1.6;
-  margin: .9rem 0 2rem;
+  line-height: 1.5;
+  margin: .6rem 0 1.5rem;
 }
 
 .auth-progress {
