@@ -11,6 +11,7 @@
 A comprehensive automated security audit was conducted across the codebase and runtime environments:
 - **Frontend Audit:** Successfully resolved all **5 vulnerabilities** (2 High severity, 3 Moderate severity). **`npm audit` now reports 0 vulnerabilities.**
 - **Backend Audit:** Resolved **23 known security vulnerabilities** across `aiohttp`, `certifi`, `multidict`, `pillow`, `oauthlib`, `python-jose`, and `ecdsa`.
+- **Authentication & Session Hardening (Phase 2):** Eliminated all mock fallback bypasses, enforced 10-character minimum passwords with strict cryptographic case sensitivity, blocked pre-OTP user enumeration on password recovery, and established isolated multi-tenant session tracking in PostgreSQL (`UserSession`).
 - **System Verification:** Successfully re-built the frontend production bundle (`npm run build`), verified clean lockfile sync (`npm ci`), and verified backend FastAPI initialization with token generation and decoding.
 
 ---
@@ -59,7 +60,26 @@ A comprehensive automated security audit was conducted across the codebase and r
 - `FastAPI` initialization: **Imported and initialized application title with zero errors**
 - JWT auth test: **Token generation (`create_access_token`) and validation (`decode_token`) verified**
 
+## 4. Authentication & Session Security Hardening (Phase 2)
+
+### 4.1. Vulnerabilities & Vectors Addressed
+| Security Vector | Previous Behavior | Risk / Vulnerability | Remediation Applied |
+| :--- | :--- | :--- | :--- |
+| **Login Fallback Bypass** | Mock student account fallback in `submitLogin` catch block | Potential unauthorized access or fallback bypass on error | Removed all mock fallback bypasses; login strictly requires verified PostgreSQL credentials via `bcrypt.checkpw` |
+| **Weak / Short Passwords** | Client allowed short passwords on manual submit | Susceptible to brute force & dictionary attacks | Enforced **minimum 10 characters** in frontend validation, HTML5 `minLength={10}`, and backend `len(req.password) >= 10` |
+| **Password Case Sensitivity** | Inconsistent case handling across portals | Authentication bypass or lower security threshold | Enforced **100% case-sensitive** verification via bcrypt cryptographic hashing across all auth routes |
+| **Forgot Password Enumeration & OTP Spam** | Allowed advancing to OTP stage for unregistered emails | OTP / SMTP resource exhaustion and user enumeration | Pre-checks user existence with `/api/auth/check-email`; halts immediately with `"User does not exist. Please check your email or create an account."` before generating or dispatching OTP |
+| **Session Isolation & Multi-Tenancy** | Single localStorage key without per-user unmounting | Cross-tenant data leakage between students on shared devices | Scoped dashboard rendering by user key (`user_${u.id}`), isolated PostgreSQL `UserSession` table with unique UUID4 `token_jti`, IP, user-agent, and strict JWT expiration |
+| **Gateway HTML Parsing Crash** | Direct `res.json()` on gateway 502/503 errors | Denial of service / unhandled client crashes on cloud wake-up | Safe text reading and guarded JSON parsing in `apiPost` and `apiFetch` |
+
+### 4.2. Verification & Automated Edge Case Suite
+- **Non-existent user login:** Rejected with `404` / `"User does not exist. Please create an account."`
+- **Wrong password casing (`Student123` vs `student123`):** Rejected with `401` / `"Incorrect password. Password is case-sensitive."`
+- **Password < 10 characters:** Blocked instantly on client and rejected with `400` on backend
+- **Forgot password for non-existent email:** Blocked on email step; OTP generation prevented
+- **Valid credentials:** Authenticated with unique JWT and isolated PostgreSQL session
+
 ---
 
-## 4. Pending / Upstream Items
+## 5. Pending / Upstream Items
 - **`chromadb` 1.5.9:** PyPI reports 5 advisories (`PYSEC-2026-311`, `PYSEC-2026-3814`, `PYSEC-2026-3815`, `PYSEC-2026-3813`). Currently, `1.5.9` is the newest published release on PyPI; continue to monitor ChromaDB releases for upstream patches.
