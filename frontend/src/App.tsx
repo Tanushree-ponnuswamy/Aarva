@@ -2517,14 +2517,34 @@ function UploadWorkspace({
             if (res.messages && res.messages.length > 0) {
               setMessages(res.messages);
             } else {
-              const bookGreeting = t("initialBookGreeting", `Hi, I'm Aarva 👋 — I've loaded "${book.title}". Ask me anything about it!`).replace("{title}", book.title);
+              const greetings: Record<string, string> = {
+                ta: `வணக்கம், நான் ஆர்வா 👋 — "${book.title}" ஆவணம் தயாராக உள்ளது. என்னிடம் எதையும் கேளுங்கள்!`,
+                hi: `नमस्ते, मैं आरवा हूँ 👋 — मैंने "${book.title}" लोड कर लिया है। आप मुझसे कुछ भी पूछ सकते हैं!`,
+                te: `నమస్కారం, నేను ఆర్వా 👋 — "${book.title}" సిద్ధంగా ఉంది. దీని గురించి ఏదైనా అడగండి!`,
+                mr: `नमस्कार, मी आरवा 👋 — "${book.title}" लोड झाले आहे. मला याबद्दल काहीही विचारा!`,
+                ml: `നമസ്കാരം, ഞാൻ ആർവ 👋 — "${book.title}" തയ്യാറാണ്. എന്തും ചോദിക്കാം!`,
+                bn: `নমস্কার, আমি আরভা 👋 — "${book.title}" প্রস্তুত। যেকোনো প্রশ্ন জিজ্ঞাসা করুন!`,
+                or: `ନମସ୍କାର, ମୁଁ ଆରଭା 👋 — "${book.title}" ପ୍ରସ୍ତୁତ। କିଛି ବି ପଚାରନ୍ତୁ!`,
+                en: `Hi, I'm Aarva 👋 — I've loaded "${book.title}". Ask me anything about it!`
+              };
+              const bookGreeting = greetings[languageObj.code] || greetings.en;
               setMessages([
                 { from: "ai", text: bookGreeting },
               ]);
             }
           })
           .catch(() => {
-            const bookGreeting = t("initialBookGreeting", `Hi, I'm Aarva 👋 — I've loaded "${book.title}". Ask me anything about it!`).replace("{title}", book.title);
+            const greetings: Record<string, string> = {
+              ta: `வணக்கம், நான் ஆர்வா 👋 — "${book.title}" ஆவணம் தயாராக உள்ளது. என்னிடம் எதையும் கேளுங்கள்!`,
+              hi: `नमस्ते, मैं आरवा हूँ 👋 — मैंने "${book.title}" लोड कर लिया है। आप मुझसे कुछ भी पूछ सकते हैं!`,
+              te: `నమస్కారం, నేను ఆర్వా 👋 — "${book.title}" సిద్ధంగా ఉంది. దీని గురించి ఏదైనా అడగండి!`,
+              mr: `नमस्कार, मी आरवा 👋 — "${book.title}" लोड झाले आहे. मला याबद्दल काहीही विचारा!`,
+              ml: `നമസ്കാരം, ഞാൻ ആർവ 👋 — "${book.title}" തയ്യാറാണ്. എന്തும் ചോദിക്കാം!`,
+              bn: `নমস্কার, আমি আরভা 👋 — "${book.title}" প্রস্তুত। যেকোনো প্রশ্ন জিজ্ঞাসা করুন!`,
+              or: `ନମସ୍କାର, ମୁଁ ଆରଭା 👋 — "${book.title}" ପ୍ରସ୍ତୁତ। କିଛି ବି ପଚାରନ୍ତୁ!`,
+              en: `Hi, I'm Aarva 👋 — I've loaded "${book.title}". Ask me anything about it!`
+            };
+            const bookGreeting = greetings[languageObj.code] || greetings.en;
             setMessages([
               { from: "ai", text: bookGreeting },
             ]);
@@ -2551,10 +2571,20 @@ function UploadWorkspace({
           setSummaryLoading(false);
         });
     } else {
+      const convoGreetings: Record<string, string> = {
+        ta: "வணக்கம், நான் ஆர்வா 👋 — என்னிடம் எதையும் கேளுங்கள் அல்லது ஒரு புத்தகத்தைப் பதிவேற்றவும்!",
+        hi: "नमस्ते, मैं आरवा हूँ 👋 — बातचीत शुरू करें या कोई प्रश्न पूछें।",
+        te: "నమస్కారం, నేను ఆర్వా 👋 — మీ ప్రశ్నలను అడగండి!",
+        mr: "नमस्कार, मी आरवा 👋 — काहीही विचारा किंवा पुस्तक अपलोड करा!",
+        ml: "നമസ്കാരം, ഞാൻ ആർവ 👋 — എന്തും ചോദിക്കാം!",
+        bn: "নমস্কার, আমি আরভা 👋 — যেকোনো প্রশ্ন জিজ্ঞাসা করুন!",
+        or: "ନମସ୍କାର, ମୁଁ ଆରଭା 👋 — କିଛି ବି ପଚାରନ୍ତୁ!",
+        en: "Hi, I'm Aarva 👋 — let's start the convo! Upload a book or just ask me anything to get going."
+      };
       setMessages([
         {
           from: "ai",
-          text: t("initialConvoGreeting", "Hi, I'm Aarva 👋 — let's start the convo! Upload a book or just ask me anything to get going."),
+          text: convoGreetings[languageObj.code] || convoGreetings.en,
         },
       ]);
       setSummaryData(null);
