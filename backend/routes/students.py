@@ -1,10 +1,11 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from pydantic import BaseModel
+from pydantic import BaseModel, validator
 from typing import Optional, List
 from database.postgres import get_db
 from models.models import User, StudentProfile, StudentInterests, LearningPreferences, LearningProgress, Textbook, QuizResult
 from services.adaptive_service import adaptive_service
+from schemas.language import normalize_language_code, get_language_display_name, is_valid_language
 
 router = APIRouter(prefix="/api/student", tags=["Student Learning Space"])
 
@@ -16,6 +17,14 @@ class PreferencesUpdate(BaseModel):
     speech_input: Optional[bool] = False
     larger_text: Optional[bool] = False
     simplified_explanations: Optional[bool] = False
+
+    @validator("preferred_language", pre=True, always=True)
+    def validate_pref_lang(cls, v):
+        if not v:
+            return "English"
+        if not is_valid_language(v):
+            raise ValueError(f"Unsupported language '{v}'. Supported: English, Tamil, Hindi, Telugu, Marathi, Malayalam, Odia, Bengali.")
+        return get_language_display_name(v)
 
 class XpAwardRequest(BaseModel):
     user_id: int

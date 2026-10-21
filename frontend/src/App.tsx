@@ -2437,6 +2437,7 @@ function UploadWorkspace({
     setSelectedLang(languageObj.name);
   }, [languageObj.name]);
   const [summaryLength, setSummaryLength] = useState<string>("Standard");
+  const [summaryLangMode, setSummaryLangMode] = useState<"interface" | "textbook">("interface");
   const [defSearchQuery, setDefSearchQuery] = useState<string>("");
   const [copiedToast, setCopiedToast] = useState<boolean>(false);
   const [message, setMessage] = useState("");
@@ -2526,13 +2527,14 @@ function UploadWorkspace({
       // 2. Fetch Live AI Summary & Document Insights
       setSummaryLoading(true);
       setSummaryData(null);
+      const targetSummaryLanguage = summaryLangMode === "interface" ? languageObj.name : "English";
       apiFetch<{
         summary?: string;
         chapters?: { chapter?: number; title?: string; summary?: string }[];
         key_points?: string[];
         definitions?: { term?: string; definition?: string }[];
         concepts?: string[];
-      }>(`/api/summary/${book.id}?mode=complete&language=${encodeURIComponent(languageObj.name)}`)
+      }>(`/api/summary/${book.id}?mode=complete&language=${encodeURIComponent(targetSummaryLanguage)}`)
         .then((res) => {
           if (res) setSummaryData(res);
           setSummaryLoading(false);
@@ -2550,7 +2552,7 @@ function UploadWorkspace({
       ]);
       setSummaryData(null);
     }
-  }, [book?.id, userId, languageObj.code]);
+  }, [book?.id, userId, languageObj.code, summaryLangMode]);
 
   const [isListening, setIsListening] = useState(false);
   const [voiceAssistantActive, setVoiceAssistantActive] = useState(false);
@@ -2603,7 +2605,19 @@ function UploadWorkspace({
     setIsSpeaking(false);
   };
 
-  // Speak AI response text aloud
+  // Regional BCP-47 language tags for SpeechSynthesis & SpeechRecognition
+  const BCP47_LANG_TAGS: Record<string, string> = {
+    en: "en-US",
+    ta: "ta-IN",
+    hi: "hi-IN",
+    te: "te-IN",
+    mr: "mr-IN",
+    ml: "ml-IN",
+    or: "or-IN",
+    bn: "bn-IN",
+  };
+
+  // Speak AI response text aloud in selected language
   const speakText = (text: string) => {
     if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
     window.speechSynthesis.cancel();
@@ -2612,15 +2626,29 @@ function UploadWorkspace({
       .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
       .replace(/\n+/g, ". ");
     const utterance = new SpeechSynthesisUtterance(clean);
+    const langTag = BCP47_LANG_TAGS[languageObj.code] || "en-US";
+    utterance.lang = langTag;
     utterance.rate = 1.0;
     utterance.pitch = 1.0;
+
+    // Check voice availability for selected regional language
+    const voices = window.speechSynthesis.getVoices();
+    const regionalVoice = voices.find(
+      (v) =>
+        v.lang.toLowerCase() === langTag.toLowerCase() ||
+        v.lang.toLowerCase().replace("_", "-").startsWith(languageObj.code)
+    );
+    if (regionalVoice) {
+      utterance.voice = regionalVoice;
+    }
+
     utterance.onstart = () => setIsSpeaking(true);
     utterance.onend = () => setIsSpeaking(false);
     utterance.onerror = () => setIsSpeaking(false);
     window.speechSynthesis.speak(utterance);
   };
 
-  // Toggle Live Speech Recognition (Microphone)
+  // Toggle Live Speech Recognition (Microphone) with language support checks
   const toggleSpeechRecognition = () => {
     const SpeechRec =
       (window as unknown as { SpeechRecognition?: any; webkitSpeechRecognition?: any }).SpeechRecognition ||
@@ -2645,7 +2673,8 @@ function UploadWorkspace({
       recognitionRef.current = recognition;
       recognition.continuous = false;
       recognition.interimResults = true;
-      recognition.lang = "en-US";
+      const langTag = BCP47_LANG_TAGS[languageObj.code] || "en-US";
+      recognition.lang = langTag;
 
       recognition.onstart = () => {
         setIsListening(true);
@@ -3644,14 +3673,74 @@ function UploadWorkspace({
             {/* ── 1. SUMMARY TAB ── */}
             {(book || summaryData) && activeTab === "Summary" && (
               <div style={{ display: "flex", flexDirection: "column", gap: "1.4rem", maxWidth: "800px" }}>
-                {/* AI Summary Banner */}
+                {/* AI Summary Banner with Language Switcher */}
                 <div style={{ background: "#f5f3ff", borderRadius: "0.8rem", padding: "1.25rem 1.4rem", border: "1px solid #ede9fe" }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: "0.4rem", marginBottom: "0.6rem", color: "#6366f1", fontSize: "0.85rem", fontWeight: 700 }}>
-                    <span>✦</span> AI-generated summary · Based on the uploaded textbook
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "0.5rem", marginBottom: "0.75rem" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: "0.4rem", color: "#6366f1", fontSize: "0.85rem", fontWeight: 700 }}>
+                      <span>✦</span> AI-generated summary · Based on the uploaded textbook
+                    </div>
+
+                    {/* Language Preference Toggle: Interface Language vs Original Textbook */}
+                    {languageObj.code !== "en" && (
+                      <div style={{ display: "inline-flex", alignItems: "center", gap: "0.35rem", background: "#ede9fe", padding: "2px 4px", borderRadius: "8px" }}>
+                        <span style={{ fontSize: "0.72rem", color: "#5b21b6", fontWeight: 700, paddingLeft: "4px" }}>
+                          Language:
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setSummaryLangMode("interface")}
+                          style={{
+                            border: "none",
+                            background: summaryLangMode === "interface" ? "#6366f1" : "transparent",
+                            color: summaryLangMode === "interface" ? "#ffffff" : "#4338ca",
+                            borderRadius: "6px",
+                            padding: "3px 8px",
+                            fontSize: "0.75rem",
+                            fontWeight: 700,
+                            cursor: "pointer",
+                            transition: "all 0.15s ease",
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: "3px"
+                          }}
+                          title={`Display summary translated to your selected interface language (${languageObj.nativeName})`}
+                        >
+                          <span>🇮🇳</span> {languageObj.nativeName}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setSummaryLangMode("textbook")}
+                          style={{
+                            border: "none",
+                            background: summaryLangMode === "textbook" ? "#6366f1" : "transparent",
+                            color: summaryLangMode === "textbook" ? "#ffffff" : "#4338ca",
+                            borderRadius: "6px",
+                            padding: "3px 8px",
+                            fontSize: "0.75rem",
+                            fontWeight: 700,
+                            cursor: "pointer",
+                            transition: "all 0.15s ease",
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: "3px"
+                          }}
+                          title="Display summary in the original textbook language (English)"
+                        >
+                          <span>🌐</span> Original (English)
+                        </button>
+                      </div>
+                    )}
                   </div>
-                  <p style={{ margin: 0, color: "#475569", fontSize: "0.92rem", lineHeight: 1.65 }}>
-                    {overviewText}
-                  </p>
+                  {summaryLoading ? (
+                    <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", color: "#6366f1", fontSize: "0.85rem", padding: "0.5rem 0" }}>
+                      <span className="typing-dot" style={{ width: "6px", height: "6px", background: "#6366f1", borderRadius: "50%", animation: "pulse 1s infinite alternate" }} />
+                      <span>Generating summary in {summaryLangMode === "interface" ? languageObj.nativeName : "English"}...</span>
+                    </div>
+                  ) : (
+                    <p style={{ margin: 0, color: "#475569", fontSize: "0.92rem", lineHeight: 1.65 }}>
+                      {overviewText}
+                    </p>
+                  )}
                 </div>
 
                 {/* In One Sentence Highlight Box */}

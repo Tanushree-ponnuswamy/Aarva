@@ -1,10 +1,11 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
-from pydantic import BaseModel
+from pydantic import BaseModel, validator
 from typing import List, Dict, Any, Optional
 from datetime import datetime
 from database.postgres import get_db
 from models.models import QuizResult, LearningProgress, Textbook, User
+from schemas.language import normalize_language_code, get_language_display_name, is_valid_language
 
 router = APIRouter(prefix="/api/quiz", tags=["Quiz and Knowledge Check"])
 
@@ -17,6 +18,14 @@ class QuizGenerateRequest(BaseModel):
     num_questions: int = 5
     difficulty: str = "mixed"  # easy | medium | hard | mixed
     language: Optional[str] = "English"
+
+    @validator("language", pre=True, always=True)
+    def validate_language(cls, v):
+        if not v:
+            return "English"
+        if not is_valid_language(v):
+            raise ValueError(f"Unsupported language '{v}'. Supported: English, Tamil, Hindi, Telugu, Marathi, Malayalam, Odia, Bengali.")
+        return get_language_display_name(v)
 
 
 class QuizSubmission(BaseModel):

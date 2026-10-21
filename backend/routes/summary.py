@@ -1,11 +1,13 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
-from pydantic import BaseModel
+from pydantic import BaseModel, validator
 from typing import Optional, List
 from datetime import datetime
+import json
 from database.postgres import get_db
 from models.models import Textbook, ChatSession, ChatMessage
 from services.llama_service import llama_service
+from schemas.language import normalize_language_code, get_language_display_name, is_valid_language
 
 router = APIRouter(prefix="/api/summary", tags=["Textbook Summarization & AI Chat"])
 
@@ -16,6 +18,14 @@ class ChatMessageRequest(BaseModel):
     user_id: Optional[int] = None
     language: Optional[str] = "English"
     conversation_history: Optional[List[dict]] = None
+
+    @validator("language", pre=True, always=True)
+    def validate_language(cls, v):
+        if not v:
+            return "English"
+        if not is_valid_language(v):
+            raise ValueError(f"Unsupported language '{v}'. Supported: English, Tamil, Hindi, Telugu, Marathi, Malayalam, Odia, Bengali.")
+        return get_language_display_name(v)
 
 @router.get("/chat/history/{textbook_id}")
 def get_chat_history(
@@ -64,21 +74,56 @@ def get_summary(
 
     # If book has precomputed summary data
     stored_data = book.summary_data or {}
+    norm_code = normalize_language_code(language)
+    lang_name = get_language_display_name(norm_code)
+
+    # If requested in a regional language (e.g. Tamil, Hindi), check cache or generate localized summary
+    data_source = stored_data
+    if norm_code != "en":
+        cache_key = f"summary_{norm_code}"
+        if cache_key in stored_data and isinstance(stored_data[cache_key], dict):
+            data_source = stored_data[cache_key]
+        else:
+            try:
+                # Build context for localized summary generation
+                sample_text = (
+                    f"Title: {book.title}\n\n"
+                    f"Overview: {stored_data.get('overview') or stored_data.get('complete_summary') or ''}\n\n"
+                    f"Key Points: {json.dumps(stored_data.get('key_points', []))}\n"
+                    f"Definitions: {json.dumps(stored_data.get('definitions', []))}\n"
+                    f"Concepts: {json.dumps(stored_data.get('concepts', []))}"
+                )
+                localized = llama_service.generate_structured_summary(
+                    full_text=sample_text,
+                    filename=book.title,
+                    language=lang_name
+                )
+                if localized and isinstance(localized, dict) and localized.get("overview"):
+                    data_source = localized
+                    updated_dict = dict(stored_data)
+                    updated_dict[cache_key] = localized
+                    book.summary_data = updated_dict
+                    db.commit()
+            except Exception as e:
+                print(f"[SUMMARY_ROUTE] Multilingual summary fallback: {e}")
+                data_source = stored_data
 
     if mode == "complete":
         return {
             "textbook_id": book.id,
-            "title": stored_data.get("title") or book.title,
+            "title": data_source.get("title") or stored_data.get("title") or book.title,
             "mode": "complete",
-            "overview": stored_data.get("overview") or stored_data.get("complete_summary") or f"A comprehensive study overview for {book.title}.",
-            "summary": stored_data.get("overview") or stored_data.get("complete_summary") or f"A comprehensive study overview for {book.title}.",
-            "main_takeaway": stored_data.get("main_takeaway") or f"Core insights and workflow of {book.title}.",
-            "key_points": stored_data.get("key_points", []),
-            "topics_covered": stored_data.get("topics_covered", []),
-            "chapters": stored_data.get("chapters", []),
-            "concepts": stored_data.get("concepts", []),
-            "definitions": stored_data.get("definitions", []),
-            "important_notes": stored_data.get("important_notes", [])
+            "language": lang_name,
+            "language_code": norm_code,
+            "overview": data_source.get("overview") or data_source.get("complete_summary") or f"A comprehensive study overview for {book.title}.",
+            "summary": data_source.get("overview") or data_source.get("complete_summary") or f"A comprehensive study overview for {book.title}.",
+            "main_takeaway": data_source.get("main_takeaway") or f"Core insights and workflow of {book.title}.",
+            "key_points": data_source.get("key_points", []),
+            "topics_covered": data_source.get("topics_covered", []),
+            "chapters": data_source.get("chapters", []),
+            "concepts": data_source.get("concepts", []),
+            "definitions": data_source.get("definitions", []),
+            "important_notes": data_source.get("important_notes", [])
         }
     elif mode == "chapter":
         ch_num = chapter or 1
