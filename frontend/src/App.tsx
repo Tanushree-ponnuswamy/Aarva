@@ -695,6 +695,7 @@ function AuthPage({ onHome, onComplete }: { onHome: () => void; onComplete: (nam
   const [loginError, setLoginError] = useState("");
   const [forgotMsg, setForgotMsg] = useState("");
   const [activeDemoLoading, setActiveDemoLoading] = useState<string | null>(null);
+  const authPanelRef = useRef<HTMLElement>(null);
 
   const loginDemoAccount = async () => {
     setLoginError("");
@@ -1242,7 +1243,14 @@ function AuthPage({ onHome, onComplete }: { onHome: () => void; onComplete: (nam
   return (
     <main className="auth-page">
       <button className="auth-back" onClick={onHome} type="button">← Back to home</button>
-      <section className="auth-visual">
+      <section
+        className="auth-visual"
+        onWheel={(e) => {
+          if (authPanelRef.current) {
+            authPanelRef.current.scrollTop += e.deltaY;
+          }
+        }}
+      >
         <div className="auth-visual-copy">
           <Logo dark />
           <p className="kicker">Learn at your rhythm</p>
@@ -1253,7 +1261,7 @@ function AuthPage({ onHome, onComplete }: { onHome: () => void; onComplete: (nam
         <div className="auth-float-card"><span>12 day streak</span><small>Keep your curiosity going</small></div>
       </section>
 
-      <section className="auth-panel">
+      <section className="auth-panel" ref={authPanelRef}>
         <div className="auth-panel-inner">
 
           {/* ── Sign in ─────────────────────────────────────────── */}

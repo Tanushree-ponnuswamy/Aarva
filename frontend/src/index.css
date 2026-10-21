@@ -2614,7 +2614,11 @@ form button:hover {
 
 /* Authentication */
 .auth-page {
-  min-height: 100vh;
+  height: 100vh;
+  height: 100dvh;
+  max-height: 100vh;
+  max-height: 100dvh;
+  overflow: hidden;
   display: grid;
   grid-template-columns: minmax(20rem, .85fr) minmax(30rem, 1.15fr);
   background: #f7f5fd;
@@ -2622,12 +2626,19 @@ form button:hover {
 
 @media (max-width: 960px) {
   .auth-page {
+    height: auto !important;
+    min-height: 100vh !important;
+    max-height: none !important;
+    overflow: visible !important;
     grid-template-columns: 1fr;
   }
   .auth-visual {
     display: none !important;
   }
   .auth-panel {
+    height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
     padding: 2.5rem 1.25rem !important;
   }
 }
@@ -2654,15 +2665,19 @@ form button:hover {
 }
 
 .auth-visual {
-  position: sticky;
-  top: 0;
+  position: relative;
+  height: 100%;
   height: 100vh;
+  height: 100dvh;
+  max-height: 100vh;
+  max-height: 100dvh;
   overflow: hidden;
   padding: clamp(2rem, 5vw, 5rem);
   display: flex;
   align-items: flex-end;
   color: white;
   background: #251d4b;
+  user-select: none;
 }
 
 .auth-visual::before {
@@ -2671,6 +2686,7 @@ form button:hover {
   inset: 0;
   z-index: 1;
   background: linear-gradient(180deg, rgba(32, 23, 69, .12), rgba(27, 20, 58, .93));
+  pointer-events: none;
 }
 
 .auth-visual::after {
@@ -2683,6 +2699,7 @@ form button:hover {
   top: -8rem;
   border-radius: 50%;
   background: radial-gradient(circle, rgba(242, 189, 229, .55), transparent 68%);
+  pointer-events: none;
 }
 
 .auth-visual>img {
@@ -2693,6 +2710,7 @@ form button:hover {
   object-fit: cover;
   filter: saturate(.6) contrast(.95);
   opacity: .72;
+  pointer-events: none;
 }
 
 .auth-visual-copy {
@@ -2752,19 +2770,42 @@ form button:hover {
 }
 
 .auth-panel {
-  min-height: 100vh;
+  height: 100%;
+  height: 100vh;
+  height: 100dvh;
+  max-height: 100vh;
+  max-height: 100dvh;
   padding: 2rem clamp(1.5rem, 5vw, 5rem);
   display: flex;
   flex-direction: column;
-  justify-content: center;
+  justify-content: flex-start;
   align-items: center;
   overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+}
+
+.auth-panel::-webkit-scrollbar {
+  width: 6px;
+}
+
+.auth-panel::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.auth-panel::-webkit-scrollbar-thumb {
+  background: rgba(43, 31, 89, 0.16);
+  border-radius: 999px;
+}
+
+.auth-panel::-webkit-scrollbar-thumb:hover {
+  background: rgba(43, 31, 89, 0.35);
 }
 
 .auth-panel-inner {
   width: min(100%, 37rem);
   margin: auto auto;
-  padding: 0.75rem 0;
+  padding: 1.5rem 0;
   animation: reveal .55s both;
 }
 
@@ -4484,30 +4525,20 @@ form button:hover {
 @media (max-width: 780px) {
   .auth-page {
     display: block;
+    height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
   }
 
   .auth-visual {
-    position: relative;
-    height: 24rem;
-    padding: 2rem;
-    align-items: flex-end;
-  }
-
-  .auth-visual-copy .logo {
-    top: -13rem;
-    bottom: auto;
-  }
-
-  .auth-visual-copy h1 {
-    font-size: 2.7rem;
-  }
-
-  .auth-float-card {
-    display: none;
+    display: none !important;
   }
 
   .auth-panel {
-    padding: 4rem 1.25rem;
+    height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
+    padding: 4rem 1.25rem 2rem !important;
   }
 
   .dashboard-content {
