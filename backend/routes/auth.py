@@ -143,7 +143,7 @@ def send_verification_otp(req: SendOtpRequest, db: Session = Depends(get_db)):
         if not user:
             raise HTTPException(
                 status_code=404,
-                detail="This email address is not registered. Please verify your email address or create a new account."
+                detail="User does not exist. Please check your email or create an account."
             )
 
     # Pre-check: if attempting signup
@@ -386,9 +386,17 @@ def login(req: LoginRequest, request: Request, db: Session = Depends(get_db)):
         db.commit()
         db.refresh(user)
 
-    # Generic error to avoid email enumeration
     if not user:
-        raise HTTPException(status_code=401, detail="Invalid email or password.")
+        raise HTTPException(
+            status_code=404,
+            detail="User does not exist. Please create an account."
+        )
+
+    if len(req.password) < 10:
+        raise HTTPException(
+            status_code=400,
+            detail="Password must be at least 10 characters long and is case-sensitive."
+        )
 
     demo_emails = {"student@college.edu"}
     is_valid = auth_service.verify_password(req.password, user.password_hash)
@@ -397,7 +405,10 @@ def login(req: LoginRequest, request: Request, db: Session = Depends(get_db)):
         user.password_hash = auth_service.hash_password("student123")
 
     if not is_valid:
-        raise HTTPException(status_code=401, detail="Invalid email or password.")
+        raise HTTPException(
+            status_code=401,
+            detail="Incorrect password. Password is case-sensitive."
+        )
 
     # Upgrade plain seed passwords to bcrypt on first real login
     if not user.password_hash.startswith(("$2a$", "$2b$", "$2y$")):

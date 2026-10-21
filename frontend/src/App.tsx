@@ -767,7 +767,7 @@ function AuthPage({ onHome, onComplete }: { onHome: () => void; onComplete: (nam
         if (!check.is_registered) {
           setForgotEmail(targetEmail);
           setStage("forgot-email");
-          setForgotError("This account is not registered. Please check your email or create an account.");
+          setForgotError("User does not exist. Please check your email or create an account.");
           setForgotLoading(false);
           return;
         }
@@ -786,7 +786,7 @@ function AuthPage({ onHome, onComplete }: { onHome: () => void; onComplete: (nam
       } catch (err: unknown) {
         setForgotEmail(targetEmail);
         setStage("forgot-email");
-        setForgotError(err instanceof Error ? err.message : "This account is not registered.");
+        setForgotError(err instanceof Error ? err.message : "User does not exist. Please check your email or create an account.");
       } finally {
         setForgotLoading(false);
       }
@@ -809,7 +809,7 @@ function AuthPage({ onHome, onComplete }: { onHome: () => void; onComplete: (nam
       // Pre-check if account is registered before dispatching verification code
       const check = await apiPost("/api/auth/check-email", { email: targetEmail });
       if (!check.is_registered) {
-        setForgotError("This account is not registered. Please check your email or create an account.");
+        setForgotError("User does not exist. Please check your email or create an account.");
         setForgotLoading(false);
         return;
       }
@@ -826,7 +826,7 @@ function AuthPage({ onHome, onComplete }: { onHome: () => void; onComplete: (nam
       setForgotResendStatus(`Verification code sent to ${targetEmail}`);
       setTimeout(() => setForgotResendStatus(""), 6000);
     } catch (err: unknown) {
-      setForgotError(err instanceof Error ? err.message : "This account is not registered.");
+      setForgotError(err instanceof Error ? err.message : "User does not exist. Please check your email or create an account.");
     } finally {
       setForgotLoading(false);
     }
@@ -969,20 +969,28 @@ function AuthPage({ onHome, onComplete }: { onHome: () => void; onComplete: (nam
     event.preventDefault();
     setLoginError("");
     setForgotMsg("");
-    setLoginLoading(true);
 
-    const isSampleStudent =
-      loginEmail.trim().toLowerCase() === "student@college.edu" &&
-      loginPassword === "student123";
+    const email = loginEmail.trim();
+    if (!email || !email.includes("@")) {
+      setLoginError("Please enter a valid email address.");
+      return;
+    }
+
+    if (loginPassword.length < 10) {
+      setLoginError("Password must be at least 10 characters long.");
+      return;
+    }
+
+    setLoginLoading(true);
 
     try {
       const data = await apiPost("/api/auth/login", {
-        email: loginEmail,
+        email: email,
         password: loginPassword,
         portal: "student",
       });
       if (rememberMe) {
-        localStorage.setItem("aarva_saved_email", loginEmail);
+        localStorage.setItem("aarva_saved_email", email);
       } else {
         localStorage.removeItem("aarva_saved_email");
       }
@@ -991,29 +999,8 @@ function AuthPage({ onHome, onComplete }: { onHome: () => void; onComplete: (nam
       localStorage.removeItem("aarva_active_book_id");
       onComplete(data.user.name);
     } catch (err: unknown) {
-      if (isSampleStudent) {
-        const sampleUser = {
-          id: 1,
-          name: "Alex Morgan",
-          email: "student@college.edu",
-          role: "student",
-          learner_type: "college",
-          institution: "IIT Madras",
-          department: "Computer Science",
-          year: "3rd Year",
-          semester: "6th Semester",
-          preferred_language: "English"
-        };
-        if (rememberMe) {
-          localStorage.setItem("aarva_saved_email", loginEmail);
-        }
-        localStorage.setItem("aarva_token", "demo_token_alex_morgan");
-        localStorage.setItem("aarva_user", JSON.stringify(sampleUser));
-        localStorage.removeItem("aarva_active_book_id");
-        onComplete(sampleUser.name);
-        return;
-      }
-      setLoginError(err instanceof Error ? err.message : "Invalid login credentials.");
+      // Strictly do NOT log in when credentials or password are wrong or user does not exist
+      setLoginError(err instanceof Error ? err.message : "Invalid email or password.");
     } finally {
       setLoginLoading(false);
     }
@@ -1023,11 +1010,24 @@ function AuthPage({ onHome, onComplete }: { onHome: () => void; onComplete: (nam
   const submitPersonal = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setSignupError("");
+
+    const name = signupName.trim();
+    if (!name) {
+      setSignupError("Please enter your full name.");
+      return;
+    }
+
     const email = signupEmail.trim();
     if (!email || !email.includes("@")) {
       setSignupError("Please provide a valid email address to receive your verification code.");
       return;
     }
+
+    if (signupPassword.length < 10) {
+      setSignupError("Password must be at least 10 characters long.");
+      return;
+    }
+
     setSignupLoading(true);
     try {
       // Check if email is already registered before proceeding
@@ -1054,6 +1054,11 @@ function AuthPage({ onHome, onComplete }: { onHome: () => void; onComplete: (nam
     if (!targetEmail || !targetEmail.includes("@")) {
       setSignupError("Please enter your email address first so we can send your verification code.");
       setStage("signup-personal");
+      return;
+    }
+
+    if (!fieldOfStudy.trim()) {
+      setSignupError("Please enter your field of study or department.");
       return;
     }
 
