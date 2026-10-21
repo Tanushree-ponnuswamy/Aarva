@@ -43,12 +43,8 @@ class EmailService:
         return code
 
     def verify_otp(self, email: str, code: str) -> bool:
-        """Verify the OTP against stored code or development bypass."""
+        """Verify the OTP against stored code sent to email."""
         email_clean = email.strip().lower()
-        
-        # Development fallback / preview code support
-        if code in ("2468", "123456") and settings.DEBUG:
-            return True
             
         record = self._otp_store.get(email_clean)
         if not record:

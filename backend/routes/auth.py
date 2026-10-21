@@ -156,10 +156,16 @@ def send_verification_otp(req: SendOtpRequest, db: Session = Depends(get_db)):
     code = email_service.generate_otp(email, length=req.length or 4)
     dispatch_result = email_service.send_verification_email(email, code)
     
+    if not dispatch_result.get("success"):
+        raise HTTPException(
+            status_code=502,
+            detail=f"Unable to deliver verification code to {email}. Please verify your email address and try again."
+        )
+
     return {
-        "status": "success" if dispatch_result.get("success") else "dispatched_with_fallback",
+        "status": "success",
         "email": email,
-        "message": dispatch_result.get("message", "Verification code dispatched."),
+        "message": f"Verification code sent to {email}.",
         "is_registered": bool(user)
     }
 

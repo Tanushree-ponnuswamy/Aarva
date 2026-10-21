@@ -686,11 +686,11 @@ async function apiPost(path: string, body: unknown) {
 }
 
 function AuthPage({ onHome, onComplete }: { onHome: () => void; onComplete: (name: string) => void }) {
-  // ── login form state ──────────────────────────────────────────────────
-  const [loginEmail, setLoginEmail] = useState(() => localStorage.getItem("aarva_saved_email") || "");
+  // ── login form state (strictly no pre-filled defaults) ────────────────
+  const [loginEmail, setLoginEmail] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
-  const [rememberMe, setRememberMe] = useState(true);
+  const [rememberMe, setRememberMe] = useState(false);
   const [loginLoading, setLoginLoading] = useState(false);
   const [loginError, setLoginError] = useState("");
   const [forgotMsg, setForgotMsg] = useState("");
@@ -938,12 +938,12 @@ function AuthPage({ onHome, onComplete }: { onHome: () => void; onComplete: (nam
   const [signupLoading, setSignupLoading] = useState(false);
   const [signupError, setSignupError] = useState("");
 
-  // Step 2: Personalization & Preferences (Screenshot 2)
-  const [educationLevel, setEducationLevel] = useState("Undergraduate");
-  const [fieldOfStudy, setFieldOfStudy] = useState("Computer Science");
-  const [selectedInterests, setSelectedInterests] = useState<string[]>(["Technology", "Design"]);
-  const [appPreferences, setAppPreferences] = useState<string[]>(["Daily reminders", "Study streaks"]);
-  const [dailyGoal, setDailyGoal] = useState("30 minutes");
+  // Step 2: Personalization & Preferences (strictly no pre-filled values)
+  const [educationLevel, setEducationLevel] = useState("");
+  const [fieldOfStudy, setFieldOfStudy] = useState("");
+  const [selectedInterests, setSelectedInterests] = useState<string[]>([]);
+  const [appPreferences, setAppPreferences] = useState<string[]>([]);
+  const [dailyGoal, setDailyGoal] = useState("");
 
   // Step 3: Email verification code (Screenshot 1)
   const [otpDigits, setOtpDigits] = useState<string[]>(["", "", "", ""]);
@@ -1039,8 +1039,14 @@ function AuthPage({ onHome, onComplete }: { onHome: () => void; onComplete: (nam
         return;
       }
       setStage("signup-preferences");
-    } catch {
-      setStage("signup-preferences");
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "";
+      if (msg.toLowerCase().includes("exist") || msg.toLowerCase().includes("registered") || msg.toLowerCase().includes("already")) {
+        setSignupError("An account is already registered with this email. Please sign in instead.");
+        return;
+      }
+      setSignupError(msg || "Could not verify email status. Please try again.");
+      return;
     } finally {
       setSignupLoading(false);
     }
@@ -1065,24 +1071,24 @@ function AuthPage({ onHome, onComplete }: { onHome: () => void; onComplete: (nam
 
     setSignupLoading(true);
     try {
-      // Dispatch OTP verification email with purpose: signup
-      const data = await apiPost("/api/auth/send-otp", {
+      // Dispatch real OTP verification email via SMTP with purpose: signup
+      await apiPost("/api/auth/send-otp", {
         email: targetEmail,
         length: 4,
         purpose: "signup",
       });
-      if (data.preview_code) {
-        setExpectedCode(data.preview_code);
+
+      setStage("signup-verify");
+      setResendStatus(`Verification code sent to ${targetEmail}. Please check your inbox.`);
+      setTimeout(() => setResendStatus(""), 8000);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Failed to send verification code.";
+      if (msg.toLowerCase().includes("exist") || msg.toLowerCase().includes("registered") || msg.toLowerCase().includes("already")) {
+        setSignupError("An account is already registered with this email. Please sign in instead.");
+        setStage("signup-personal");
+        return;
       }
-      setStage("signup-verify");
-      setResendStatus(`Verification code sent to ${targetEmail}`);
-      setTimeout(() => setResendStatus(""), 6000);
-    } catch {
-      // If email server is unreachable or cold starting, allow fallback preview code so student is never stuck
-      setExpectedCode("2468");
-      setStage("signup-verify");
-      setResendStatus(`Verification code sent to ${targetEmail}`);
-      setTimeout(() => setResendStatus(""), 7000);
+      setSignupError(msg);
     } finally {
       setSignupLoading(false);
     }
@@ -1126,24 +1132,21 @@ function AuthPage({ onHome, onComplete }: { onHome: () => void; onComplete: (nam
   const handleResendCode = async () => {
     const targetEmail = signupEmail.trim();
     if (!targetEmail || !targetEmail.includes("@")) {
-      setResendStatus("Please specify your email address.");
+      setSignupError("Please provide a valid email address.");
       return;
     }
-    setResendStatus(`Sending verification email to ${targetEmail}…`);
+    setResendStatus(`Sending new verification code to ${targetEmail}…`);
     try {
-      const data = await apiPost("/api/auth/send-otp", {
+      await apiPost("/api/auth/send-otp", {
         email: targetEmail,
         length: 4,
         purpose: "signup",
       });
-      if (data.preview_code) {
-        setExpectedCode(data.preview_code);
-      }
-      setResendStatus(`New verification code sent to ${targetEmail}`);
-      setTimeout(() => setResendStatus(""), 6000);
-    } catch {
-      setExpectedCode("2468");
-      setResendStatus(`New verification code sent to ${targetEmail}`);
+      setResendStatus(`New verification code sent to ${targetEmail}. Please check your inbox.`);
+      setTimeout(() => setResendStatus(""), 8000);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Failed to resend code.";
+      setResendStatus(msg);
       setTimeout(() => setResendStatus(""), 7000);
     }
   };
@@ -1174,67 +1177,28 @@ function AuthPage({ onHome, onComplete }: { onHome: () => void; onComplete: (nam
           : educationLevel === "Professional" ? "professional"
             : "college";
 
-      let data: any;
-      try {
-        data = await apiPost("/api/auth/signup", {
-          name: signupName || "Student",
-          email: targetEmail,
-          password: signupPassword || "secret123",
-          learner_type: learnerType,
-          department: fieldOfStudy || undefined,
-          goals: [dailyGoal],
-          personal_interests: selectedInterests,
-          learning_style: appPreferences,
-          role: "student",
-        });
-      } catch (signupErr: any) {
-        // If account was already registered in database, log in directly
-        data = await apiPost("/api/auth/login", {
-          email: targetEmail,
-          password: signupPassword || "secret123",
-          portal: "student",
-        });
-      }
-
-      localStorage.setItem("aarva_token", data.access_token || data.token || `token_${Date.now()}`);
-      localStorage.setItem("aarva_user", JSON.stringify(data.user || {
-        id: Date.now(),
+      await apiPost("/api/auth/signup", {
         name: signupName || "Student",
         email: targetEmail,
-        role: "student",
+        password: signupPassword,
         learner_type: learnerType,
-        department: fieldOfStudy || "Computer Science",
-        institution: "College",
-        preferred_language: "English"
-      }));
-      localStorage.removeItem("aarva_active_book_id");
-      setSuccessName(data.user?.name || signupName || "Student");
-      setStage("success");
+        department: fieldOfStudy || undefined,
+        goals: dailyGoal ? [dailyGoal] : undefined,
+        personal_interests: selectedInterests,
+        learning_style: appPreferences,
+        role: "student",
+      });
+
+      // Clear any tokens - the user must explicitly sign in to create their session
+      localStorage.removeItem("aarva_token");
+      localStorage.removeItem("aarva_user");
+      setLoginEmail(targetEmail);
+      setLoginPassword("");
+      setForgotMsg("Account created and verified successfully! Please sign in with your password to continue.");
+      setLoginError("");
+      setStage("login");
     } catch (err: unknown) {
-      if (enteredCode === expectedCode || enteredCode === "2468") {
-        // Fallback demo signup completion with full authenticated session stored
-        const fallbackName = signupName || "Student";
-        const fallbackUser = {
-          id: Date.now(),
-          name: fallbackName,
-          email: targetEmail,
-          role: "student",
-          learner_type: educationLevel === "High school" ? "school" : educationLevel === "Professional" ? "professional" : "college",
-          department: fieldOfStudy || "Computer Science",
-          institution: "College",
-          goals: [dailyGoal],
-          personal_interests: selectedInterests,
-          learning_style: appPreferences,
-          preferred_language: "English"
-        };
-        localStorage.setItem("aarva_token", `demo_token_${Date.now()}`);
-        localStorage.setItem("aarva_user", JSON.stringify(fallbackUser));
-        localStorage.removeItem("aarva_active_book_id");
-        setSuccessName(fallbackName);
-        setStage("success");
-      } else {
-        setSignupError(err instanceof Error ? err.message : "Invalid code. Please try again.");
-      }
+      setSignupError(err instanceof Error ? err.message : "Invalid verification code. Please check your inbox or click resend.");
     } finally {
       setSignupLoading(false);
     }
@@ -1482,11 +1446,6 @@ function AuthPage({ onHome, onComplete }: { onHome: () => void; onComplete: (nam
               <h2>Let&apos;s create your account.</h2>
               <p className="auth-subtitle">Start with your basic details to set up your profile.</p>
               <form className="auth-form" id="signup-personal-form" onSubmit={submitPersonal}>
-                <div className="avatar-upload">
-                  <span>{signupName ? signupName[0].toUpperCase() : "Y"}</span>
-                  <div><b>Your profile photo</b><small>You can add or update one later</small></div>
-                  <button type="button">Upload</button>
-                </div>
                 <label>
                   Full name
                   <input
@@ -1606,6 +1565,7 @@ function AuthPage({ onHome, onComplete }: { onHome: () => void; onComplete: (nam
                 <label>
                   Daily study goal
                   <select value={dailyGoal} onChange={(e) => setDailyGoal(e.target.value)}>
+                    <option value="">Select study goal</option>
                     <option value="15 minutes">15 minutes</option>
                     <option value="30 minutes">30 minutes</option>
                     <option value="45 minutes">45 minutes</option>
