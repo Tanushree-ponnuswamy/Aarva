@@ -6314,33 +6314,32 @@ function Dashboard({ name, onHome }: { name: string; onHome: () => void }) {
         <header className="dashboard-top">
           <button className="mobile-sidebar-toggle" type="button" onClick={() => setCollapsed(!collapsed)} aria-label="Toggle sidebar"><MiniIcon name="menu" /></button>
           <div>
-            <p className="kicker">{t("myLearningSpace")}</p>
+            <p className="kicker">MY LEARNING SPACE</p>
             <h1>{getMenuLabel(active)}</h1>
           </div>
           <div className="top-actions">
-            <LanguageSelector variant="pill" />
-            <div className="points"><Icon name="spark" size={16} /><span><b>{books.length * 80}</b><small>{t("points")}</small></span></div>
+            <div className="points"><Icon name="spark" size={16} /><span><b>{books.length * 80}</b><small>pts</small></span></div>
             <button className="notification" type="button" aria-label="Notifications"><MiniIcon name="bell" /><i /></button>
-            <button className="profile-chip" type="button" onClick={() => setActive("Profile")}><span>{firstName[0]}</span><span><b>{firstName}</b><small>{t("curiousLearner")}</small></span></button>
+            <button className="profile-chip" type="button" onClick={() => setActive("Profile")}><span>{firstName[0]}</span><span><b>{firstName}</b><small>Student</small></span></button>
           </div>
         </header>
 
         {active === "Dashboard" && <section className="dashboard-content">
           <div className="welcome-card">
             <div>
-              <p>{t("welcomeBack")}, {firstName}</p>
-              <h2>{t("readyToTurn")}</h2>
-              <span>{t("quote")}</span>
-              <button type="button" onClick={() => setActive("Library")}>{t("exploreLibrary")} <Icon name="arrow" size={17} /></button>
+              <p>Welcome back, {firstName}</p>
+              <h2>Ready to turn curiosity into mastery?</h2>
+              <span>Every lesson moves you forward at your own pace.</span>
+              <button type="button" onClick={() => setActive("Library")}>Explore Library <Icon name="arrow" size={17} /></button>
             </div>
           </div>
-          <div className="metric-card accuracy"><span className="metric-icon"><MiniIcon name="test" /></span><div><small>{t("avgAccuracy")}</small><strong>87%</strong><p><b>+6%</b> this month</p></div><i><span /></i></div>
+          <div className="metric-card accuracy"><span className="metric-icon"><MiniIcon name="test" /></span><div><small>Avg Accuracy</small><strong>87%</strong><p><b>+6%</b> this month</p></div><i><span /></i></div>
           <div className="metric-card books">
             <span className="metric-icon"><MiniIcon name="book" /></span>
             <div>
-              <small>{t("booksUploaded")}</small>
+              <small>Books Uploaded</small>
               <strong>{booksLoading ? "…" : books.length}</strong>
-              <p>{books.length > 0 ? `${books.length} in your library` : t("uploadFirstBook")}</p>
+              <p>{books.length > 0 ? `${books.length} in your library` : "Upload your first book"}</p>
             </div>
             <div className="book-spines"><i /><i /><i /><i /></div>
           </div>
@@ -6348,8 +6347,8 @@ function Dashboard({ name, onHome }: { name: string; onHome: () => void }) {
           <article className="study-plan">
             <div className="card-title">
               <div>
-                <p className="kicker">{t("yourFocus")}</p>
-                <h3>{t("todaysStudyPlan")}</h3>
+                <p className="kicker">YOUR FOCUS</p>
+                <h3>Today's Study Plan</h3>
               </div>
               <button
                 type="button"
