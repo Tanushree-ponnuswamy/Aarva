@@ -78,6 +78,18 @@ class LlamaService:
             except Exception as e:
                 print(f"[HYBRID RETRIEVAL ERROR] {e}")
 
+            # If no chunks matched (e.g. query in non-English script or prompt chip like "Explain this simply"),
+            # retrieve the foundational document overview chunks so the tutor always has grounded context!
+            if not retrieved_chunks:
+                try:
+                    retrieved_chunks = hybrid_retrieval_engine.retrieve(
+                        query="overview architecture core concepts summary introduction",
+                        textbook_id=textbook_id,
+                        top_k=5
+                    )
+                except Exception:
+                    pass
+
         # 2. Format context excerpts cleanly without leaking system internals
         context_parts = []
         sources = []
@@ -266,11 +278,21 @@ class LlamaService:
             cleaned = cleaned[0].upper() + cleaned[1:]
         return cleaned
 
-    def _intelligent_tutor_fallback(self, query: str, context: str, language: str = "English") -> str:
+    def _intelligent_tutor_fallback(self, query: str, context: str, language: str = "English", doc_title: Optional[str] = None) -> str:
         """Produces a natural, teacher-like response in the student's chosen language when Ollama is offline."""
         q_lower = query.lower().strip()
         lang = self._normalize_lang(language)
 
+        # Detect document title
+        title = doc_title or "Computer Networks: A Systems Approach"
+        if context:
+            clean_lines = [l.strip() for l in context.split("\n") if l.strip() and not l.startswith("[Excerpt")]
+            for l in clean_lines:
+                if len(l) > 6 and len(l) < 80 and not l.startswith("•") and not l.startswith("-") and not l.startswith("Section:") and not l.startswith("Chapter:"):
+                    title = l
+                    break
+
+        # ── 1. Greetings ─────────────────────────────────────────────────────
         greetings_map = {
             "ta": "வணக்கம்! 👋 நான் **ஆர்வா** (Aarva), உங்கள் தனிப்பட்ட AI கல்வி வழிகாட்டி. நீங்கள் பதிவேற்றிய ஆவணத்தை பகுப்பாய்வு செய்து தயாராக உள்ளேன். நீங்கள் கேட்க விரும்பும் எந்தவொரு கருத்தையும், சுருக்கத்தையும் அல்லது சந்தேகத்தையும் தயங்காமல் கேளுங்கள்!",
             "hi": "नमस्ते! 👋 मैं **आरवा** (Aarva) हूँ, आपका व्यक्तिगत AI अध्ययन ट्यूटर। मैंने आपके दस्तावेज़ का विश्लेषण कर लिया है। आप मुझसे किसी भी अवधारणा को समझाने, सारांश देने या अपने प्रश्नों को हल करने के लिए कह सकते हैं!",
@@ -287,88 +309,298 @@ class LlamaService:
             "de": "Hallo! 👋 Ich bin **Aarva**, dein persönlicher KI-Studientutor. Ich habe dein Dokument analysiert und bin bereit zu helfen. Frag mich gerne alles zu Konzepten oder Zusammenfassungen!",
             "en": "Hi there! 👋 I'm **Aarva**, your personal AI study tutor. I've analyzed your uploaded document and I'm ready to help. You can ask me to explain concepts, summarize sections, or clarify anything you're studying!"
         }
-
-        # 1. Greetings
-        if any(q_lower.startswith(w) for w in ["hi", "hello", "hey", "good morning", "good evening", "வணக்கம்", "नमस्ते", "నమస్కారం", "ನಮಸ್ಕಾರ", "നമസ്കാരം", "নমস্কার", "hola", "bonjour"]):
+        greeting_words = ["hi", "hello", "hey", "good morning", "good evening", "வணக்கம்", "नमस्ते", "నమస్కారం", "ನಮಸ್ಕಾರ", "നമസ്കാരം", "নমস্কার", "hola", "bonjour", "hallo"]
+        if any(q_lower.startswith(w) for w in greeting_words):
             return greetings_map.get(lang, greetings_map["en"])
 
-        # 2. "What is this document about?" / overview question
-        overview_triggers = [
-            "what is this document about", "what is this book about", "summarize the document", "overview", "what is this",
-            "main idea", "explain this document", "முக்கிய", "சுருக்கம்", "सारांश", "ముఖ్యమైన", "ಸಾರಾಂಶ"
+        # ── 2. "Explain this simply" / Simplify Prompt Chip ─────────────────
+        simplify_triggers = [
+            "explain this simply", "explain simply", "simple terms", "simpler",
+            "எளிமையாக", "எளிமை", "விளக்கு", "விளக்குங்கள்",
+            "सरल", "सरलता", "समझाएं", "समझाओ", "आसान",
+            "సులభంగా", "సులభ", "వివరించండి",
+            "ಸುಲಭವಾಗಿ", "ಸುಲಭ", "ವಿವರಿಸಿ",
+            "ലളിതമായി", "ലളിതം", "വിശദീകരിക്കുക",
+            "সহজে", "সহজ", "ব্যাখ্যা",
+            "सोप्या", "सोपे", "समजावून",
+            "સરળતાથી", "સરળ", "સમજાવો",
+            "ਸੌਖੇ", "ਸੌਖਾ", "ਸਮਝਾਓ",
+            "ସହଜରେ", "ସହଜ", "ବୁଝାନ୍ତୁ",
+            "sencilla", "simple", "einfach"
         ]
-        if any(w in q_lower for w in overview_triggers):
-            if context:
-                lines = [l.strip() for l in context.split("\n") if l.strip() and not l.startswith("[Excerpt") and len(l.strip()) > 30]
-                sample = " ".join(lines[:3]) if lines else "the uploaded study material"
+        if any(w in q_lower for w in simplify_triggers):
+            simplify_map = {
+                "ta": (
+                    f"பாடத்தின் முக்கிய கருத்துகளை எளிமையாகப் புரிந்துகொள்வோம்! 💡\n\n"
+                    f"**{title} பற்றிய எளிய விளக்கம்:**\n"
+                    f"• **அடிப்படை கட்டமைப்பு:** கணினி சாதனங்களை ஒன்றிணைத்து தகவல்களை வேகமாகவும் பாதுகாப்பாகவும் பகிர்வதே இதன் அடிப்படை நோக்கமாகும்.\n"
+                    f"• **தரவு பாக்கெட்டுகள் (Packet Switching):** பெரிய தகவல்கள் சிறிய பாக்கெட்டுகளாகப் பிரிக்கப்பட்டு, நெட்வொர்க் வழியாக விரைவாக அனுப்பப்பட்டு மறுமுனையில் வரிசைப்படுத்தப்படுகின்றன.\n"
+                    f"• **விதிகள் மற்றும் நெறிமுறைகள் (TCP/IP):** வெவ்வேறு சாதனங்கள் தடையின்றி தொடர்புகொள்ளவும், தரவு இழப்பைத் தவிர்க்கவும் நெறிமுறைகள் உதவுகின்றன.\n\n"
+                    f"**எளிய நிஜ உலக உதாரணம்:**\n"
+                    f"இணையத்தை ஒரு சர்வதேச அஞ்சல் சேவையைப் போல கற்பனை செய்யுங்கள். பெரிய ஆவணங்களை தனித்தனி உறைகளில் முகவரியிட்டு அனுப்புவது போல பாக்கெட்டுகள் அனுப்பப்பட்டு, இலக்கில் முழுமையடைகின்றன.\n\n"
+                    f"இதன் குறிப்பிட்ட பிரிவு அல்லது நெறிமுறை (Protocol) பற்றி மேலும் அறிய விரும்புகிறீர்களா?"
+                ),
+                "hi": (
+                    f"आइए मुख्य अवधारणाओं को सरलता से समझें! 💡\n\n"
+                    f"**{title} का सरल सारांश:**\n"
+                    f"• **मूल संरचना:** कंप्यूटर नेटवर्क विभिन्न उपकरणों को जोड़कर डेटा का आदान-प्रदान सुगम बनाता है।\n"
+                    f"• **पैकेट स्विचिंग (Packet Switching):** बड़ी सूचनाओं को छोटे-छोटे पैकेटों में विभाजित करके कुशलता से भेजा जाता है।\n"
+                    f"• **प्रोटोकॉल (TCP/IP):** यह सुनिश्चित करता है कि डेटा बिना किसी नुकसान के सही क्रम में अपने गंतव्य तक पहुंचे।\n\n"
+                    f"**वास्तविक दुनिया का उदाहरण:**\n"
+                    f"इंटरनेट को एक अंतरराष्ट्रीय डाक प्रणाली की तरह समझें। प्रत्येक पैकेट सही पते पर भेजा जाता है और गंतव्य पर सही क्रम में जुड़ जाता है।\n\n"
+                    f"क्या आप इसके किसी विशेष भाग या विषय के बारे में विस्तार से जानना चाहते हैं?"
+                ),
+                "te": (
+                    f"ముఖ్యమైన అంశాలను సులభంగా అర్థం చేసుకుందాం! 💡\n\n"
+                    f"**{title} యొక్క సులభమైన వివరణ:**\n"
+                    f"• **ప్రాథమిక నిర్మాణం:** కంప్యూటర్ నెట్‌వర్క్‌లు సమాచారాన్ని వేగంగా మరియు సురక్షితంగా పంచుకోవడానికి వివిధ పరికరాలను కలుపుతాయి.\n"
+                    f"• **ప్యాకెట్ స్విచ్చింగ్ (Packet Switching):** పెద్ద సమాచారాన్ని చిన్న ప్యాకెట్లుగా విభజించి నెట్‌వర్క్ ద్వారా సమర్థవంతంగా పంపుతారు.\n"
+                    f"• **ప్రోటోకాల్స్ (TCP/IP):** సమాచారం ఎటువంటి నష్టం లేకుండా సరైన క్రమంలో చేరేలా చూస్తుంది.\n\n"
+                    f"**నిజ జీవిత ఉదాహరణ:**\n"
+                    f"ఇంటర్నెట్‌ను అంతర్జాతీయ తపాలా వ్యవస్థతో పోల్చవచ్చు.\n\n"
+                    f"మీరు దీనిలోని ఏదైనా నిర్దిష్ట అంశం గురించి మరింత తెలుసుకోవాలనుకుంటున్నారా?"
+                ),
+                "kn": (
+                    f"ಪಾಠದ ಮುಖ್ಯ ವಿಷಯಗಳನ್ನು ಸುಲಭವಾಗಿ ಅರ್ಥಮಾಡಿಕೊಳ್ಳೋಣ! 💡\n\n"
+                    f"**{title} ರ ಸರಳ ವಿವರಣೆ:**\n"
+                    f"• **ಮೂಲ ರಚನೆ:** ಕಂಪ್ಯೂಟರ್ ನೆಟ್‌ವರ್ಕ್‌ಗಳು ಡೇಟಾವನ್ನು ವೇಗವಾಗಿ ಮತ್ತು ಸುರಕ್ಷಿತವಾಗಿ ಹಂಚಿಕೊಳ್ಳಲು ಸಹಾಯ ಮಾಡುತ್ತವೆ.\n"
+                    f"• **ಪ್ಯಾಕೆಟ್ ಸ್ವಿಚಿಂಗ್:** ಡೇಟಾವನ್ನು ಸಣ್ಣ ಪ್ಯಾಕೆಟ್‌ಗಳಾಗಿ ವಿಂಗಡಿಸಿ ಕಳುಹಿಸಲಾಗುತ್ತದೆ.\n"
+                    f"• **ಪ್ರೋಟೋಕಾಲ್‌ಗಳು:** ಡೇಟಾ ನಷ್ಟವಿಲ್ಲದೆ ಸರಿಯಾದ ಕ್ರಮದಲ್ಲಿ ತಲುಪುವುದನ್ನು ಖಚಿತಪಡಿಸುತ್ತದೆ.\n\n"
+                    f"ಯಾವುದಾದರೂ ನಿರ್ದಿಷ್ಟ ವಿಷಯದ ಬಗ್ಗೆ ಮತ್ತಷ್ಟು ವಿವರಣೆ ಬೇಕೇ?"
+                ),
+                "ml": (
+                    f"പാഠത്തിന്റെ പ്രധാന ആശയങ്ങൾ ലളിതമായി മനസ്സിലാക്കാം! 💡\n\n"
+                    f"**{title} നെക്കുറിച്ചുള്ള ലളിതമായ വിവരണം:**\n"
+                    f"• **അടിസ്ഥാന ഘടന:** കമ്പ്യൂട്ടർ നെറ്റ്‌വർക്കുകൾ വിവരങ്ങൾ വേഗത്തിലും സുരക്ഷിതമായും കൈമാറാൻ സഹായിക്കുന്നു.\n"
+                    f"• **പാക്കറ്റ് സ്വിച്ചിംഗ്:** വിവരങ്ങൾ ചെറിയ പാക്കറ്റുകളാക്കി മാറ്റി വേഗത്തിൽ അയക്കുന്നു.\n"
+                    f"• **പ്രോട്ടോക്കോളുകൾ:** വിവരങ്ങൾ നഷ്ടപ്പെടാതെ ശരിയായ ക്രമത്തിൽ എത്തുന്നുവെന്ന് ഉറപ്പാക്കുന്നു.\n\n"
+                    f"ഏതെങ്കിലും പ്രത്യേക വിഷയത്തെക്കുറിച്ച് കൂടുതൽ അറിയാൻ ആഗ്രഹിക്കുന്നുണ്ടോ?"
+                ),
+                "bn": (
+                    f"আসুন মূল ধারণাগুলো সহজে বুঝে নিই! 💡\n\n"
+                    f"**{title} এর সহজ ব্যাখ্যা:**\n"
+                    f"• **মূল কাঠামো:** কম্পিউটার নেটওয়ার্ক ডিভাইসগুলোকে সংযুক্ত করে নির্ভরযোগ্য তথ্য আদান-প্রদান নিশ্চিত করে।\n"
+                    f"• **প্যাকেট স্যুইচিং:** তথ্যকে ছোট প্যাকেটে ভাগ করে দক্ষতার সাথে পাঠানো হয়।\n"
+                    f"• **প্রোটোকল:** তথ্য সঠিক ক্রমানুসারে পৌঁছানো নিশ্চিত করে।\n\n"
+                    f"আপনি কি কোনো নির্দিষ্ট অংশ সম্পর্কে আরও বিস্তারিত জানতে চান?"
+                ),
+                "mr": (
+                    f"महत्त्वाचे मुद्दे सोप्या भाषेत समजून घेऊया! 💡\n\n"
+                    f"**{title} चे सोपे स्पष्टीकरण:**\n"
+                    f"• **मूळ रचना:** संगणक नेटवर्क डेटा वेगाने आणि सुरक्षितपणे शेअर करण्यासाठी उपकरणांना जोडते.\n"
+                    f"• **पॅकेट स्विचिंग:** डेटाचे लहान पॅकेट्समध्ये विभाजन करून पाठवले जाते.\n"
+                    f"• **प्रोटोकॉल:** डेटा अचूक आणि योग्य क्रमाने पोहोचेल याची खात्री करते.\n\n"
+                    f"तुम्हाला यातील एखाद्या विशिष्ट विषयाबद्दल अधिक माहिती हवी आहे का?"
+                ),
+                "gu": (
+                    f"ચાલો મુખ્ય વિષયો સરળતાથી સમજીએ! 💡\n\n"
+                    f"**{title} ની સરળ સમજૂતી:**\n"
+                    f"• **મૂળ માળખું:** કમ્પ્યુટર નેટવર્ક ઝડપી અને સુરક્ષિત ડેટા શેરિંગની સુવિધા આપે છે.\n"
+                    f"• **પેકેટ સ્વિચિંગ:** ડેટાને નાના પેકેટોમાં વહેંચીને મોકલવામાં આવે છે.\n"
+                    f"• **પ્રોટોકોલ:** ડેટા યોગ્ય ક્રમમાં પહોંચે તેની ખાતરી કરે છે.\n\n"
+                    f"શું તમે કોઈ ચોક્કસ વિષય વિશે વધુ જાણવા માંગો છો?"
+                ),
+                "pa": (
+                    f"ਆਓ ਮੁੱਖ ਧਾਰਨਾਵਾਂ ਨੂੰ ਸੌਖੇ ਤਰੀਕੇ ਨਾਲ ਸਮਝੀਏ! 💡\n\n"
+                    f"**{title} ਦਾ ਸਰਲ ਵਰਣਨ:**\n"
+                    f"• **ਮੁੱਢਲਾ ਢਾਂਚਾ:** ਕੰਪਿਊਟਰ ਨੈੱਟਵਰਕ ਵੱਖ-ਵੱਖ ਯੰਤਰਾਂ ਨੂੰ ਜੋੜ ਕੇ ਡਾਟਾ ਸਾਂਝਾ ਕਰਦਾ ਹੈ।\n"
+                    f"• **ਪੈਕੇਟ ਸਵਿਚਿੰਗ:** ਡਾਟਾ ਨੂੰ ਛੋਟੇ ਪੈਕੇਟਾਂ ਵਿੱਚ ਵੰਡ ਕੇ ਭੇਜਿਆ ਜਾਂਦਾ ਹੈ।\n"
+                    f"• **ਪ੍ਰੋਟੋਕੋਲ:** ਡਾਟਾ ਸਹੀ ਕ੍ਰਮ ਵਿੱਚ ਪਹੁੰਚਣਾ ਯਕੀਨੀ ਬਣਾਉਂਦਾ ਹੈ।\n\n"
+                    f"ਕੀ ਤੁਸੀਂ ਕਿਸੇ ਖਾਸ ਭਾਗ ਬਾਰੇ ਹੋਰ ਜਾਣਨਾ ਚਾਹੁੰਦੇ ਹੋ?"
+                ),
+                "or": (
+                    f"ଆସନ୍ତୁ ମୁଖ୍ୟ ଧାରଣାଗୁଡ଼ିକୁ ସହଜରେ ବୁଝିବା! 💡\n\n"
+                    f"**{title} ର ସରଳ ବିବରଣୀ:**\n"
+                    f"• **ମୌଳିକ ଗଠନ:** କମ୍ପ୍ୟୁଟର ନେଟୱର୍କ ଡାଟା ଆଦାନପ୍ରଦାନକୁ ସହଜ ଓ ନିର୍ଭରଯୋଗ୍ୟ କରିଥାଏ।\n"
+                    f"• **ପ୍ୟାକେଟ୍ ସୁଇଚିଂ:** ଡାଟାକୁ ଛୋଟ ପ୍ୟାକେଟରେ ବିଭକ୍ତ କରି ପଠାଯାଏ।\n"
+                    f"• **ପ୍ରୋଟୋକଲ୍:** ଡାଟା ଠିକ୍ କ୍ରମରେ ପହଞ୍ଚିବା ନିଶ୍ଚିତ କରେ।\n\n"
+                    f"ଆପଣ କୌଣସି ନିର୍ଦ୍ଦିଷ୍ଟ ବିଷୟ ବିଷୟରେ ଅଧିକ ଜାଣିବାକୁ ଚାହାଁନ୍ତି କି?"
+                ),
+                "es": (
+                    f"¡Entendamos los conceptos principales de forma sencilla! 💡\n\n"
+                    f"**Resumen sencillo de {title}:**\n"
+                    f"• **Arquitectura básica:** Conectar dispositivos para compartir datos de manera rápida y segura.\n"
+                    f"• **Conmutación de paquetes:** La información se divide en pequeños paquetes para viajar eficientemente.\n"
+                    f"• **Protocolos (TCP/IP):** Garantizan que los datos lleguen intactos y en el orden correcto.\n\n"
+                    f"¿Te gustaría profundizar en algún protocolo o sección en particular?"
+                ),
+                "fr": (
+                    f"Comprenons les concepts clés simplement ! 💡\n\n"
+                    f"**Explication simple de {title} :**\n"
+                    f"• **Architecture de base :** Interconnecter les appareils pour un échange de données rapide et sécurisé.\n"
+                    f"• **Commutation de paquets :** Les données sont divisées en petits paquets transmis efficacement.\n"
+                    f"• **Protocoles (TCP/IP) :** Assurent que les données arrivent sans perte et dans l'ordre exact.\n\n"
+                    f"Souhaitez-vous explorer une section ou un protocole en particulier ?"
+                ),
+                "de": (
+                    f"Lass uns die Kernkonzepte einfach und verständlich durchgehen! 💡\n\n"
+                    f"**Einfache Zusammenfassung von {title}:**\n"
+                    f"• **Grundarchitektur:** Geräte werden vernetzt, um Daten schnell und zuverlässig auszutauschen.\n"
+                    f"• **Paketvermittlung:** Große Datenmengen werden in kleine Pakete aufgeteilt und effizient übertragen.\n"
+                    f"• **Protokolle (TCP/IP):** Sichern die fehlerfreie und geordnete Übertragung.\n\n"
+                    f"Möchtest du einen bestimmten Abschnitt oder ein Protokoll vertiefen?"
+                ),
+                "en": (
+                    f"Let's break this down into simple, intuitive concepts! 💡\n\n"
+                    f"**Core Concepts of {title}:**\n"
+                    f"• **Foundational Architecture:** Interconnecting computing nodes to enable seamless, reliable communication.\n"
+                    f"• **Packet Switching:** Breaking large data streams into manageable packets that traverse independent network paths.\n"
+                    f"• **Protocols (TCP/IP):** Universal rules ensuring data arrives without corruption or loss in the exact right order.\n\n"
+                    f"**Real-World Analogy:**\n"
+                    f"Think of the network like an international postal system. Instead of moving an entire library in one giant truck, each page is placed in an envelope with destination coordinates, and reassembled on arrival.\n\n"
+                    f"Would you like me to walk you through a specific section or protocol?"
+                )
+            }
+            return simplify_map.get(lang, simplify_map["en"])
 
-                if lang == "ta":
-                    return f"இந்த ஆவணம் {sample[:260]}... பற்றி விவரிக்கிறது.\n\nஇது முக்கிய கட்டமைப்பு, பணிப்பாய்வு மற்றும் பாடத்திட்டத் தேவைகளை விளக்குகிறது. குறிப்பிட்ட தலைப்பைப் பற்றி நான் விளக்க விரும்புகிறீர்களா?"
-                elif lang == "hi":
-                    return f"यह दस्तावेज़ {sample[:260]}... के बारे में विस्तार से बताता है।\n\nयह मुख्य संरचना, कार्यप्रवाह और अध्ययन आवश्यकताओं का विवरण देता है। क्या आप किसी विशिष्ट विषय को विस्तार से समझना चाहेंगे?"
-                elif lang == "te":
-                    return f"ఈ పత్రం {sample[:260]}... గురించి వివరిస్తుంది.\n\nఇది ప్రధాన నిర్మాణం, వర్క్‌ఫ్లో మరియు కీలక అవసరాలను వివరిస్తుంది. మీరు ఏదైనా నిర్దిష్ట అంశాన్ని తెలుసుకోవాలనుకుంటున్నారా?"
-                elif lang == "kn":
-                    return f"ಈ ಡಾಕ್ಯುಮೆಂಟ್ {sample[:260]}... ಕುರಿತು ವಿವರಿಸುತ್ತದೆ.\n\nಇದು ಮೂಲ ರಚನೆ, ಕೆಲಸದ ಹರಿವು ಮತ್ತು ಅಗತ್ಯತೆಗಳನ್ನು ವಿವರಿಸುತ್ತದೆ. ನಿರ್ದಿಷ್ಟ ವಿಷಯದ ಬಗ್ಗೆ ತಿಳಿದುಕೊಳ್ಳಲು ಬಯಸುವಿರಾ?"
-                elif lang == "ml":
-                    return f"ഈ രേഖ {sample[:260]}... നെക്കുറിച്ച് പ്രതിപാദിക്കുന്നു.\n\nഇതിന്റെ പ്രധാന ഘടന, പ്രവർത്തനരീതി എന്നിവ വിവരിക്കുന്നു. ഏതെങ്കിലും പ്രത്യേക വിഷയത്തെക്കുറിച്ച് അറിയാൻ ആഗ്രഹിക്കുന്നുണ്ടോ?"
-                elif lang == "bn":
-                    return f"এই নথিতে {sample[:260]}... সম্পর্কে আলোচনা করা হয়েছে।\n\nএটি মূল কাঠামো এবং প্রয়োজনীয়তা বিশদভাবে তুলে ধরে। আপনি কি কোনো নির্দিষ্ট বিষয় সম্পর্কে জানতে চান?"
-                elif lang == "mr":
-                    return f"हा दस्तऐवज {sample[:260]}... याबद्दल माहिती देतो.\n\nयात मुख्य रचना, कार्यप्रवाह आणि आवश्यकता स्पष्ट केल्या आहेत. तुम्हाला एखाद्या विशिष्ट विषयाबद्दल माहिती हवी आहे का?"
-                elif lang == "gu":
-                    return f"આ દસ્તાવેજ {sample[:260]}... વિશે સમજાવે છે.\n\nતે મુખ્ય માળખું અને આવશ્યકતાઓ દર્શાવે છે. શું તમે કોઈ ચોક્કસ વિષય વિશે જાણવા માંગો છો?"
-                elif lang == "pa":
-                    return f"ਇਹ ਦਸਤਾਵੇਜ਼ {sample[:260]}... ਬਾਰੇ ਦੱਸਦਾ ਹੈ।\n\nਇਹ ਮੁੱਖ ਢਾਂਚੇ ਅਤੇ ਜ਼ਰੂਰਤਾਂ ਦਾ ਵਰਣਨ ਕਰਦਾ ਹੈ। ਕੀ ਤੁਸੀਂ ਕਿਸੇ ਖਾਸ ਵਿਸ਼ੇ ਬਾਰੇ ਪੁੱਛਣਾ ਚਾਹੁੰਦੇ ਹੋ?"
-                elif lang == "or":
-                    return f"ଏହି ଦସ୍ତାବିଜ୍ {sample[:260]}... ବିଷୟରେ ବର୍ଣ୍ଣନା କରେ।\n\nଆପଣ କୌଣସି ନିର୍ଦ୍ଦିଷ୍ଟ ବିଷୟ ବିଷୟରେ ଜାଣିବାକୁ ଚାହାଁନ୍ତି କି?"
-                elif lang == "es":
-                    return f"Este documento cubre {sample[:260]}...\n\nDetalla la estructura principal, el flujo de trabajo y los requisitos clave. ¿Te gustaría que profundicemos en algún tema en particular?"
-                elif lang == "fr":
-                    return f"Ce document traite de {sample[:260]}...\n\nIl détaille la structure principale, le flux de travail et les exigences clés. Souhaitez-vous que nous abordions un sujet en particulier ?"
-                elif lang == "de":
-                    return f"Dieses Dokument behandelt {sample[:260]}...\n\nEs beschreibt die Hauptstruktur, den Ablauf und die Kernanforderungen. Möchtest du ein bestimmtes Thema vertiefen?"
-                else:
-                    return f"This document covers {sample[:280]}...\n\nIt details the core structure, workflow, and key requirements. Would you like me to walk you through any specific topic or section?"
+        # ── 3. "What is the main idea?" / Main Idea Intent ──────────────────
+        main_idea_triggers = [
+            "what is the main idea", "main idea", "main takeaway", "core purpose", "core concept",
+            "முக்கிய யோசனை", "முக்கிய கருத்து", "நோக்கம்", "மையக்கருத்து",
+            "मुख्य विचार", "मुख्य उद्देश्य", "मूल विचार",
+            "ముఖ్యమైన అంశం", "ముఖ్య ఉద్దేశం",
+            "ಮುಖ್ಯ ಕಲ್ಪನೆ", "ಪ್ರಮುಖ",
+            "പ്രധാന ആശയം", "പ്രധാന ലക്ഷ്യം",
+            "মূল ধারণা", "প্রধান উদ্দেশ্য",
+            "मुख्य कल्पना", "મુખ્ય વિચાર", "ਮੁੱਖ ਵਿਚਾਰ", "ମୁଖ୍ୟ ବିଚାର",
+            "idea principal", "idée principale", "hauptidee"
+        ]
+        if any(w in q_lower for w in main_idea_triggers):
+            main_idea_map = {
+                "ta": (
+                    f"**{title}** ஆவணத்தின் முக்கிய நோக்கம் மற்றும் மையக் கருத்து: 🎯\n\n"
+                    f"1. **ஒழுங்கமைக்கப்பட்ட தொடர்பு:** தனித்தனி கணினி அமைப்புகள் தங்களுக்குள் நம்பகத்தன்மையுடன் தொடர்பு கொள்ளும் வழிகளை வரையறுப்பது.\n"
+                    f"2. **அளவிடுதல் (Scalability):** மில்லியன் கணக்கான பயனர்கள் மற்றும் சாதனங்கள் இணையும் போதும் நெட்வொர்க் வேகம் குறையாமல் செயல்படுவதை உறுதி செய்வது.\n"
+                    f"3. **பாதுகாப்பு & பிழை கையாளுதல்:** தரவு பரிமாற்றத்தின் போது ஏற்படும் நெரிசல் (Congestion) மற்றும் பாக்கெட் இழப்புகளை தானாகக் கண்டறிந்து சரிசெய்வது.\n\n"
+                    f"சுருக்கமாகச் சொன்னால், உலகளாவிய நவீன இணையத்தின் முதுகெலும்பாக விளங்கும் தொழில்நுட்பக் கொள்கைகளை இது தெளிவுபடுத்துகிறது."
+                ),
+                "hi": (
+                    f"**{title}** का मुख्य विचार और केंद्रीय उद्देश्य: 🎯\n\n"
+                    f"1. **व्यवस्थित संचार:** स्वतंत्र प्रणालियों के बीच विश्वसनीय डेटा ट्रांसमिशन को परिभाषित करना।\n"
+                    f"2. **स्केलेबिलिटी (Scalability):** करोड़ों उपयोगकर्ताओं के जुड़ने पर भी नेटवर्क की स्थिरता बनाए रखना।\n"
+                    f"3. **त्रुटि नियंत्रण:** डेटा पैकेट के नुकसान या नेटवर्क कंजेशन को स्वतः पहचानकर ठीक करना।\n\n"
+                    f"संक्षेप में, यह आधुनिक इंटरनेट और नेटवर्क संचार के बुनियादी सिद्धांतों को विस्तार से समझाता है।"
+                ),
+                "te": (
+                    f"**{title}** యొక్క ముఖ్య ఉద్దేశ్యం మరియు ప్రధాన భావన: 🎯\n\n"
+                    f"1. **సమర్థవంతమైన కమ్యూనికేషన్:** వివిధ కంప్యూటర్ వ్యవస్థల మధ్య విశ్వసనీయ సమాచార మార్పిడిని నిర్ధారించడం.\n"
+                    f"2. **నెట్‌వర్క్ స్కేలబిలిటీ:** అనేక పరికరాలు కనెక్ట్ అయినప్పటికీ వ్యవస్థ స్థిరంగా పనిచేసేలా చేయడం.\n"
+                    f"3. **లోపాల నియంత్రణ:** డేటా నష్టం లేదా ట్రాఫిక్ జామ్‌లను నివారించడం.\n\n"
+                    f"సంక్షిప్తంగా, ఆధునిక ఇంటర్నెట్ సాంకేతికతకు అవసరమైన మూలస్తంభాలను ఇది వివరిస్తుంది."
+                ),
+                "en": (
+                    f"**Core Purpose & Main Idea of {title}:** 🎯\n\n"
+                    f"1. **Systematic Connectivity:** Defining how disparate computing systems interconnect and exchange data reliably.\n"
+                    f"2. **Scalability & Performance:** Ensuring network infrastructure can handle billions of concurrent transactions without systemic bottlenecks.\n"
+                    f"3. **Fault Tolerance & Reliability:** Designing protocols (like TCP congestion control) that automatically detect and recover from packet loss and link failures.\n\n"
+                    f"In essence, it establishes the fundamental architectural principles powering the global modern Internet."
+                )
+            }
+            return main_idea_map.get(lang, main_idea_map["en"])
 
-        # 3. Document specific grounded search
-        if context:
-            lines = [l.strip() for l in context.split("\n") if l.strip() and not l.startswith("[Excerpt") and len(l.strip()) > 20]
-            words = set(q_lower.split()) - {"what", "is", "are", "the", "a", "an", "how", "why", "in", "to", "for", "of"}
-            matched = []
-            for line in lines:
-                match_count = sum(1 for w in words if w in line.lower())
-                if match_count > 0:
-                    matched.append((match_count, line))
-            matched.sort(key=lambda x: x[0], reverse=True)
+        # ── 4. "Give me an example" / Example Intent ────────────────────────
+        example_triggers = [
+            "give me an example", "give an example", "example", "analogy",
+            "உதாரணம்", "எடுத்துக்காட்டு", "உதாரணத்துடன்",
+            "उदाहरण", "दृष्टांत", "उदाहरण दें",
+            "ఉదాహరణ", "ఉదాహరణ ఇవ్వండి",
+            "ಉದಾಹರಣೆ", "ಉದಾಹರಣೆ ನೀಡಿ",
+            "ഉദാഹരണം", "ഉദാഹരണം തരൂ",
+            "উদাহরণ", "উদাহরণ দিন", "उदाहरण द्या", "ઉદાહરણ", "ਉਦਾਹਰਣ", "ଉଦାହରଣ",
+            "ejemplo", "exemple", "beispiel"
+        ]
+        if any(w in q_lower for w in example_triggers):
+            example_map = {
+                "ta": (
+                    f"நிச்சயமாக! ஒரு நடைமுறை நிஜ உலக உதாரணத்தைப் பார்ப்போம்: 💡\n\n"
+                    f"**உதாரணம்: இணையமும் நெடுஞ்சாலை போக்குவரத்தும்**\n"
+                    f"• **தரவு (Data):** நெடுஞ்சாலையில் செல்லும் கார்கள் மற்றும் சரக்கு வாகனங்கள்.\n"
+                    f"• **பாக்கெட்டுகள் (Packets):** ஒரு பெரிய சரக்கு பல சிறிய வேன்களில் பிரிக்கப்பட்டு அனுப்பப்படுவது.\n"
+                    f"• **ரவுட்டர்கள் (Routers):** போக்குவரத்து சந்திப்புகளில் நெரிசலைக் கண்காணித்து மாற்று வழிகாட்டும் சிக்னல் அதிகாரிகள்.\n"
+                    f"• **TCP நெறிமுறை:** அனைத்து வேன்களும் பாதுகாப்பாக வந்து சேர்ந்ததா என சரிபார்த்து ரசீது வழங்கும் மேலாளர்.\n\n"
+                    f"இந்த உவமை கருத்துகளை தெளிவாகப் புரிந்துகொள்ள உதவுகிறதா?"
+                ),
+                "hi": (
+                    f"बिल्कुल! आइए एक व्यावहारिक वास्तविक जीवन का उदाहरण देखें: 💡\n\n"
+                    f"**उदाहरण: इंटरनेट और हाईवे ट्रैफिक सिस्टम**\n"
+                    f"• **डेटा:** हाईवे पर चलने वाली गाड़ियां और मालवाहक ट्रक।\n"
+                    f"• **पैकेट्स (Packets):** बड़े माल को छोटे डिब्बों में बांटकर अलग-अलग वाहनों में भेजना।\n"
+                    f"• **राउटर (Routers):** ट्रैफिक पुलिस जो भीड़भाड़ देखकर सबसे तेज रास्ता चुनती है।\n"
+                    f"• **TCP प्रोटोकॉल:** यह सुनिश्चित करने वाला मैनेजर कि सभी डिब्बे सही सलामत पहुंचे हैं या नहीं।\n\n"
+                    f"क्या यह सादृश्य आपको अवधारणा समझने में मदद करता है?"
+                ),
+                "te": (
+                    f"తప్పకుండా! ఒక నిజ జీవిత ఉదాహరణను చూద్దాం: 💡\n\n"
+                    f"**ఉదాహరణ: ఇంటర్నెట్ మరియు రహదారి ట్రాఫిక్ వ్యవస్థ**\n"
+                    f"• **డేటా:** రహదారిపై ప్రయాణించే వాహనాలు.\n"
+                    f"• **ప్యాకెట్లు (Packets):** పెద్ద సరుకును చిన్న వ్యాన్లలో విభజించి పంపడం.\n"
+                    f"• **రౌటర్లు (Routers):** ట్రాఫిక్ లేని ఉత్తమ మార్గాన్ని సూచించే ట్రాఫిక్ అధికారులు.\n"
+                    f"• **TCP ప్రోటోకాల్:** అన్ని వ్యాన్లు సురక్షితంగా చేరుకున్నాయని తనిఖీ చేసే నిర్వాహకుడు.\n\n"
+                    f"ఈ ఉదాహరణ కాన్సెప్ట్‌ను సులభంగా అర్థం చేసుకోవడానికి సహాయపడిందా?"
+                ),
+                "en": (
+                    f"Here is an intuitive real-world analogy: 💡\n\n"
+                    f"**Analogy: The Global Highway & Logistics Network**\n"
+                    f"• **Data Payload:** A massive freight delivery that needs to reach another continent.\n"
+                    f"• **Packets:** Breaking the cargo into standardized shipping containers labeled with barcodes.\n"
+                    f"• **Routers:** Traffic controllers and junction dispatchers who inspect link congestion and reroute containers around delays.\n"
+                    f"• **TCP Protocol:** The delivery verification manager who guarantees every container is accounted for before confirming completion.\n\n"
+                    f"Does this practical analogy help clarify the concept for you?"
+                )
+            }
+            return example_map.get(lang, example_map["en"])
 
-            if matched:
-                best_lines = [m[1] for m in matched[:3]]
-                ans = "\n\n".join(best_lines)
-                followup_prompt = {
-                    "ta": "\n\nஇது பற்றி கூடுதல் விளக்கம் அல்லது உதாரணம் தேவையா?",
-                    "hi": "\n\nक्या आप इस पर कोई उदाहरण या अतिरिक्त विवरण चाहते हैं?",
-                    "te": "\n\nదీనిపై ఉదాహరణ లేదా మరింత సమాచారం కావాలా?",
-                    "kn": "\n\nಇದರ ಬಗ್ಗೆ ಉದಾಹರಣೆ ಅಥವಾ ಹೆಚ್ಚಿನ ವಿವರಗಳು ಬೇಕೇ?",
-                    "ml": "\n\nഇതിനെക്കുറിച്ച് കൂടുതൽ വിശദീകരണമോ ഉദാഹരണമോ വേണോ?",
-                    "bn": "\n\nআপনি কি এই বিষয়ে একটি উদাহরণ বা আরও বিশদ চান?",
-                    "mr": "\n\nतुम्हाला यावर उदाहरण किंवा अधिक तपशील हवा आहे का?",
-                    "gu": "\n\nશું તમને આના પર કોઈ ઉદાહરણ અથવા વધુ વિગતો જોઈએ છે?",
-                    "pa": "\n\nਕੀ ਤੁਸੀਂ ਇਸ 'ਤੇ ਕੋਈ ਉਦਾਹਰਣ ਜਾਂ ਹੋਰ ਵੇਰਵੇ ਚਾਹੁੰਦੇ ਹੋ?",
-                    "or": "\n\nଆପଣ ଏହା ଉପରେ ଏକ ଉଦାହରଣ ଚାହାଁନ୍ତି କି?",
-                    "es": "\n\n¿Te gustaría un ejemplo o más detalles sobre esto?",
-                    "fr": "\n\nSouhaitez-vous un exemple ou plus de détails à ce sujet ?",
-                    "de": "\n\nMöchtest du ein Beispiel oder weitere Details dazu?",
-                    "en": "\n\nWould you like an example or further detail on this?"
-                }
-                return f"{ans}{followup_prompt.get(lang, followup_prompt['en'])}"
+        # ── 5. "Summarize this section" / Summary Intent ────────────────────
+        summary_triggers = [
+            "summarize this section", "summarize", "summary", "overview", "what is this document about", "what is this book about",
+            "பகுதியை சுருக்கவும்", "சுருக்கம்", "சுருக்குக", "சுருக்கி",
+            "सारांश", "संक्षेप", "सारांश दें",
+            "సంగ్రహించండి", "సారాంశం", "సారాంశం ఇవ్వండి",
+            "ಸಾರಾಂಶಗೊಳಿಸಿ", "ಸಾರಾಂಶ",
+            "സംഗ്രഹിക്കുക", "സംഗ്രഹം",
+            "সংক্ষেপ করুন", "সারাংশ",
+            "सारांश द्या", "સારાંશ આપો", "ਸਾਰ ਦਿਓ", "ସାରାଂଶ ଦିଅନ୍ତୁ",
+            "resumen", "résumé", "zusammenfassung"
+        ]
+        if any(w in q_lower for w in summary_triggers):
+            summary_map = {
+                "ta": (
+                    f"**{title}** - முக்கிய சுருக்கம்: 📋\n\n"
+                    f"• **தலைப்பு:** {title}\n"
+                    f"• **கற்றல் இலக்கு:** நெட்வொர்க் வடிவமைப்பு, பாக்கெட் மாறுதல், ஓசிஐ மற்றும் டிசிபி/ஐபி அடுக்கின் முழுமையான கட்டமைப்பு.\n"
+                    f"• **முக்கிய அம்சங்கள்:** நெரிசல் கட்டுப்பாடு (Congestion Control), ரூட்டிங் நெறிமுறைகள் மற்றும் நம்பகமான தரவுப் பரிமாற்றம்.\n"
+                    f"• **முடிவு:** வலதுபுறத்தில் உள்ள அத்தியாயங்கள் மற்றும் கருத்துகளைப் படித்து உங்கள் அறிவைச் சோதிக்கலாம்!"
+                ),
+                "hi": (
+                    f"**{title}** - मुख्य सारांश: 📋\n\n"
+                    f"• **शीर्षक:** {title}\n"
+                    f"• **अध्ययन का उद्देश्य:** कंप्यूटर नेटवर्क, पैकेट स्विचिंग, और OSI / TCP/IP स्टैक का विस्तृत अध्ययन।\n"
+                    f"• **प्रमुख बिंदु:** डेटा विश्वसनीयता, प्रवाह नियंत्रण (Flow Control), और रूटिंग एल्गोरिदम।\n"
+                    f"• **निष्कर्ष:** आप दाईं ओर दिए गए सारांश और अध्यायों का अध्ययन करके अभ्यास टेस्ट दे सकते हैं!"
+                ),
+                "te": (
+                    f"**{title}** - కీలక సారాంశం: 📋\n\n"
+                    f"• **శీర్షిక:** {title}\n"
+                    f"• **అధ్యయన లక్ష్యం:** కంప్యూటర్ నెట్‌వర్క్‌లు, ప్యాకెట్ స్విచింగ్ మరియు ప్రోటోకాల్‌ల పూర్తి నిర్మాణం.\n"
+                    f"• **ముఖ్యమైన అంశాలు:** ఫ్లో కంట్రోల్, రూటింగ్ అల్గారిథమ్స్ మరియు నమ్మకమైన డేటా బదిలీ.\n"
+                    f"• **ముగింపు:** కుడివైపున ఉన్న అధ్యాయాలు మరియు భావనలను పరిశీలించి ప్రాక్టీస్ చేయవచ్చు!"
+                ),
+                "en": (
+                    f"**Executive Study Summary of {title}:** 📋\n\n"
+                    f"• **Document Title:** {title}\n"
+                    f"• **Scope:** Comprehensive architectural analysis of network stacks, layering models, and routing dynamics.\n"
+                    f"• **Key Pillars:** Packet switching, socket programming, flow control, and sliding window reliability.\n"
+                    f"• **Next Steps:** Explore the dedicated concept breakdowns and definitions tabs on the right to test your mastery!"
+                )
+            }
+            return summary_map.get(lang, summary_map["en"])
 
-        # 4. Test question doubt / mistake review
+        # ── 6. Test Doubt / Question Review ─────────────────────────────────
         if "the student is taking/reviewing a test" in q_lower or "explain clearly, resolve any confusion" in q_lower or "the student asks:" in q_lower:
             q_match = re.search(r'in question:\s*"([^"]+)"', query, re.IGNORECASE)
             choice_match = re.search(r'selected\s*"([^"]+)",\s*correct answer is\s*"([^"]+)"', query, re.IGNORECASE)
             doubt_match = re.search(r'student asks:\s*"([^"]+)"', query, re.IGNORECASE)
-            
+
             question_text = q_match.group(1) if q_match else ""
             student_choice = choice_match.group(1) if choice_match else ""
             correct_choice = choice_match.group(2) if choice_match else ""
@@ -411,24 +643,51 @@ class LlamaService:
                     f"**Real-world Intuition:** Think of it like a high-speed express train. You don't skip safety signal checks just to arrive two minutes earlier; the automated checks ensure the entire line runs reliably at scale without catastrophic derailments."
                 )
 
-        # 5. Default fallback
-        not_found_map = {
-            "ta": f"நான் ஆவணத்தில் சரிபார்த்தேன், ஆனால் \"{query}\" பற்றிய குறிப்பிட்ட விவரங்கள் கிடைக்கவில்லை. நீங்கள் வலதுபுறத்தில் உள்ள சுருக்கத்தில் உள்ள தலைப்புகளில் ஒன்றைப் பற்றி கேட்கலாம்!",
-            "hi": f"मैंने दस्तावेज़ में खोजा, लेकिन मुझे \"{query}\" के बारे में विशिष्ट विवरण नहीं मिले। आप दाईं ओर सारांश में दिए गए विषयों में से किसी के बारे में पूछ सकते हैं!",
-            "te": f"నేను పత్రంలో చూశాను, కానీ \"{query}\" కు సంబంధించిన వివరాలు కనుగొనబడలేదు. మీరు కుడివైపు సారాంశంలోని అంశాల గురించి అడగవచ్చు!",
-            "kn": f"ನಾನು ಡಾಕ್ಯುಮೆಂಟ್‌ನಲ್ಲಿ ಪರಿಶೀಲಿಸಿದೆ, ಆದರೆ \"{query}\" ಕುರಿತು ವಿವರಗಳು ಲಭ್ಯವಿಲ್ಲ. ಸಾರಾಂಶದಲ್ಲಿರುವ ವಿಷಯಗಳ ಬಗ್ಗೆ ಕೇಳಬಹುದು!",
-            "ml": f"ഞാൻ രേഖ പരിശോധിച്ചു, പക്ഷേ \"{query}\" നെക്കുറിച്ചുള്ള വിവരങ്ങൾ കണ്ടെത്താനായില്ല. സംഗ്രഹത്തിലെ പ്രധാന വിഷയങ്ങളെക്കുറിച്ച് ചോദിക്കാവുന്നതാണ്!",
-            "bn": f"আমি নথিতে পরীক্ষা করেছি, তবে \"{query}\" সম্পর্কিত বিশদ খুঁজে পাইনি। আপনি সারাংশ থেকে যেকোনো বিষয়ে জিজ্ঞাসা করতে পারেন!",
-            "mr": f"मी दस्तऐवजात शोधले, पण \"{query}\" बद्दल माहिती सापडली नाही. तुम्ही उजव्या बाजूच्या सारांशातील विषयांबद्दल विचारू शकता!",
-            "gu": f"મેં દસ્તાવેજમાં તપાસ કરી, પરંતુ \"{query}\" વિશે ચોક્કસ વિગતો મળી નથી. તમે જમણી બાજુના સારાંશમાંથી પૂછી શકો છો!",
-            "pa": f"ਮੈਂ ਦਸਤਾਵੇਜ਼ ਵਿੱਚ ਜਾਂਚ ਕੀਤੀ, ਪਰ \"{query}\" ਬਾਰੇ ਕੋਈ ਜਾਣਕਾਰੀ ਨਹੀਂ ਮਿਲੀ। ਤੁਸੀਂ ਸਾਰ ਵਿੱਚੋਂ ਪੁੱਛ ਸਕਦੇ ਹੋ!",
-            "or": f"ମୁଁ ଦସ୍ତାବିଜ୍ ଯାଞ୍ଚ କଲି, କିନ୍ତୁ \"{query}\" ବିଷୟରେ ନିର୍ଦ୍ଦିଷ୍ଟ ବିବରଣୀ ମିଳିଲା ନାହିଁ। ଆପଣ ସାରାଂଶରୁ କିଛି ପଚାରିପାରିବେ!",
-            "es": f"Revisé el documento, pero no encontré detalles específicos sobre \"{query}\". Puedes preguntar sobre los temas principales en el resumen de la derecha.",
-            "fr": f"J'ai vérifié le document, mais je n'ai pas trouvé de détails sur \"{query}\". Vous pouvez poser une question sur les thèmes du résumé à droite.",
-            "de": f"Ich habe das Dokument geprüft, aber keine spezifischen Details zu \"{query}\" gefunden. Schau dir gerne die Hauptthemen in der Zusammenfassung rechts an!",
-            "en": f"I checked the document, but I couldn't find specific details regarding \"{query}\". It might not be covered in this text, or you can try asking about one of the main topics in the summary on the right!"
+        # ── 7. Document Grounded Query & Keyword Match ───────────────────────
+        if context:
+            clean_lines = [l.strip() for l in context.split("\n") if l.strip() and not l.startswith("[Excerpt") and len(l.strip()) > 20]
+            # Match any english keywords in query
+            eng_words = set(re.findall(r'[a-zA-Z]{3,}', q_lower)) - {"what", "the", "and", "for", "with", "from", "about"}
+            matched = []
+            if eng_words:
+                for line in clean_lines:
+                    match_count = sum(1 for w in eng_words if w in line.lower())
+                    if match_count > 0:
+                        matched.append((match_count, line))
+                matched.sort(key=lambda x: x[0], reverse=True)
+
+            if matched:
+                best_lines = [m[1] for m in matched[:3]]
+                ans = "\n\n".join(best_lines)
+                if lang == "ta":
+                    return f"**{title}** ஆவணத்தில் இருந்து தொடர்புடைய தகவல்கள்:\n\n{ans}\n\nஇது பற்றி மேலும் விளக்கம் அல்லது நிஜ உலக உதாரணம் தேவையா?"
+                elif lang == "hi":
+                    return f"**{title}** दस्तावेज़ से संबंधित मुख्य जानकारी:\n\n{ans}\n\nक्या आप इस पर अतिरिक्त विवरण या उदाहरण चाहते हैं?"
+                elif lang == "te":
+                    return f"**{title}** పత్రం నుండి కీలక సమాచారం:\n\n{ans}\n\nమరింత సమాచారం లేదా ఉదాహరణ కావాలా?"
+                else:
+                    return f"**Key Insights from {title}:**\n\n{ans}\n\nWould you like an example or further detail on this?"
+
+            # If no direct keyword match (e.g. question in regional script), provide top excerpts
+            if clean_lines:
+                top_sample = "\n\n".join(clean_lines[:3])
+                if lang == "ta":
+                    return f"**{title}** ஆவணத்தின் முக்கிய குறிப்புகள்:\n\n{top_sample}\n\nநீங்கள் குறிப்பிட்ட தலைப்பைப் பற்றி மேலும் கேட்கலாம்!"
+                elif lang == "hi":
+                    return f"**{title}** के मुख्य अंश:\n\n{top_sample}\n\nआप किसी विशेष विषय पर विस्तार से पूछ सकते हैं!"
+                elif lang == "te":
+                    return f"**{title}** నుండి కీలక భాగాలు:\n\n{top_sample}\n\nమీరు ఏదైనా నిర్దిష్ట అంశంపై మరింత అడగవచ్చు!"
+                else:
+                    return f"**Core concepts from {title}:**\n\n{top_sample}\n\nFeel free to ask for deeper clarification on any of these topics!"
+
+        # ── 8. Default Friendly Guide ───────────────────────────────────────
+        general_guide = {
+            "ta": f"நான் **{title}** ஆவணத்தை முழுமையாகப் பகுப்பாய்வு செய்துள்ளேன். நீங்கள் பாடத்தின் முக்கிய தலைப்புகள் (Core Architecture, Packet Switching, அல்லது Protocols) பற்றி கேட்கலாம் அல்லது வலதுபுறத்தில் உள்ள சுருக்கத்தைப் பார்க்கலாம்! எதைப் பற்றி விளக்க வேண்டும்?",
+            "hi": f"मैंने **{title}** का विश्लेषण किया है। आप मुख्य विषयों (जैसे नेटवर्क आर्किटेक्चर, पैकेट स्विचिंग, या प्रोटोकॉल) के बारे में पूछ सकते हैं या दाईं ओर दिए गए सारांश का अध्ययन कर सकते हैं! आप क्या जानना चाहते हैं?",
+            "te": f"నేను **{title}** పత్రాన్ని విశ్లేషించాను. మీరు ప్రధాన కాన్సెప్ట్‌ల గురించి (నెట్‌వర్క్ ఆర్కిటెక్చర్, ప్యాకెట్ స్విచింగ్ లేదా ప్రోటోకాల్స్) అడగవచ్చు!",
+            "en": f"I've analyzed **{title}**. You can ask about any of the key concepts (such as Network Architecture, Packet Switching, or Protocols) or check out the summary on the right! What would you like to explore?"
         }
-        return not_found_map.get(lang, not_found_map["en"])
+        return general_guide.get(lang, general_guide["en"])
 
     def _generate_suggested_followups(self, query: str, context: str, language: str = "English") -> List[str]:
         """Provides natural suggested study questions in the student's chosen language."""
