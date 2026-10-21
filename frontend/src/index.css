@@ -1,4 +1,4 @@
-@import url("https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=Manrope:wght@500;600;700;800&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400..700;1,9..40,400..700&family=Manrope:wght@500;600;700;800&family=Noto+Sans+Bengali:wght@400;500;600;700&family=Noto+Sans+Devanagari:wght@400;500;600;700&family=Noto+Sans+Gujarati:wght@400;500;600;700&family=Noto+Sans+Gurmukhi:wght@400;500;600;700&family=Noto+Sans+Kannada:wght@400;500;600;700&family=Noto+Sans+Malayalam:wght@400;500;600;700&family=Noto+Sans+Oriya:wght@400;500;600;700&family=Noto+Sans+Tamil:wght@400;500;600;700&family=Noto+Sans+Telugu:wght@400;500;600;700&display=swap");
 @import "tailwindcss";
 
 :root {
@@ -13,6 +13,8 @@
   --white: #ffffff;
   --glass: rgba(255, 255, 255, 0.7);
   --line: rgba(76, 55, 143, 0.12);
+  --font-body: "DM Sans", "Noto Sans Tamil", "Noto Sans Devanagari", "Noto Sans Telugu", "Noto Sans Bengali", "Noto Sans Kannada", "Noto Sans Malayalam", "Noto Sans Gujarati", "Noto Sans Gurmukhi", "Noto Sans Oriya", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, system-ui, sans-serif;
+  --font-heading: "Manrope", "Noto Sans Tamil", "Noto Sans Devanagari", "Noto Sans Telugu", "Noto Sans Bengali", "Noto Sans Kannada", "Noto Sans Malayalam", "Noto Sans Gujarati", "Noto Sans Gurmukhi", "Noto Sans Oriya", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
 
 * {
@@ -31,7 +33,7 @@ body {
   min-height: 100%;
   color: var(--ink);
   background: var(--mist);
-  font-family: "DM Sans", sans-serif;
+  font-family: var(--font-body);
   -webkit-font-smoothing: antialiased;
   overflow-x: hidden;
   overflow-y: auto;
@@ -244,10 +246,62 @@ button {
 
 h1,
 h2,
-h3 {
-  font-family: "Manrope", sans-serif;
-  letter-spacing: -.045em;
+h3,
+h4,
+h5,
+h6 {
+  font-family: var(--font-heading);
+  letter-spacing: -.035em;
   margin: 0;
+}
+
+/* Indic & Non-Latin Typography Optimization */
+[data-lang]:not([data-lang="en"]) h1,
+[data-lang]:not([data-lang="en"]) h2,
+[data-lang]:not([data-lang="en"]) h3,
+[data-lang]:not([data-lang="en"]) h4,
+[data-lang]:not([data-lang="en"]) h5,
+[data-lang]:not([data-lang="en"]) h6 {
+  letter-spacing: 0 !important;
+  line-height: 1.35;
+}
+
+[data-lang="ta"],
+[data-lang="hi"],
+[data-lang="mr"],
+[data-lang="te"],
+[data-lang="kn"],
+[data-lang="ml"],
+[data-lang="bn"],
+[data-lang="gu"],
+[data-lang="pa"],
+[data-lang="or"] {
+  letter-spacing: 0 !important;
+}
+
+[data-lang="ta"] body,
+[data-lang="hi"] body,
+[data-lang="mr"] body,
+[data-lang="te"] body,
+[data-lang="kn"] body,
+[data-lang="ml"] body,
+[data-lang="bn"] body,
+[data-lang="gu"] body,
+[data-lang="pa"] body,
+[data-lang="or"] body {
+  line-height: 1.62;
+  word-break: break-word;
+}
+
+[data-lang]:not([data-lang="en"]) button,
+[data-lang]:not([data-lang="en"]) .nav-links a,
+[data-lang]:not([data-lang="en"]) .sidebar-item,
+[data-lang]:not([data-lang="en"]) .dashboard-nav a,
+[data-lang]:not([data-lang="en"]) .chip,
+[data-lang]:not([data-lang="en"]) .pill,
+[data-lang]:not([data-lang="en"]) .tab-btn {
+  letter-spacing: 0 !important;
+  line-height: 1.45;
 }
 
 h1 {

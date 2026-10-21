@@ -9,9 +9,9 @@
 
 AARVA now features full end-to-end multilingual localization tailored to user preference. The localization system encompasses:
 1. **Frontend UI Localization:** Navigation menus, headers, buttons, cards, dashboard overviews, study plans, workspace tabs, settings, and profile views.
-2. **Global Language Switcher:** Interactive glassmorphic pill dropdown available on both the public Landing Page, the main Dashboard top bar, and form controls.
-3. **Database & User Preference Persistence:** Automatically syncs the user's chosen language with `localStorage` and persists via `PUT /api/student/preferences/{user_id}` to PostgreSQL.
-4. **AI Summaries & Multi-turn Chat Adaptation:** Propagates the user's preferred language to `/api/summary/chat`, `/api/chat`, and `/api/summary/{book_id}`, instructing the underlying LLM to respond and summarize in the selected language.
+2. **Individual Dashboard Language Switcher:** Interactive glassmorphic pill dropdown in the authenticated Dashboard header, with full selector control inside Settings -> Learning Preferences. The public landing page stays strictly in default English.
+3. **Database & User Preference Persistence & User Isolation:** Scoped per individual user ID (`aarva_language_user_{id}`) with automatic sync via `PUT /api/student/preferences/{user_id}` to PostgreSQL. Changing one user's language does not affect other users. New users default to English.
+4. **AI Summaries, Multi-turn Chat & Quiz Adaptation:** Propagates the user's preferred language to `/api/summary/chat`, `/api/chat`, and `/api/quiz/generate`, strictly instructing the underlying LLM to respond and generate questions in the selected language.
 
 ---
 
@@ -52,7 +52,7 @@ AARVA now features full end-to-end multilingual localization tailored to user pr
   - Reusable dropdown component with flag icons, native titles, active checkmarks, and outside-click dismiss.
   - Supports `"pill"` (for headers/navbars) and `"select"` (for Settings form inputs).
 - **[App.tsx](file:///d:/Aarva/frontend/src/App.tsx):**
-  - Integrated `LanguageSelector` into the Landing Page navigation bar, Dashboard header actions, and Settings -> Learning Preferences.
+  - Integrated `LanguageSelector` into the Dashboard header actions and Settings -> Learning Preferences.
   - Dynamically localizes sidebar menu items, welcome cards, metrics, study plans, and workspace study tabs.
   - Transmits `selectedLang` to all AI endpoints (`/api/summary/chat`, `/api/chat`, `/api/summary/{book_id}`).
 - **[index.css](file:///d:/Aarva/frontend/src/index.css):**

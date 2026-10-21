@@ -129,11 +129,15 @@ FALLBACK_QUESTIONS_BANK: List[Dict[str, Any]] = [
 ]
 
 
-def _call_ollama_for_questions(context: str, num_questions: int, topic_hint: str) -> Optional[List[Dict]]:
+def _call_ollama_for_questions(context: str, num_questions: int, topic_hint: str, language: str = "English") -> Optional[List[Dict]]:
     """
-    Prompts Ollama (Mistral/Llama) to generate MCQ questions from retrieved context.
+    Prompts Ollama (Mistral/Llama/Qwen) to generate MCQ questions from retrieved context in the specified language.
     Returns parsed list of question dicts, or None if Ollama is unavailable.
     """
+    lang_mandate = ""
+    if language and language.strip().lower() not in ("english", "en"):
+        lang_mandate = f"\n- CRITICAL LANGUAGE MANDATE: All question text, options, and explanations MUST be written entirely in {language}."
+
     prompt = (
         "You are an expert academic quiz generator for AARVA, an AI learning platform.\n\n"
         f"Based on the following textbook content, generate exactly {num_questions} high-quality multiple-choice questions (MCQs).\n\n"
@@ -145,7 +149,8 @@ def _call_ollama_for_questions(context: str, num_questions: int, topic_hint: str
         "- Mark the correct answer as a zero-indexed integer (0=first, 1=second, 2=third, 3=fourth)\n"
         "- Include a detailed educational explanation (2-3 sentences)\n"
         "- Vary difficulty: include easy, medium, and hard questions\n"
-        f"- Topic hint: {topic_hint}\n\n"
+        f"- Topic hint: {topic_hint}"
+        f"{lang_mandate}\n\n"
         "OUTPUT FORMAT (strict JSON array only, no extra text):\n"
         '[\n'
         '  {\n'
@@ -160,17 +165,19 @@ def _call_ollama_for_questions(context: str, num_questions: int, topic_hint: str
         f"Generate exactly {num_questions} questions as a valid JSON array:"
     )
 
-    # Call Ollama with primary LLM (Qwen3 8B)
+    # Call Ollama with available LLM (Qwen3 8B / Qwen2.5 / Llama3)
     try:
+        from services.llama_service import llama_service
+        model_to_use = llama_service._get_best_model() if hasattr(llama_service, "_get_best_model") else settings.LLM_MODEL
         res = requests.post(
             f"{settings.OLLAMA_BASE_URL}/api/generate",
             json={
-                "model": settings.LLM_MODEL,
+                "model": model_to_use,
                 "prompt": prompt,
                 "stream": False,
-                "options": {"temperature": 0.6, "top_p": 0.9}
+                "options": {"temperature": 0.5, "top_p": 0.9, "num_predict": 450}
             },
-            timeout=float(settings.LLM_TIMEOUT_SECONDS)
+            timeout=60.0
         )
         if res.status_code == 200:
             raw = res.json().get("response", "").strip()
@@ -181,7 +188,7 @@ def _call_ollama_for_questions(context: str, num_questions: int, topic_hint: str
                 if isinstance(questions, list) and len(questions) > 0:
                     return questions
     except Exception as e:
-        print(f"[QUIZ_SERVICE] Ollama model {settings.LLM_MODEL} failed: {e}")
+        print(f"[QUIZ_SERVICE] Ollama generation failed: {e}")
 
     return None
 
@@ -190,28 +197,31 @@ def generate_quiz_questions(
     textbook_id: Optional[int],
     topic: Optional[str] = None,
     num_questions: int = 5,
-    difficulty: str = "mixed"
+    difficulty: str = "mixed",
+    language: str = "English"
 ) -> List[Dict[str, Any]]:
     """
     Main quiz generation pipeline:
-    1. Hybrid retrieval for relevant textbook chunks
-    2. LLM-powered MCQ generation from retrieved context
+    1. Hybrid retrieval for relevant textbook chunks (if textbook_id given)
+    2. LLM-powered MCQ generation in user's target language
     3. Fallback to curated question bank if LLM unavailable
     """
     from services.hybrid_retrieval import hybrid_retrieval_engine
 
     query = topic or "key concepts definitions and mechanisms"
+    retrieved_chunks = []
 
-    # Step 1: Retrieve rich context from hybrid engine
-    try:
-        retrieved_chunks = hybrid_retrieval_engine.retrieve(
-            query=query,
-            textbook_id=textbook_id,
-            top_k=5
-        )
-    except Exception as e:
-        print(f"[QUIZ_SERVICE] Retrieval failed: {e}")
-        retrieved_chunks = []
+    # Step 1: Retrieve context only if textbook_id is provided to prevent unnecessary embedding lookups
+    if textbook_id:
+        try:
+            retrieved_chunks = hybrid_retrieval_engine.retrieve(
+                query=query,
+                textbook_id=textbook_id,
+                top_k=5
+            )
+        except Exception as e:
+            print(f"[QUIZ_SERVICE] Retrieval failed: {e}")
+            retrieved_chunks = []
 
     # Step 2: Build context block from retrieved chunks
     context_parts = []
@@ -224,30 +234,32 @@ def generate_quiz_questions(
             context_parts.append(f"[{title} | Page {page}]\n{content}")
 
     combined_context = "\n\n".join(context_parts[:5])
+    if not combined_context.strip():
+        combined_context = f"Educational subject matter and core concepts regarding {topic or 'academic concepts and problem solving'}."
 
-    # Step 3: Attempt LLM generation if we have context
-    if combined_context.strip():
-        llm_questions = _call_ollama_for_questions(
-            context=combined_context,
-            num_questions=num_questions,
-            topic_hint=topic or "general subject matter"
-        )
-        if llm_questions:
-            # Normalize and enrich LLM output
-            normalized = []
-            for idx, q in enumerate(llm_questions[:num_questions]):
-                normalized.append({
-                    "id": idx + 1,
-                    "question": q.get("question", f"Question {idx + 1}"),
-                    "options": q.get("options", ["A", "B", "C", "D"])[:4],
-                    "correct_option": int(q.get("correct_option", 0)),
-                    "explanation": q.get("explanation", "See textbook for details."),
-                    "difficulty": q.get("difficulty", "medium"),
-                    "topic": q.get("topic", topic or "General"),
-                    "source": "AI-Generated from Textbook RAG"
-                })
-            print(f"[QUIZ_SERVICE] Generated {len(normalized)} AI questions via Ollama")
-            return normalized
+    # Step 3: Attempt LLM generation
+    llm_questions = _call_ollama_for_questions(
+        context=combined_context,
+        num_questions=num_questions,
+        topic_hint=topic or "general subject matter",
+        language=language
+    )
+    if llm_questions:
+        # Normalize and enrich LLM output
+        normalized = []
+        for idx, q in enumerate(llm_questions[:num_questions]):
+            normalized.append({
+                "id": idx + 1,
+                "question": q.get("question", f"Question {idx + 1}"),
+                "options": q.get("options", ["A", "B", "C", "D"])[:4],
+                "correct_option": int(q.get("correct_option", 0)),
+                "explanation": q.get("explanation", "See textbook for details."),
+                "difficulty": q.get("difficulty", "medium"),
+                "topic": q.get("topic", topic or "General"),
+                "source": "AI-Generated from Textbook RAG"
+            })
+        print(f"[QUIZ_SERVICE] Generated {len(normalized)} AI questions via Ollama")
+        return normalized
 
     # Step 4: Contextual fallback — select from curated bank
     print("[QUIZ_SERVICE] Ollama unavailable — using curated question bank")

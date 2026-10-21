@@ -419,7 +419,6 @@ function FeatureVisual({ type }: { type: string }) {
 }
 
 function LandingPage({ onStart, onLogin }: { onStart: () => void; onLogin: () => void }) {
-  const { t } = useTranslation();
   const [subscribed, setSubscribed] = useState(false);
 
   function subscribe(event: FormEvent<HTMLFormElement>) {
@@ -435,14 +434,13 @@ function LandingPage({ onStart, onLogin }: { onStart: () => void; onLogin: () =>
             <Logo />
             <div className="nav-links">
               <a href="#home">Home</a>
-              <a href="#features">{t("features")}</a>
-              <a href="#about">{t("howItWorks")}</a>
-              <a href="#contact">{t("team")}</a>
+              <a href="#features">Features</a>
+              <a href="#about">About Us</a>
+              <a href="#contact">Contact</a>
             </div>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: "0.85rem" }}>
-            <LanguageSelector variant="pill" />
-            <a className="login-link" href="/dashboard" onClick={(event) => { event.preventDefault(); onLogin(); }}>{t("signIn")} <Icon name="arrow" size={17} /></a>
+            <a className="login-link" href="/dashboard" onClick={(event) => { event.preventDefault(); onLogin(); }}>Sign in <Icon name="arrow" size={17} /></a>
           </div>
         </nav>
       </header>
@@ -461,8 +459,8 @@ function LandingPage({ onStart, onLogin }: { onStart: () => void; onLogin: () =>
               Upload dense textbooks, lecture notes, or syllabi. Aarva turns overwhelming chapters into interactive AI conversations, high-yield chapter summaries, and adaptive quizzes engineered for top scores and lifelong retention.
             </p>
             <div className="hero-actions reveal reveal-delay-three">
-              <a className="button button-primary" href="/login" onClick={(event) => { event.preventDefault(); onStart(); }}>{t("getStarted")} <Icon name="arrow" /></a>
-              <a className="text-link" href="#features"><span className="play"><Icon name="play" size={16} /></span> {t("features")}</a>
+              <a className="button button-primary" href="/login" onClick={(event) => { event.preventDefault(); onStart(); }}>Get started <Icon name="arrow" /></a>
+              <a className="text-link" href="#features"><span className="play"><Icon name="play" size={16} /></span> Features</a>
             </div>
             <div className="trust-line reveal reveal-delay-three">
               <div className="avatar-stack"><span>A</span><span>N</span><span>S</span></div>
@@ -595,7 +593,7 @@ function LandingPage({ onStart, onLogin }: { onStart: () => void; onLogin: () =>
             <Logo dark />
             <a href="#home">Home</a>
             <a href="#features">Features</a>
-            <a href="#about">About us</a>
+            <a href="#about">About Us</a>
             <a href="#contact">Contact</a>
           </div>
           <div className="footer-newsletter">
@@ -4208,8 +4206,8 @@ interface TestResultSummary {
   }>;
 }
 
-function generateConceptQuestions(concept: string, bookTitle: string): TestQuestion[] {
-  return [
+function generateConceptQuestions(concept: string, bookTitle: string, langCode: LanguageCode = "en"): TestQuestion[] {
+  const baseQuestions: TestQuestion[] = [
     {
       id: 1,
       difficulty: "Basic",
@@ -4359,6 +4357,66 @@ function generateConceptQuestions(concept: string, bookTitle: string): TestQuest
       misconception: `Believing initial calibration remains invariant indefinitely without ongoing regression testing.`
     }
   ];
+
+  if (langCode === "en") return baseQuestions;
+
+  const locMap: Record<string, { prompt1: string; exp1: string; prompt2: string; exp2: string }> = {
+    ta: {
+      prompt1: `"${bookTitle}" பாடத்தின் சூழலில் "${concept}" என்ற கருத்தை மிகச் சரியாக வரையறுப்பது எது?`,
+      exp1: `"${concept}" என்பது ${bookTitle} பாடத்திற்கான அடிப்படை விதிகள் மற்றும் கட்டமைப்பு ஒருமைப்பாட்டை நிறுவுகிறது.`,
+      prompt2: `"${concept}" என்ற கருத்தைப் புரிந்துகொள்வதன் முதன்மை நோக்கம் என்ன?`,
+      exp2: `நிரூபிக்கப்பட்ட தரநிலைகளில் தர்க்கத்தை அடிப்படையாகக் கொண்டு நிலையான முடிவுகளை உறுதி செய்வதே இதன் முதன்மை நோக்கம்.`
+    },
+    hi: {
+      prompt1: `"${bookTitle}" के संदर्भ में "${concept}" को सबसे अच्छी तरह कौन सा कथन परिभाषित करता है?`,
+      exp1: `"${concept}" ${bookTitle} के लिए आधारभूत नियम और संरचनात्मक अखंडता स्थापित करता है।`,
+      prompt2: `"${concept}" को समझने का प्राथमिक उद्देश्य क्या है?`,
+      exp2: `सत्यापित मानकों पर तर्क को आधारित करके स्थिरता और विश्वसनीयता सुनिश्चित करना इसका प्राथमिक उद्देश्य है।`
+    },
+    mr: {
+      prompt1: `"${bookTitle}" च्या संदर्भात "${concept}" ची सर्वात अचूक व्याख्या करणारे विधान कोणते?`,
+      exp1: `"${concept}" हे ${bookTitle} साठी मूलभूत नियम आणि संरचनात्मक अखंडता स्थापित करते.`,
+      prompt2: `"${concept}" समजून घेण्याचा मुख्य उद्देश काय आहे?`,
+      exp2: `सत्यापित मानकांवर तर्क आधारित करून सुसंगतता सुनिश्चित करणे हा मुख्य उद्देश आहे.`
+    },
+    te: {
+      prompt1: `"${bookTitle}" సందర్భంలో "${concept}"ను అత్యంత ఖచ్చితంగా నిర్వచించే ప్రకటన ఏది?`,
+      exp1: `"${concept}" అనేది ${bookTitle} కోసం ప్రాథమిక నియమాలు మరియు నిర్మాణ సమగ్రతను ఏర్పాటు చేస్తుంది.`,
+      prompt2: `"${concept}"ను అర్థం చేసుకోవడం యొక్క ప్రాథమిక లక్ష్యం ఏమిటి?`,
+      exp2: `నిరూపిత ప్రమాణాలపై ఆధారపడి ఫలితాలను స్థిరీకరించడమే ప్రధాన లక్ష్యం.`
+    },
+    ml: {
+      prompt1: `"${bookTitle}" എന്നതിൽ "${concept}" എന്നതിനെ ഏറ്റവും കൃത്യമായി നിർവചിക്കുന്ന പ്രസ്താവന ഏതാണ്?`,
+      exp1: `"${concept}" ${bookTitle}-ന്റെ അടിസ്ഥാന നിയമങ്ങളും ഘടനാപരമായ സമഗ്രതയും സ്ഥാപിക്കുന്നു.`,
+      prompt2: `"${concept}" മനസ്സിലാക്കുന്നതിന്റെ പ്രധാന ലക്ഷ്യം എന്താണ്?`,
+      exp2: `സ്ഥിരീകരിച്ച മാനദണ്ഡങ്ങളിൽ സ്ഥിരത ഉറപ്പാക്കുക എന്നതാണ് പ്രധാന ലക്ഷ്യം.`
+    },
+    or: {
+      prompt1: `"${bookTitle}" ପ୍ରସଙ୍ଗରେ "${concept}" କୁ ସର୍ବୋତ୍ତମ ଭାବରେ ବ୍ୟାଖ୍ୟା କରୁଥିବା ବିବୃତି କେଉଁଟି?`,
+      exp1: `"${concept}" ${bookTitle} ପାଇଁ ମୌଳିକ ନିୟମ ଏବଂ ଗଠନମୂଳକ ଅଖଣ୍ଡତା ସ୍ଥାପନ କରେ।`,
+      prompt2: `"${concept}" ବୁଝିବାର ମୁଖ୍ୟ ଉଦ୍ଦେଶ୍ୟ କ’ଣ?`,
+      exp2: `ମାନକ ନୀତି ଉପରେ ନିର୍ଭର କରି ସ୍ଥିରତା ନିଶ୍ଚିତ କରିବା ମୁଖ୍ୟ ଉଦ୍ଦେଶ୍ୟ।`
+    },
+    bn: {
+      prompt1: `"${bookTitle}"-এর প্রেক্ষাপটে "${concept}"-কে সবচেয়ে সঠিকভাবে সংজ্ঞায়িত করে এমন বিবৃতি কোনটি?`,
+      exp1: `"${concept}" ${bookTitle}-এর জন্য ভিত্তিগত নিয়ম এবং কাঠামোগত অখণ্ডতা স্থাপন করে।`,
+      prompt2: `"${concept}" বোঝার প্রাথমিক উদ্দেশ্য কী?`,
+      exp2: `যাচাইকৃত মানের ওপর যুক্তি ভিত্তি করে ধারাবাহিকতা নিশ্চিত করাই মূল উদ্দেশ্য।`
+    }
+  };
+
+  const loc = locMap[langCode];
+  if (!loc) return baseQuestions;
+
+  return baseQuestions.map((q) => {
+    if (q.id === 1) {
+      return { ...q, prompt: loc.prompt1, explanation: loc.exp1 };
+    }
+    if (q.id === 2) {
+      return { ...q, prompt: loc.prompt2, explanation: loc.exp2 };
+    }
+    return q;
+  });
 }
 
 function TestView({
@@ -4455,10 +4513,17 @@ function TestView({
     setUserAnswers({});
     setTestResult(null);
     setDiscussingQuestionId(null);
-    const qList = generateConceptQuestions(item, chosen.title);
+    const qList = generateConceptQuestions(item, chosen.title, languageObj.code);
     setCurrentQuestions(qList);
     onStarted(chosen);
   };
+
+  useEffect(() => {
+    if (concept) {
+      const qList = generateConceptQuestions(concept, activeBook.title, languageObj.code);
+      setCurrentQuestions(qList);
+    }
+  }, [languageObj.code]);
 
   const handleSelectAnswer = (optIdx: number) => {
     if (answered) return;
@@ -6302,6 +6367,8 @@ export default function App() {
     localStorage.removeItem("aarva_token");
     localStorage.removeItem("aarva_user");
     localStorage.removeItem("aarva_active_book_id");
+    localStorage.removeItem("aarva_language");
+    localStorage.removeItem("aarva_language_v2");
     navigate("landing");
   };
 

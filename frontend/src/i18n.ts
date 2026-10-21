@@ -1,20 +1,16 @@
 import { useState, useEffect } from "react";
+import i18n from "i18next";
+import { initReactI18next, useTranslation as useReactI18nTranslation } from "react-i18next";
 
 export type LanguageCode =
+  | "en"
   | "ta"
   | "hi"
   | "te"
-  | "kn"
-  | "ml"
-  | "bn"
   | "mr"
-  | "gu"
-  | "pa"
+  | "ml"
   | "or"
-  | "en"
-  | "es"
-  | "fr"
-  | "de";
+  | "bn";
 
 export interface LanguageOption {
   code: LanguageCode;
@@ -25,25 +21,17 @@ export interface LanguageOption {
 }
 
 export const SUPPORTED_LANGUAGES: LanguageOption[] = [
-  // Global & Default Language
+  // Primary Language
   { code: "en", name: "English", nativeName: "English", flag: "🇬🇧", region: "global" },
 
-  // Indian Languages (First-class priority)
+  // The 7 Indian Languages
   { code: "ta", name: "Tamil", nativeName: "தமிழ்", flag: "🇮🇳", region: "indian" },
   { code: "hi", name: "Hindi", nativeName: "हिन्दी", flag: "🇮🇳", region: "indian" },
   { code: "te", name: "Telugu", nativeName: "తెలుగు", flag: "🇮🇳", region: "indian" },
-  { code: "kn", name: "Kannada", nativeName: "ಕನ್ನಡ", flag: "🇮🇳", region: "indian" },
-  { code: "ml", name: "Malayalam", nativeName: "മലയാളം", flag: "🇮🇳", region: "indian" },
-  { code: "bn", name: "Bengali", nativeName: "বাংলা", flag: "🇮🇳", region: "indian" },
   { code: "mr", name: "Marathi", nativeName: "मराठी", flag: "🇮🇳", region: "indian" },
-  { code: "gu", name: "Gujarati", nativeName: "ગુજરાતી", flag: "🇮🇳", region: "indian" },
-  { code: "pa", name: "Punjabi", nativeName: "ਪੰਜਾਬੀ", flag: "🇮🇳", region: "indian" },
+  { code: "ml", name: "Malayalam", nativeName: "മലയാളം", flag: "🇮🇳", region: "indian" },
   { code: "or", name: "Odia", nativeName: "ଓଡ଼ିଆ", flag: "🇮🇳", region: "indian" },
-
-  // Other Global Languages
-  { code: "es", name: "Spanish", nativeName: "Español", flag: "🇪🇸", region: "global" },
-  { code: "fr", name: "French", nativeName: "Français", flag: "🇫🇷", region: "global" },
-  { code: "de", name: "German", nativeName: "Deutsch", flag: "🇩🇪", region: "global" },
+  { code: "bn", name: "Bengali", nativeName: "বাংলা", flag: "🇮🇳", region: "indian" },
 ];
 
 export const translations: Record<LanguageCode, Record<string, string>> = {
@@ -1451,36 +1439,78 @@ export const translations: Record<LanguageCode, Record<string, string>> = {
 export function getInitialLanguage(): LanguageCode {
   if (typeof window === "undefined") return "en";
   try {
-    // If user explicitly chose a language previously in v2, use it
+    const storedUser = localStorage.getItem("aarva_user");
+    if (storedUser) {
+      const u = JSON.parse(storedUser);
+      // 1. Check user-isolated stored preference first
+      if (u?.id) {
+        const userSaved = localStorage.getItem(`aarva_language_user_${u.id}`) as LanguageCode;
+        if (userSaved && userSaved in translations) return userSaved;
+      }
+      // 2. Check backend-persisted profile preference
+      if (u?.preferred_language) {
+        const matched = SUPPORTED_LANGUAGES.find(
+          (l) =>
+            l.name.toLowerCase() === u.preferred_language.toLowerCase() ||
+            l.code.toLowerCase() === u.preferred_language.toLowerCase()
+        );
+        if (matched) return matched.code;
+      }
+    }
+
+    // 3. Fallback to active session choice if set
     const savedV2 = localStorage.getItem("aarva_language_v2");
     if (savedV2 && (savedV2 in translations)) return savedV2 as LanguageCode;
 
     // Default is strictly English as requested
     return "en";
   } catch {
-    // fallback
     return "en";
   }
 }
 
+// Initialize i18next
+if (!i18n.isInitialized) {
+  i18n
+    .use(initReactI18next)
+    .init({
+      resources: {
+        en: { translation: translations.en },
+        ta: { translation: translations.ta },
+        hi: { translation: translations.hi },
+        te: { translation: translations.te },
+        mr: { translation: translations.mr },
+        ml: { translation: translations.ml },
+        or: { translation: translations.or },
+        bn: { translation: translations.bn },
+      },
+      lng: getInitialLanguage(),
+      fallbackLng: "en",
+      interpolation: {
+        escapeValue: false,
+      },
+    });
+}
+
 export function useTranslation() {
-  const [currentLang, setCurrentLangState] = useState<LanguageCode>(getInitialLanguage);
+  const { t: i18n_t, i18n: currentI18n } = useReactI18nTranslation();
+  const currentLang = (currentI18n.language as LanguageCode) || getInitialLanguage();
 
   useEffect(() => {
-    const handleStorageChange = (e: StorageEvent) => {
-      if ((e.key === "aarva_language_v2" || e.key === "aarva_language") && e.newValue && e.newValue in translations) {
-        setCurrentLangState(e.newValue as LanguageCode);
-      }
-    };
-    window.addEventListener("storage", handleStorageChange);
-    return () => window.removeEventListener("storage", handleStorageChange);
-  }, []);
+    if (typeof document !== "undefined") {
+      document.documentElement.lang = currentLang;
+      document.documentElement.setAttribute("data-lang", currentLang);
+    }
+  }, [currentLang]);
 
   const setLanguage = (lang: LanguageCode, persistToBackend = true) => {
-    setCurrentLangState(lang);
+    currentI18n.changeLanguage(lang);
     try {
       localStorage.setItem("aarva_language_v2", lang);
       localStorage.setItem("aarva_language", lang);
+
+      // Dispatch real-time event to update all active components immediately
+      window.dispatchEvent(new CustomEvent("aarva-language-change", { detail: lang }));
 
       // Also update stored user if present
       const stored = localStorage.getItem("aarva_user");
@@ -1489,6 +1519,11 @@ export function useTranslation() {
         const langObj = SUPPORTED_LANGUAGES.find((l) => l.code === lang);
         u.preferred_language = langObj?.name || "English";
         localStorage.setItem("aarva_user", JSON.stringify(u));
+
+        // Save isolated user preference
+        if (u.id) {
+          localStorage.setItem(`aarva_language_user_${u.id}`, lang);
+        }
 
         // Optionally persist to backend
         if (persistToBackend && u.id) {
@@ -1511,8 +1546,7 @@ export function useTranslation() {
   };
 
   const t = (key: string, fallback?: string): string => {
-    const dict = translations[currentLang] || translations.en;
-    return dict[key] || translations.en[key] || fallback || key;
+    return i18n_t(key, { defaultValue: fallback || (translations.en[key] || key) });
   };
 
   const currentLangObj = SUPPORTED_LANGUAGES.find((l) => l.code === currentLang) || SUPPORTED_LANGUAGES[0];
@@ -1522,8 +1556,11 @@ export function useTranslation() {
     languageObj: currentLangObj,
     setLanguage,
     t,
+    i18n: currentI18n,
     languages: SUPPORTED_LANGUAGES,
     indianLanguages: SUPPORTED_LANGUAGES.filter((l) => l.region === "indian"),
     globalLanguages: SUPPORTED_LANGUAGES.filter((l) => l.region === "global"),
   };
 }
+
+export default i18n;

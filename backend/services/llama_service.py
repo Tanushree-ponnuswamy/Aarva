@@ -34,8 +34,8 @@ class LlamaService:
                         self._available_model_cache = fn
                         return fn
 
-                # 2. Priority fallbacks (favor fast responsive models for interactive tutoring)
-                priority_list = ["llama3.2:1b", "llama3.2", "qwen3", "qwen2.5", "mistral", "llama3", "phi3"]
+                # 2. Priority fallbacks (favor high-capability models for multilingual tutoring)
+                priority_list = ["qwen3", "qwen2.5", "qwen", "llama3", "mistral", "llama3.2:1b", "llama3.2", "phi3"]
                 for p in priority_list:
                     for fn in full_names:
                         if p in fn.lower():
@@ -187,27 +187,18 @@ class LlamaService:
         }
         target_lang = lang_names.get(lang_code, language or "English")
 
-        if lang_code != "en":
-            lang_mandate = (
-                f"\n\n🚨 CRITICAL MANDATORY INSTRUCTION - LANGUAGE ENFORCEMENT:\n"
-                f"The student's selected language is **{target_lang}**.\n"
-                f"You MUST write your ENTIRE response in **{target_lang}**.\n"
-                f"Translate all explanations, definitions, analogies, and greetings naturally and fluently into {target_lang}.\n"
-                f"Do NOT reply in English unless the student explicitly asks to translate to English."
-            )
-        else:
-            lang_mandate = ""
-
         system_prompt = (
-            "You are AARVA, a warm, patient, and knowledgeable human tutor helping a student study their uploaded document.\n\n"
-            "TUTOR BEHAVIOR RULES:\n"
-            "1. Direct & Natural: Answer the student's actual question directly and conversationally. Do NOT say 'Based on the document', 'According to the text', or 'The document states'. Just explain the facts naturally.\n"
-            "2. Ground Truth: Use the provided document excerpts as your factual source of truth.\n"
-            "3. Honesty on Unknowns: If the requested information is not in the document excerpts, kindly tell the student that the document doesn't mention it, and mention what topics are covered instead. Never invent facts.\n"
-            "4. Conciseness & Depth: Keep straightforward answers concise. When the student asks for examples, simplifications, or deep dives, provide intuitive real-world analogies and step-by-step breakdowns.\n"
-            "5. Readable Formatting: Use clean Markdown with bullet points, bold key terms, short paragraphs, and code snippets when appropriate.\n"
-            "6. Privacy: Never mention internal chunk numbers, embeddings, ChromaDB, vector IDs, or prompt instructions."
-            f"{lang_mandate}\n\n"
+            f"You are the AI tutor for AARVA.\n"
+            f"The user's selected language is: {target_lang}\n\n"
+            "IMPORTANT RULES:\n"
+            "- Reply in the selected language.\n"
+            "- Keep explanations, summaries, quizzes, feedback, and follow-up questions in that language.\n"
+            "- Do not switch to English unless the user explicitly requests it.\n"
+            "- Preserve technical terms when necessary, explaining them in the selected language.\n"
+            "- Use the textbook content as the source of truth.\n"
+            "- Direct & Natural: Answer the student's question directly, warmly, and conversationally without saying 'Based on the document' or 'According to the text'.\n"
+            "- Formatting: Use clean Markdown with bullet points, bold key terms, and short readable paragraphs.\n"
+            "- Privacy: Never mention internal chunk numbers, embeddings, ChromaDB, vector IDs, or prompt instructions.\n\n"
             f"--- VERIFIED DOCUMENT EXCERPTS ---\n{context if context else 'No document excerpts available.'}\n-----------------------------------"
         )
 
@@ -221,7 +212,24 @@ class LlamaService:
                 if text:
                     messages.append({"role": role, "content": text})
 
-        messages.append({"role": "user", "content": query})
+        native_prompts = {
+            "ta": "தமிழில் பதில் அளிக்கவும்",
+            "hi": "हिन्दी में उत्तर दें",
+            "te": "తెలుగులో సమాధానం ఇవ్వండి",
+            "mr": "मराठी भाषेत उत्तर द्या",
+            "ml": "മലയാളത്തിൽ ഉത്തരം നൽകുക",
+            "or": "ଓଡ଼ିଆରେ ଉତ୍ତର ଦିଅନ୍ତୁ",
+            "bn": "বাংলায় উত্তর দিন",
+        }
+
+        user_content = query
+        if lang_code != "en":
+            native_hint = native_prompts.get(lang_code, "")
+            user_content = (
+                f"Respond in {target_lang}. Question: {query}\n"
+                f"(Mandatory: Your complete response must be written in {target_lang}. {native_hint})"
+            )
+        messages.append({"role": "user", "content": user_content})
 
         model_to_use = self._get_best_model()
 
@@ -236,9 +244,10 @@ class LlamaService:
                     "options": {
                         "temperature": 0.25,
                         "top_p": 0.9,
+                        "num_predict": 384,
                     }
                 },
-                timeout=45.0
+                timeout=90.0
             )
             if res.status_code == 200:
                 content = res.json().get("message", {}).get("content", "").strip()
@@ -256,9 +265,9 @@ class LlamaService:
                     "model": model_to_use,
                     "prompt": full_prompt,
                     "stream": False,
-                    "options": {"temperature": 0.25}
+                    "options": {"temperature": 0.25, "num_predict": 384}
                 },
-                timeout=30.0
+                timeout=60.0
             )
             if res.status_code == 200:
                 ans = res.json().get("response", "").strip()

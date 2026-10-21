@@ -16,6 +16,7 @@ class QuizGenerateRequest(BaseModel):
     topic: Optional[str] = None
     num_questions: int = 5
     difficulty: str = "mixed"  # easy | medium | hard | mixed
+    language: Optional[str] = "English"
 
 
 class QuizSubmission(BaseModel):
@@ -30,7 +31,7 @@ class QuizSubmission(BaseModel):
 @router.post("/generate")
 def generate_ai_quiz(req: QuizGenerateRequest):
     """
-    Generate quiz questions using Hybrid Retrieval (Dense + BM25) + LLM.
+    Generate quiz questions using Hybrid Retrieval (Dense + BM25) + LLM in the student's selected language.
     Falls back to curated question bank if Ollama is not available.
     """
     from services.quiz_service import generate_quiz_questions, get_difficulty_distribution
@@ -39,7 +40,8 @@ def generate_ai_quiz(req: QuizGenerateRequest):
         textbook_id=req.textbook_id,
         topic=req.topic,
         num_questions=req.num_questions,
-        difficulty=req.difficulty
+        difficulty=req.difficulty,
+        language=req.language or "English"
     )
 
     difficulty_dist = get_difficulty_distribution(questions)
