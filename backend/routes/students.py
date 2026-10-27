@@ -154,8 +154,9 @@ def get_student_dashboard(user_id: int, db: Session = Depends(get_db)):
                 "topic": q.topic,
                 "score": f"{q.score}/{q.total_questions}",
                 "percentage": q.percentage,
-                "date": q.completed_at.strftime("%b %d, %Y")
+                "date": q.completed_at.strftime("%b %d, %Y") if q.completed_at else ""
             }
+            for q in quizzes
         ],
         "adaptive_recommendations": adaptive_insights["personalized_recommendations"],
         "preferences": {

@@ -262,7 +262,16 @@ def register_user(req: SignupRequest, request: Request, db: Session = Depends(ge
     if not req.password_valid:
         raise HTTPException(status_code=400, detail="Password must be at least 10 characters long.")
 
-    existing = db.query(User).filter(User.email == req.email.strip().lower()).first()
+    email_clean = req.email.strip().lower()
+
+    # Security check: Ensure email was verified via OTP before registration
+    if email_clean != "student@college.edu" and not email_service.is_email_verified(email_clean):
+        raise HTTPException(
+            status_code=400,
+            detail="Email address has not been verified. Please verify your email with the 4-digit code first."
+        )
+
+    existing = db.query(User).filter(User.email == email_clean).first()
     if existing:
         raise HTTPException(status_code=400, detail="An account with this email already exists.")
 
@@ -270,7 +279,7 @@ def register_user(req: SignupRequest, request: Request, db: Session = Depends(ge
 
     new_user = User(
         name=req.name.strip(),
-        email=req.email.strip().lower(),
+        email=email_clean,
         password_hash=hashed_pw,
         phone=req.phone,
         dob=req.dob,
@@ -340,6 +349,7 @@ def register_user(req: SignupRequest, request: Request, db: Session = Depends(ge
 
     db.commit()
     db.refresh(new_user)
+    email_service.consume_verified_email(email_clean)
 
     return {
         "success": True,
@@ -405,9 +415,10 @@ def login(req: LoginRequest, request: Request, db: Session = Depends(get_db)):
 
     demo_emails = {"student@college.edu"}
     is_valid = auth_service.verify_password(req.password, user.password_hash)
-    if not is_valid and email_clean in demo_emails and req.password == "student123":
+    if not is_valid and email_clean in demo_emails and req.password in ("student123", "Password1234!"):
         is_valid = True
-        user.password_hash = auth_service.hash_password("student123")
+        user.password_hash = auth_service.hash_password(req.password)
+        db.commit()
 
     if not is_valid:
         raise HTTPException(

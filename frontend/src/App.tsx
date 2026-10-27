@@ -663,7 +663,7 @@ const API_BASE = (import.meta.env.VITE_API_URL !== undefined && import.meta.env.
   ? import.meta.env.VITE_API_URL
   : "";
 
-async function apiPost(path: string, body: unknown) {
+async function apiPost(path: string, body: unknown, retries = 1): Promise<any> {
   const url = `${API_BASE}${path}`;
   try {
     const res = await fetch(url, {
@@ -676,11 +676,23 @@ async function apiPost(path: string, body: unknown) {
     try {
       data = JSON.parse(text);
     } catch {
+      // Check if proxy refused connection locally
+      if (text.includes("ECONNREFUSED") || text.includes("Proxy error")) {
+        throw new Error("Backend server is not running locally on port 8000. Please start the backend service.");
+      }
+      // If Render cold start (returns HTML gateway screen), auto-retry once after 2.5s before throwing
+      if (retries > 0 && (res.status === 502 || res.status === 503 || res.status === 504 || url.includes("onrender.com"))) {
+        await new Promise(r => setTimeout(r, 2500));
+        return apiPost(path, body, retries - 1);
+      }
       throw new Error(`Server is starting up (Render free tier). Please retry in a few seconds.`);
     }
     if (!res.ok) throw new Error(data.detail || "Authentication request failed.");
     return data;
   } catch (err: any) {
+    if (err?.message?.includes("Failed to fetch")) {
+      throw new Error("Unable to reach backend. Please ensure the server is active.");
+    }
     throw err;
   }
 }
@@ -995,10 +1007,10 @@ function AuthPage({ onHome, onComplete }: { onHome: () => void; onComplete: (nam
       } else {
         localStorage.removeItem("aarva_saved_email");
       }
-      localStorage.setItem("aarva_token", data.access_token);
+      localStorage.setItem("aarva_token", data.access_token || data.token);
       localStorage.setItem("aarva_user", JSON.stringify(data.user));
       localStorage.removeItem("aarva_active_book_id");
-      onComplete(data.user.name);
+      onComplete(data.user?.name || "Student");
     } catch (err: unknown) {
       // Strictly do NOT log in when credentials or password are wrong or user does not exist
       setLoginError(err instanceof Error ? err.message : "Invalid email or password.");

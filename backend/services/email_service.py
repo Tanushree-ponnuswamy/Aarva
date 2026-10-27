@@ -5,7 +5,7 @@ Supports Gmail, Outlook, AWS SES, or any standard SMTP relay with STARTTLS.
 """
 
 import smtplib
-import random
+import secrets
 import time
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
@@ -16,50 +16,92 @@ class EmailService:
     def __init__(self):
         self.smtp_host = settings.SMTP_HOST
         self.smtp_port = settings.SMTP_PORT
-        self.smtp_user = settings.SMTP_USER
-        self.smtp_password = settings.SMTP_PASSWORD
+        self.smtp_user = settings.smtp_user if hasattr(settings, "smtp_user") else settings.SMTP_USER
+        self.smtp_password = settings.smtp_password if hasattr(settings, "smtp_password") else settings.SMTP_PASSWORD
         self.from_email = settings.SMTP_FROM_EMAIL
         self.from_name = settings.SMTP_FROM_NAME
         self.use_tls = settings.SMTP_USE_TLS
         
-        # In-memory OTP storage with TTL: { email: { 'code': str, 'expires_at': float } }
+        # In-memory OTP storage with TTL: { email: { 'code': str, 'expires_at': float, 'attempts': int, 'created_at': float } }
         self._otp_store: Dict[str, Dict[str, Any]] = {}
+        # In-memory verified email store: { email: expires_at float }
+        self._verified_emails: Dict[str, float] = {}
 
-    def generate_otp(self, email: str, length: int = 4) -> str:
-        """Generate a random 4-digit OTP code and store it with 10-minute expiry."""
+    def generate_otp(self, email: str, length: int = 4, min_cooldown_sec: int = 30) -> str:
+        """
+        Generate a cryptographically secure numeric OTP code and store it with 10-minute expiry.
+        Applies cooldown to prevent rapid-fire email flood attacks.
+        """
         email_clean = email.strip().lower()
-        # Generate numeric code
+        now = time.time()
+        
+        existing = self._otp_store.get(email_clean)
+        # If an active code was created very recently (< cooldown), reuse the active code to avoid spamming SMTP
+        if existing and (now - existing.get("created_at", 0)) < min_cooldown_sec and now < existing.get("expires_at", 0):
+            return existing["code"]
+
+        # Generate cryptographically secure numeric code
         if length == 4:
-            code = f"{random.randint(1000, 9999)}"
+            code = f"{secrets.randbelow(9000) + 1000}"
         else:
-            code = f"{random.randint(100000, 999999)}"
+            code = f"{secrets.randbelow(900000) + 100000}"
             
-        expires_at = time.time() + (10 * 60) # 10 minutes
+        expires_at = now + (10 * 60) # 10 minutes
         self._otp_store[email_clean] = {
             "code": code,
             "expires_at": expires_at,
-            "created_at": time.time()
+            "created_at": now,
+            "attempts": 0
         }
         return code
 
     def verify_otp(self, email: str, code: str) -> bool:
-        """Verify the OTP against stored code sent to email."""
+        """
+        Verify the OTP against stored code sent to email with timing attack
+        resistance (secrets.compare_digest) and max 5 failed attempt brute-force mitigation.
+        """
         email_clean = email.strip().lower()
+        now = time.time()
             
         record = self._otp_store.get(email_clean)
         if not record:
             return False
             
-        if time.time() > record["expires_at"]:
+        if now > record["expires_at"]:
             del self._otp_store[email_clean]
             return False
             
-        if record["code"] == code.strip():
+        # Check brute force attempts limit
+        record["attempts"] = record.get("attempts", 0) + 1
+        if record["attempts"] > 5:
+            # Invalidate immediately on exceeding max attempts
+            del self._otp_store[email_clean]
+            return False
+
+        # Constant-time comparison to prevent timing attacks
+        if secrets.compare_digest(record["code"], code.strip()):
             # Consume OTP
             del self._otp_store[email_clean]
+            # Mark email as verified for 15 minutes for registration flow
+            self._verified_emails[email_clean] = now + (15 * 60)
             return True
             
         return False
+
+    def is_email_verified(self, email: str) -> bool:
+        """Check if an email has recently verified OTP and is eligible for signup."""
+        email_clean = email.strip().lower()
+        exp = self._verified_emails.get(email_clean)
+        if exp and time.time() < exp:
+            return True
+        if email_clean in self._verified_emails:
+            del self._verified_emails[email_clean]
+        return False
+
+    def consume_verified_email(self, email: str) -> None:
+        """Consume verified status upon successful account creation."""
+        email_clean = email.strip().lower()
+        self._verified_emails.pop(email_clean, None)
 
     def get_html_template(self, code: str, recipient_email: str) -> str:
         """Render a modern, responsive HTML email template for email verification."""
