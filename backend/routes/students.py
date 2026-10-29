@@ -182,18 +182,20 @@ def get_student_dashboard(user_id: int, db: Session = Depends(get_db), current_u
 def award_xp(req: XpAwardRequest, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     user = current_user
     # Clients must not be able to mint arbitrary XP: clamp to a sane per-call range.
-    req.xp_amount = max(0, min(req.xp_amount or 50, 100))
+    from services.rate_limit import rate_limiter
+    rate_limiter.hit(f"award-xp:{current_user.id}", limit=60, window_seconds=3600)
+    amount = 50 if req.xp_amount is None else max(0, min(req.xp_amount, 100))
 
     progress = user.progress
     if not progress:
         progress = LearningProgress(user_id=user.id)
         db.add(progress)
 
-    current_xp = getattr(progress, "xp", 240) or 240
-    new_xp = current_xp + (req.xp_amount or 50)
+    current_xp = progress.xp or 0
+    new_xp = current_xp + amount
     progress.xp = new_xp
 
-    # Level calculation: every 150 XP is a level
+    # Level calculation: every 120 XP is a level
     new_level = max(1, new_xp // 120 + 1)
     progress.level = new_level
     if new_level >= 5:
@@ -207,11 +209,11 @@ def award_xp(req: XpAwardRequest, db: Session = Depends(get_db), current_user: U
 
     return {
         "success": True,
-        "awarded_xp": req.xp_amount or 50,
+        "awarded_xp": amount,
         "total_xp": new_xp,
         "level": new_level,
         "level_title": progress.level_title,
-        "message": f"+{req.xp_amount or 50} XP earned for {req.activity_type.replace('_', ' ')}!"
+        "message": f"+{amount} XP earned for {req.activity_type.replace('_', ' ')}!"
     }
 
 @router.put("/preferences/{user_id}")

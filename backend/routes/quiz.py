@@ -46,7 +46,10 @@ def generate_ai_quiz(req: QuizGenerateRequest, db: Session = Depends(get_db), cu
     """
     from services.quiz_service import generate_quiz_questions, get_difficulty_distribution
 
-    req.num_questions = max(1, min(req.num_questions, 20))  # bound LLM cost per call
+    req.num_questions = max(1, min(req.num_questions, 20))
+    if req.difficulty not in ("easy", "medium", "hard", "mixed"):
+        req.difficulty = "mixed"
+    req.topic = (req.topic or "")[:200] or None  # bound LLM cost per call
     if req.textbook_id is not None:
         get_owned_textbook(db, req.textbook_id, current_user)
 
@@ -78,7 +81,7 @@ def generate_ai_quiz(req: QuizGenerateRequest, db: Session = Depends(get_db), cu
 @router.get("/{textbook_id}")
 def get_quiz_questions(textbook_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     """Legacy endpoint - returns curated static questions for a textbook."""
-    book = db.query(Textbook).filter(Textbook.id == textbook_id).first()
+    book = db.query(Textbook).filter(Textbook.id == textbook_id, Textbook.user_id == current_user.id).first()
     book_title = book.title if book else "Computer Networks & Systems"
 
     questions = [
@@ -169,8 +172,14 @@ def get_quiz_questions(textbook_id: int, db: Session = Depends(get_db), current_
 @router.post("/submit")
 def submit_quiz(req: QuizSubmission, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     """Submit completed quiz answers, record result, and update gamification."""
+    from services.rate_limit import rate_limiter
     user = current_user
     req.user_id = user.id
+    # Answers are graded client-side, so bound how much XP one account can farm.
+    rate_limiter.hit(f"quiz-submit:{user.id}", limit=30, window_seconds=3600)
+    if len(req.answers) > 50:
+        raise HTTPException(status_code=400, detail="Too many answers in one submission.")
+    req.topic = (req.topic or "")[:200]
     if req.textbook_id is not None:
         get_owned_textbook(db, req.textbook_id, current_user)
 
