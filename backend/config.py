@@ -146,7 +146,7 @@ class Settings:
     SMTP_PORT: int = _int_env("SMTP_PORT", 587)
     SMTP_USER: str = os.getenv("SMTP_USER", os.getenv("EMAIL_USER", ""))
     SMTP_PASSWORD: str = os.getenv("SMTP_PASSWORD", os.getenv("EMAIL_PASS", "")).replace(" ", "")
-    SMTP_FROM_EMAIL: str = os.getenv("SMTP_FROM_EMAIL", os.getenv("EMAIL_USER", ""))
+    SMTP_FROM_EMAIL: str = os.getenv("SMTP_FROM_EMAIL") or os.getenv("EMAIL_USER") or os.getenv("SMTP_USER", "")
     SMTP_FROM_NAME: str = os.getenv("SMTP_FROM_NAME", "Aarva Learning")
     SMTP_USE_TLS: bool = os.getenv("SMTP_USE_TLS", "true").lower() in ("true", "1", "yes")
 

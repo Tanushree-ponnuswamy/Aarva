@@ -237,29 +237,49 @@ class EmailService:
                 print(f"[EMAIL SERVICE ERROR] HTTPS email API failed for {recipient_clean}: {e}")
                 return {"success": False, "error": str(e), "message": "Could not dispatch email.", "code": code}
 
+        if not self.smtp_user or not self.smtp_password:
+            print("[EMAIL SERVICE ERROR] No email credentials configured (set SMTP_USER/SMTP_PASSWORD or BREVO_API_KEY).")
+            return {"success": False, "error_kind": "config", "error": "email credentials are not configured", "code": code}
+        sender = self.from_email or self.smtp_user
+
         try:
-            print(f"[EMAIL SERVICE] Connecting to SMTP server {self.smtp_host}:{self.smtp_port}...")
-            server = smtplib.SMTP(self.smtp_host, self.smtp_port, timeout=12)
-            
-            if self.use_tls:
-                server.starttls()
+            server = None
+            last_error: Optional[Exception] = None
+            # Try STARTTLS on the configured port first, then implicit TLS on 465.
+            for port, implicit_ssl in ((self.smtp_port, False), (465, True)):
+                if implicit_ssl and port == self.smtp_port:
+                    continue
+                try:
+                    print(f"[EMAIL SERVICE] Connecting to SMTP server {self.smtp_host}:{port}...")
+                    if implicit_ssl:
+                        server = smtplib.SMTP_SSL(self.smtp_host, port, timeout=12)
+                    else:
+                        server = smtplib.SMTP(self.smtp_host, port, timeout=12)
+                        if self.use_tls:
+                            server.starttls()
+                    break
+                except Exception as conn_err:
+                    last_error = conn_err
+                    server = None
+            if server is None:
+                raise last_error or ConnectionError("could not reach the mail server")
 
-            if self.smtp_user and self.smtp_password:
-                server.login(self.smtp_user, self.smtp_password)
-
-            server.sendmail(self.from_email, recipient_clean, msg.as_string())
+            server.login(self.smtp_user, self.smtp_password)
+            server.sendmail(sender, recipient_clean, msg.as_string())
             server.quit()
             
             print(f"[EMAIL SERVICE] Successfully dispatched verification email to {recipient_clean} (Code: {code})")
             return {"success": True, "message": f"Verification email sent to {recipient_clean}", "code": code}
 
         except Exception as e:
-            print(f"[EMAIL SERVICE ERROR] Failed to send email via SMTP to {recipient_clean}: {e}")
+            print(f"[EMAIL SERVICE ERROR] Failed to send email via SMTP to {recipient_clean}: {type(e).__name__}: {e}")
+            kind = "auth" if isinstance(e, smtplib.SMTPAuthenticationError) else "unreachable" if isinstance(e, (OSError, TimeoutError)) else "send"
             # Still keep code in memory so user can verify via preview/console in local environments
             return {
                 "success": False,
+                "error_kind": kind,
                 "error": str(e),
-                "message": f"Could not dispatch email via SMTP ({e}). Development code available.",
+                "message": f"Could not dispatch email via SMTP ({e}).",
                 "code": code
             }
 

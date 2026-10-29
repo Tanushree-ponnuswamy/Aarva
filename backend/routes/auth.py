@@ -164,9 +164,14 @@ def send_verification_otp(req: SendOtpRequest, request: Request, db: Session = D
     
     if not dispatch_result.get("success"):
         email_service.discard_otp(email)
+        reason = {
+            "unreachable": "our mail server could not be reached",
+            "auth": "our mail account login was rejected",
+            "config": "email sending is not configured yet",
+        }.get(dispatch_result.get("error_kind"), "the email could not be sent")
         raise HTTPException(
             status_code=502,
-            detail=f"Unable to deliver verification code to {email}. Please verify your email address and try again."
+            detail=f"Unable to deliver the verification code to {email} ({reason}). Please try again in a moment."
         )
 
     return {
