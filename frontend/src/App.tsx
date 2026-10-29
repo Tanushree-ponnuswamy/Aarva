@@ -641,6 +641,9 @@ function LandingPage({ onStart, onLogin, onNavigate }: { onStart: () => void; on
 
 type Route = "landing" | "auth" | "dashboard" | "privacy" | "terms" | "notfound";
 
+// Doubts raised from the Tests view are parked here and consumed by the book chat once it has loaded.
+let pendingDiscuss: { book: LearningBook; query: string } | null = null;
+
 const SECTION_PATHS: Record<string, string> = {
   Dashboard: "/dashboard", Library: "/dashboard/library", Upload: "/dashboard/upload",
   Tests: "/dashboard/tests", Settings: "/dashboard/settings", Profile: "/dashboard/profile",
@@ -2610,11 +2613,22 @@ function UploadWorkspace({
 
       // 1. Fetch Chat History
       const currentUId = userId || user?.id;
+      const flushPendingDiscuss = () => {
+        if (pendingDiscuss && pendingDiscuss.book.id === book.id) {
+          const d = pendingDiscuss;
+          pendingDiscuss = null;
+          setLeftView("chat");
+          setMessages((prev) => [...prev, { from: "user", text: d.query }]);
+          executeRagChat(d.query, d.book.id, currentUId);
+        }
+      };
+      if (!currentUId) flushPendingDiscuss();
       if (currentUId) {
         apiFetch<{ messages: { from: string; text: string }[] }>(`/api/summary/chat/history/${book.id}?user_id=${currentUId}`)
           .then((res) => {
             if (res.messages && res.messages.length > 0) {
               setMessages(res.messages);
+              flushPendingDiscuss();
             } else {
               const greetings: Record<string, string> = {
                 ta: `வணக்கம், நான் ஆர்வா 👋 — "${book.title}" ஆவணம் தயாராக உள்ளது. என்னிடம் எதையும் கேளுங்கள்!`,
@@ -2630,6 +2644,7 @@ function UploadWorkspace({
               setMessages([
                 { from: "ai", text: bookGreeting },
               ]);
+              flushPendingDiscuss();
             }
           })
           .catch(() => {
@@ -2647,6 +2662,7 @@ function UploadWorkspace({
             setMessages([
               { from: "ai", text: bookGreeting },
             ]);
+            flushPendingDiscuss();
           });
       }
 
@@ -4431,6 +4447,31 @@ interface TestResultSummary {
   }>;
 }
 
+const AI_DIFFICULTY: Record<string, TestQuestion["difficulty"]> = { easy: "Basic", medium: "Medium", hard: "Advanced" };
+
+// Asks the backend (RAG + Qwen) for questions grounded in the uploaded document; null when unavailable.
+async function fetchAiQuestions(bookId: number, topic: string, language: string): Promise<TestQuestion[] | null> {
+  try {
+    const res = await apiFetch<any>("/api/quiz/generate", {
+      method: "POST",
+      body: JSON.stringify({ textbook_id: bookId, topic, num_questions: 10, difficulty: "mixed", language }),
+    });
+    if (!res?.ai_powered || !Array.isArray(res.questions) || res.questions.length < 3) return null;
+    return res.questions.map((q: any, i: number): TestQuestion => ({
+      id: i + 1,
+      difficulty: AI_DIFFICULTY[String(q.difficulty || "medium").toLowerCase()] || "Medium",
+      kind: q.topic || topic,
+      prompt: q.question,
+      options: q.options,
+      correctIndex: Number(q.correct_option),
+      explanation: q.explanation || "",
+      misconception: "",
+    }));
+  } catch {
+    return null;
+  }
+}
+
 function generateConceptQuestions(concept: string, bookTitle: string, langCode: LanguageCode = "en"): TestQuestion[] {
   const baseQuestions: TestQuestion[] = [
     {
@@ -4678,6 +4719,18 @@ function TestView({
 
   // Challenge test state
   const [currentQuestions, setCurrentQuestions] = useState<TestQuestion[]>([]);
+  const [quizLoading, setQuizLoading] = useState(false);
+  const quizRequestRef = useRef(0);
+
+  const loadQuestions = async (item: string, targetBook: LearningBook) => {
+    const requestId = ++quizRequestRef.current;
+    setQuizLoading(true);
+    setCurrentQuestions([]);
+    const ai = targetBook?.id ? await fetchAiQuestions(targetBook.id, item, languageObj.name) : null;
+    if (requestId !== quizRequestRef.current) return; // a newer request superseded this one
+    setCurrentQuestions(ai || generateConceptQuestions(item, targetBook.title, languageObj.code));
+    setQuizLoading(false);
+  };
   const [userAnswers, setUserAnswers] = useState<{ [qIndex: number]: number }>({});
   const [testResult, setTestResult] = useState<TestResultSummary | null>(null);
   const [discussingQuestionId, setDiscussingQuestionId] = useState<number | null>(null);
@@ -4738,16 +4791,12 @@ function TestView({
     setUserAnswers({});
     setTestResult(null);
     setDiscussingQuestionId(null);
-    const qList = generateConceptQuestions(item, chosen.title, languageObj.code);
-    setCurrentQuestions(qList);
+    loadQuestions(item, chosen);
     onStarted(chosen);
   };
 
   useEffect(() => {
-    if (concept) {
-      const qList = generateConceptQuestions(concept, activeBook.title, languageObj.code);
-      setCurrentQuestions(qList);
-    }
+    if (concept) loadQuestions(concept, activeBook);
   }, [languageObj.code]);
 
   const handleSelectAnswer = (optIdx: number) => {
@@ -4978,6 +5027,18 @@ function TestView({
       return true;
     });
   }, [matchingBooks, filterMode]);
+
+  if (concept && quizLoading) {
+    return (
+      <section className="dashboard-content">
+        <div className="welcome-card"><div>
+          <p>{activeBook.title}</p>
+          <h2>Preparing your test…</h2>
+          <span>Aarva is writing questions from your document in {languageObj.nativeName}. This can take a moment.</span>
+        </div></div>
+      </section>
+    );
+  }
 
   /* ── 1. ACTIVE QUESTION PLAYER ── */
   if (concept && currentQuestions.length > 0) {
@@ -5352,15 +5413,6 @@ function TestView({
                             <button
                               type="button"
                               className="btn-discuss-ai"
-                              onClick={() => toggleDiscussion(wq, userChoice, correctChoice)}
-                            >
-                              <Icon name="spark" size={15} />
-                              <span>{isDiscussing ? "✕ Close Quick Chat" : "💬 Quick Chat with AI Tutor"}</span>
-                            </button>
-
-                            <button
-                              type="button"
-                              className="btn-discuss-ai"
                               style={{
                                 background: "linear-gradient(135deg, #10b981, #059669)",
                                 boxShadow: "0 4px 12px rgba(16, 185, 129, 0.25)"
@@ -5378,7 +5430,7 @@ function TestView({
                               title="Move to the related textbook chat workspace in Upload session to discuss this question in depth"
                             >
                               <span>📖</span>
-                              <span>Discuss in Book Chat →</span>
+                              <span>Ask your doubt in Book Chat →</span>
                             </button>
                           </div>
 
@@ -6538,13 +6590,9 @@ function Dashboard({ name, onHome }: { name: string; onHome: () => void }) {
             onCompleted={handleCompleteTest}
             onSelectBook={selectBookAndSave}
             onDiscussInUpload={(targetBook, query) => {
+              pendingDiscuss = { book: targetBook, query };
               selectBookAndSave(targetBook);
               setActive("Upload");
-              setTimeout(() => {
-                window.dispatchEvent(new CustomEvent("aarva_discuss_in_upload", {
-                  detail: { book: targetBook, query }
-                }));
-              }, 120);
             }}
           />
         )}

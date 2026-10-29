@@ -72,25 +72,6 @@ class KnowledgeBaseService:
         if parse_result.parse_warnings:
             _safe_print(f"   • Warnings: {', '.join(parse_result.parse_warnings)}")
 
-        # ─── PRINT ENTIRE DOCUMENT CONTENT TO TERMINAL ───────────────────────
-        _safe_print("\n" + "#"*85)
-        _safe_print(f"📖 [READING ENTIRE EXTRACTED DOCUMENT CONTENT: '{filename}']")
-        _safe_print("#"*85)
-
-        if parse_result.pages:
-            for page in parse_result.pages:
-                _safe_print(f"\n{'='*80}")
-                _safe_print(f"📄 [PAGE / SECTION {page.page_number}]: {page.chapter} ({page.word_count} words)")
-                _safe_print(f"{'='*80}")
-                _safe_print(page.text)
-                _safe_print(f"{'-'*80}")
-        else:
-            _safe_print(f"\n[RAW TEXT]:\n{parse_result.full_text}\n")
-
-        _safe_print("\n" + "#"*85)
-        _safe_print(f"✅ [FINISHED READING ENTIRE DOCUMENT: '{filename}' | Total Words: {parse_result.word_count}]")
-        _safe_print("#"*85 + "\n")
-
         # 2. Chunk text with metadata
         _safe_print(f"🧩 [CHUNKING PIPELINE] Chunking '{doc_title}' with semantic boundary detection...")
         chunks: List[DocumentChunk] = chunking_service.chunk_parsed_result(

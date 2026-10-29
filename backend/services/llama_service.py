@@ -994,7 +994,7 @@ class LlamaService:
         Extracts: title, overview, main takeaway, key points, topics covered,
         sections, concepts (with analogies), definitions, and important notes.
         """
-        clean_text = full_text[:12000].strip()
+        clean_text = self._condense_for_summary(full_text)
         model_to_use = self._get_best_model()
 
         lang_instruction = (
@@ -1072,6 +1072,24 @@ class LlamaService:
 
         # 2. Rule-based structured extractor fallback
         return self._rule_based_summary_extraction(full_text, filename, sections)
+
+    def _condense_for_summary(self, full_text: str, limit: int = 12000, parts: int = 8) -> str:
+        """Fit a long document into the prompt budget while covering it end to end.
+
+        Short documents pass through unchanged. Long ones are cut into `parts` equal slices and the
+        opening of each slice is kept, so the summary reflects the whole book, not just its first pages.
+        """
+        text = (full_text or "").strip()
+        if len(text) <= limit:
+            return text
+        slice_len = len(text) // parts
+        keep = limit // parts
+        pieces = []
+        for i in range(parts):
+            chunk = text[i * slice_len : i * slice_len + keep].strip()
+            if chunk:
+                pieces.append(f"[Part {i + 1} of {parts}]\n{chunk}")
+        return "\n\n".join(pieces)
 
     def _parse_json_safely(self, text: str) -> Optional[Dict[str, Any]]:
         """Extracts JSON object from text even if enclosed in code fences."""

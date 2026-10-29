@@ -129,7 +129,7 @@ FALLBACK_QUESTIONS_BANK: List[Dict[str, Any]] = [
 ]
 
 
-def _call_ollama_for_questions(context: str, num_questions: int, topic_hint: str, language: str = "English") -> Optional[List[Dict]]:
+def _call_ollama_for_questions(context: str, num_questions: int, topic_hint: str, language: str = "English", difficulty: str = "mixed") -> Optional[List[Dict]]:
     """
     Prompts Ollama (Mistral/Llama/Qwen) to generate MCQ questions from retrieved context in the specified language.
     Returns parsed list of question dicts, or None if Ollama is unavailable.
@@ -148,7 +148,8 @@ def _call_ollama_for_questions(context: str, num_questions: int, topic_hint: str
         "- Each question must have exactly 4 options\n"
         "- Mark the correct answer as a zero-indexed integer (0=first, 1=second, 2=third, 3=fourth)\n"
         "- Include a detailed educational explanation (2-3 sentences)\n"
-        "- Vary difficulty: include easy, medium, and hard questions\n"
+        f"- Difficulty: {'a balanced mix of easy, medium and hard' if difficulty == 'mixed' else difficulty}\n"
+        "- Wrong options must be plausible but clearly incorrect; never use 'all of the above' or 'none of the above'\n"
         f"- Topic hint: {topic_hint}"
         f"{lang_mandate}\n\n"
         "OUTPUT FORMAT (strict JSON array only, no extra text):\n"
@@ -176,9 +177,9 @@ def _call_ollama_for_questions(context: str, num_questions: int, topic_hint: str
                 "prompt": prompt,
                 "stream": False,
                 "think": False,
-                "options": {"temperature": 0.5, "top_p": 0.9, "num_predict": 450}
+                "options": {"temperature": 0.5, "top_p": 0.9, "num_predict": 220 * num_questions + 300}
             },
-            timeout=60.0
+            timeout=150.0
         )
         if res.status_code == 200:
             raw = res.json().get("response", "").strip()
@@ -186,8 +187,17 @@ def _call_ollama_for_questions(context: str, num_questions: int, topic_hint: str
             match = re.search(r'\[.*\]', raw, re.DOTALL)
             if match:
                 questions = json.loads(match.group())
-                if isinstance(questions, list) and len(questions) > 0:
-                    return questions
+                valid = []
+                for q in questions if isinstance(questions, list) else []:
+                    try:
+                        opts = [str(o) for o in q.get("options", [])]
+                        idx = int(q.get("correct_option", -1))
+                        if str(q.get("question", "")).strip() and len(opts) == 4 and 0 <= idx <= 3:
+                            valid.append(q)
+                    except (AttributeError, TypeError, ValueError):
+                        continue
+                if valid:
+                    return valid
     except Exception as e:
         print(f"[QUIZ_SERVICE] Ollama generation failed: {e}")
 
@@ -218,7 +228,7 @@ def generate_quiz_questions(
             retrieved_chunks = hybrid_retrieval_engine.retrieve(
                 query=query,
                 textbook_id=textbook_id,
-                top_k=5
+                top_k=8
             )
         except Exception as e:
             print(f"[QUIZ_SERVICE] Retrieval failed: {e}")
@@ -234,7 +244,7 @@ def generate_quiz_questions(
         if content:
             context_parts.append(f"[{title} | Page {page}]\n{content}")
 
-    combined_context = "\n\n".join(context_parts[:5])
+    combined_context = "\n\n".join(context_parts[:8])[:9000]
     if not combined_context.strip():
         combined_context = f"Educational subject matter and core concepts regarding {topic or 'academic concepts and problem solving'}."
 
@@ -250,7 +260,8 @@ def generate_quiz_questions(
             context=combined_context,
             num_questions=num_questions,
             topic_hint=topic or "general subject matter",
-            language=language
+            language=language,
+            difficulty=difficulty
         )
         if not candidate:
             break
