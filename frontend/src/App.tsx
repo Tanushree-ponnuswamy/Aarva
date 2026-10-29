@@ -1,4 +1,5 @@
 import { FormEvent, ReactNode, useEffect, useMemo, useRef, useState } from "react";
+import DOMPurify from "dompurify";
 import * as pdfjsLib from "pdfjs-dist";
 import pdfWorker from "pdfjs-dist/build/pdf.worker.mjs?url";
 import { useTranslation, SUPPORTED_LANGUAGES, LanguageCode } from "./i18n";
@@ -2378,7 +2379,7 @@ function FilePreviewPane({
         <div style={{ display: "flex", gap: "0.4rem", alignItems: "center" }}>
           <button
             type="button"
-            onClick={() => window.open(src, "_blank")}
+            onClick={() => window.open(src, "_blank", "noopener,noreferrer")}
             style={{ padding: "0.25rem 0.65rem", borderRadius: "0.4rem", background: "#f5f3ff", color: "#7458f5", border: "none", fontSize: "0.78rem", fontWeight: 600, cursor: "pointer" }}
           >
             ↗ Open Full
@@ -2469,7 +2470,7 @@ function FilePreviewPane({
                 `}</style>
                 <div
                   className="doc-paper"
-                  dangerouslySetInnerHTML={{ __html: docHtml }}
+                  dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(docHtml) }}
                 />
               </div>
             )}
@@ -2484,7 +2485,7 @@ function FilePreviewPane({
                   .xlsx-sheet tr:nth-child(even) { background: #f8fafc; }
                   .xlsx-sheet tr:hover { background: #f1f5f9; }
                 `}</style>
-                <div dangerouslySetInnerHTML={{ __html: xlsxHtml }} />
+                <div dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(xlsxHtml) }} />
               </div>
             )}
 

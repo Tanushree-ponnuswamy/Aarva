@@ -50,6 +50,10 @@ async def upload_textbook(
     # Uploads always belong to the authenticated user (client-supplied user_id must match).
     require_self_or_admin(user_id, current_user)
     user = current_user
+    title = title.strip()[:200]
+    if not title:
+        raise HTTPException(status_code=400, detail="Title is required.")
+    author = (author or "Unknown Author").strip()[:200]
 
     from services.knowledge_base_service import knowledge_base_service
     import re
@@ -104,7 +108,7 @@ async def upload_textbook(
 
     # Save file to disk for preview securely within UPLOADS_DIR
     target_path = (UPLOADS_DIR / f"{result['document_id']}_{filename}").resolve()
-    if not str(target_path).startswith(str(UPLOADS_DIR.resolve())):
+    if not target_path.is_relative_to(UPLOADS_DIR.resolve()):
         raise HTTPException(status_code=400, detail="Invalid target file destination.")
 
     try:
@@ -166,7 +170,7 @@ def get_textbook_file(textbook_id: int, db: Session = Depends(get_db), current_u
     # Check disk for saved file securely
     for p in UPLOADS_DIR.glob(f"{textbook_id}_*"):
         p_resolved = p.resolve()
-        if not str(p_resolved).startswith(str(UPLOADS_DIR.resolve())):
+        if not p_resolved.is_relative_to(UPLOADS_DIR.resolve()):
             continue
         ext = p.suffix.lower()
         mime_map = {
@@ -187,7 +191,10 @@ def get_textbook_file(textbook_id: int, db: Session = Depends(get_db), current_u
             ".csv":  "text/csv",
         }
         media_type = mime_map.get(ext, "application/octet-stream")
-        return FileResponse(path=p, media_type=media_type, filename=book.file_name, content_disposition_type="inline")
+        return FileResponse(
+            path=p, media_type=media_type, filename=book.file_name, content_disposition_type="inline",
+            headers={"X-Content-Type-Options": "nosniff", "Content-Security-Policy": "sandbox"},
+        )
 
     # Final fallback response
     summary_text = (book.summary_data or {}).get("complete_summary", f"Document summary for {book.title}.")

@@ -10,6 +10,7 @@
     "format": "oxfmt"
   },
   "dependencies": {
+    "dompurify": "^3.4.17",
     "i18next": "^26.5.4",
     "mammoth": "^1.13.0",
     "pdfjs-dist": "^6.4.299",

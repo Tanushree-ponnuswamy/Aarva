@@ -6,6 +6,7 @@ Per-process only: fine for a single Render instance. If you scale to several
 workers/instances, move the counters to Redis.
 """
 
+import os
 import time
 import threading
 from collections import defaultdict, deque
@@ -22,7 +23,15 @@ def client_ip(request: Request) -> str:
     """
     xff = request.headers.get("x-forwarded-for", "")
     if xff:
-        return xff.split(",")[-1].strip()
+        parts = [p.strip() for p in xff.split(",") if p.strip()]
+        # TRUSTED_PROXY_HOPS = number of proxies we control in front of the app (default 1: Render only).
+        # Set to 2 if traffic also passes through the frontend's nginx proxy, otherwise every
+        # user shares the proxy's IP and one rate-limit bucket.
+        try:
+            hops = max(1, int(os.getenv("TRUSTED_PROXY_HOPS", "1")))
+        except ValueError:
+            hops = 1
+        return parts[-min(hops, len(parts))]
     return request.client.host if request.client else "unknown"
 
 
