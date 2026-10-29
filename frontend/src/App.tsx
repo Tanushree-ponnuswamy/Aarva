@@ -663,38 +663,45 @@ const API_BASE = (import.meta.env.VITE_API_URL !== undefined && import.meta.env.
   ? import.meta.env.VITE_API_URL
   : "";
 
-async function apiPost(path: string, body: unknown, retries = 1): Promise<any> {
+const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+
+/**
+ * Render's free tier puts BOTH services to sleep. While they wake (30-60 s) the platform answers
+ * with an HTML "Application loading" page (HTTP 502/503) that never reached our API, so retrying
+ * is safe. Without this, the first login after idle time fails with a confusing error.
+ */
+async function apiPost(path: string, body: unknown) {
   const url = `${API_BASE}${path}`;
-  try {
-    const res = await fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    });
+  const MAX_ATTEMPTS = 8;
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    let res: Response;
+    try {
+      res = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+    } catch {
+      // network hiccup while the host is waking up
+      if (attempt === MAX_ATTEMPTS) throw new Error("Cannot reach the server. Check your connection and try again.");
+      await sleep(5000);
+      continue;
+    }
     const text = await res.text();
-    let data: any = {};
+    let data: any;
     try {
       data = JSON.parse(text);
     } catch {
-      // Check if proxy refused connection locally
-      if (text.includes("ECONNREFUSED") || text.includes("Proxy error")) {
-        throw new Error("Backend server is not running locally on port 8000. Please start the backend service.");
+      if (attempt === MAX_ATTEMPTS) {
+        throw new Error("The server is still starting up (free hosting). Please try again in a minute.");
       }
-      // If Render cold start (returns HTML gateway screen), auto-retry once after 2.5s before throwing
-      if (retries > 0 && (res.status === 502 || res.status === 503 || res.status === 504 || url.includes("onrender.com"))) {
-        await new Promise(r => setTimeout(r, 2500));
-        return apiPost(path, body, retries - 1);
-      }
-      throw new Error(`Server is starting up (Render free tier). Please retry in a few seconds.`);
+      await sleep(8000); // waking-up page: wait and retry
+      continue;
     }
-    if (!res.ok) throw new Error(data.detail || "Authentication request failed.");
+    if (!res.ok) throw new Error(data.detail || "Request failed.");
     return data;
-  } catch (err: any) {
-    if (err?.message?.includes("Failed to fetch")) {
-      throw new Error("Unable to reach backend. Please ensure the server is active.");
-    }
-    throw err;
   }
+  throw new Error("The server is still starting up. Please try again in a minute.");
 }
 
 function AuthPage({ onHome, onComplete }: { onHome: () => void; onComplete: (name: string) => void }) {
@@ -981,8 +988,8 @@ function AuthPage({ onHome, onComplete }: { onHome: () => void; onComplete: (nam
       return;
     }
 
-    if (loginPassword.length < 10) {
-      setLoginError("Password must be at least 10 characters long.");
+    if (!loginPassword) {
+      setLoginError("Please enter your password.");
       return;
     }
 
@@ -1733,12 +1740,26 @@ function authFetch(url: string, init: RequestInit = {}) {
   return fetch(url, {
     ...init,
     headers: { ...(init.headers || {}), ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+  }).then((res) => {
+    if (res.status === 401) handleSessionExpired();
+    return res;
   });
 }
 
-async function apiFetch<T = any>(path: string, options: RequestInit = {}): Promise<T> {
-  const token = localStorage.getItem("aarva_token") ?? "";
+/** Session ended / token rejected by the server: clear it and send the user to sign in. */
+function handleSessionExpired() {
   try {
+    localStorage.removeItem("aarva_token");
+    localStorage.removeItem("aarva_user");
+    localStorage.removeItem("aarva_active_book_id");
+  } catch { /* ignore */ }
+  if (window.location.pathname !== "/login") window.location.assign("/login");
+}
+
+async function apiFetch<T = any>(path: string, options: RequestInit = {}): Promise<T> {
+  const MAX_ATTEMPTS = 6;
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    const token = localStorage.getItem("aarva_token") ?? "";
     const res = await fetch(`${API}${path}`, {
       ...options,
       headers: {
@@ -1748,17 +1769,25 @@ async function apiFetch<T = any>(path: string, options: RequestInit = {}): Promi
       },
     });
     const text = await res.text();
-    let data: any = {};
+    let data: any;
     try {
       data = JSON.parse(text);
     } catch {
+      // 502/503 HTML = host still waking up (request never reached the API): wait and retry
+      if ((res.status === 502 || res.status === 503) && attempt < MAX_ATTEMPTS) {
+        await sleep(8000);
+        continue;
+      }
       throw new Error(`API returned non-JSON response (${res.status})`);
+    }
+    if (res.status === 401) {
+      handleSessionExpired();
+      throw new Error(data.detail || "Session expired. Please sign in again.");
     }
     if (!res.ok) throw new Error(data.detail || "API error");
     return data;
-  } catch (err: any) {
-    throw err;
   }
+  throw new Error("The server is still starting up. Please try again in a minute.");
 }
 
 const menuItems: { label: string; icon: "dashboard" | "library" | "upload" | "test" }[] = [
@@ -6482,6 +6511,11 @@ function Dashboard({ name, onHome }: { name: string; onHome: () => void }) {
 }
 
 export default function App() {
+  // Wake the (sleeping, free-tier) backend while the visitor is still reading the landing page.
+  useEffect(() => {
+    fetch(`${API_BASE}/api/health`).catch(() => { });
+  }, []);
+
   // Restore auth state from localStorage on mount — keep as reactive state
   const [userName, setUserName] = useState<string>(() => {
     try {
