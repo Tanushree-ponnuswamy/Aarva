@@ -85,6 +85,7 @@ i18n.use(initReactI18next).init({
 });
 
 const enMap = en as Record<string, string>;
+const dictionaries: Record<LanguageCode, Record<string, string>> = { en, ta, hi, te, mr, ml, or, bn } as Record<LanguageCode, Record<string, string>>;
 
 // React custom hook: Keeps UI in English while directing LLM responses in the chosen language
 export function useTranslation() {
@@ -138,8 +139,8 @@ export function useTranslation() {
     lang: currentCode,
     languageObj: currentObj,
     setLanguage,
-    // Entire UI remains strictly in English; LLM generates in languageObj
-    t: (key: string, defaultText?: string) => enMap[key] || defaultText || key,
+    // UI text follows the selected language, falling back to English, then the supplied default, then the key.
+    t: (key: string, defaultText?: string) => dictionaries[currentCode]?.[key] || enMap[key] || defaultText || key,
     languages: SUPPORTED_LANGUAGES,
     indianLanguages: SUPPORTED_LANGUAGES.filter((l) => l.region === "indian"),
     globalLanguages: SUPPORTED_LANGUAGES.filter((l) => l.region === "global"),
