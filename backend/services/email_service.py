@@ -226,7 +226,7 @@ class EmailService:
                         "https://api.brevo.com/v3/smtp/email",
                         headers={"api-key": brevo_key, "accept": "application/json"},
                         json={
-                            "sender": {"name": self.from_name, "email": self.from_email},
+                            "sender": {"name": self.from_name, "email": settings.BREVO_SENDER_EMAIL},
                             "to": [{"email": recipient_clean}],
                             "subject": subject,
                             "htmlContent": html_text,
@@ -239,7 +239,7 @@ class EmailService:
                         "https://api.resend.com/emails",
                         headers={"Authorization": f"Bearer {resend_key}"},
                         json={
-                            "from": f"{self.from_name} <{self.from_email}>",
+                            "from": f"{self.from_name} <{settings.BREVO_SENDER_EMAIL}>",
                             "to": [recipient_clean],
                             "subject": subject,
                             "html": html_text,

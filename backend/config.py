@@ -147,6 +147,8 @@ class Settings:
     SMTP_USER: str = os.getenv("SMTP_USER", os.getenv("EMAIL_USER", ""))
     SMTP_PASSWORD: str = os.getenv("SMTP_PASSWORD", os.getenv("EMAIL_PASS", "")).replace(" ", "")
     SMTP_FROM_EMAIL: str = os.getenv("SMTP_FROM_EMAIL") or os.getenv("EMAIL_USER") or os.getenv("SMTP_USER", "")
+    # Sender used for Brevo API mail; must be a sender verified in the Brevo account.
+    BREVO_SENDER_EMAIL: str = os.getenv("BREVO_SENDER_EMAIL", "tanushreeponnuswamy2007@gmail.com")
     SMTP_FROM_NAME: str = os.getenv("SMTP_FROM_NAME", "Aarva Learning")
     SMTP_USE_TLS: bool = os.getenv("SMTP_USE_TLS", "true").lower() in ("true", "1", "yes")
 
