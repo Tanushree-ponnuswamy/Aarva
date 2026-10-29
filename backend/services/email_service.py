@@ -4,7 +4,9 @@ Handles dispatching branded HTML verification emails and OTP security notificati
 Supports Gmail, Outlook, AWS SES, or any standard SMTP relay with STARTTLS.
 """
 
+import os
 import smtplib
+import requests
 import hmac
 import secrets
 import time
@@ -60,6 +62,14 @@ class EmailService:
             "attempts": 0,
         }
         return code
+
+    def discard_otp(self, email: str) -> None:
+        """Forget a code whose email could not be delivered, so the user can retry immediately."""
+        email_clean = email.strip().lower()
+        self._otp_store.pop(email_clean, None)
+        sends = self._send_log.get(email_clean, [])
+        if sends:
+            sends.pop()
 
     def verify_otp(self, email: str, code: str) -> bool:
         """Verify an OTP. Single use; destroyed after too many wrong guesses."""
@@ -187,6 +197,45 @@ class EmailService:
 
         msg.attach(MIMEText(plain_text, "plain"))
         msg.attach(MIMEText(html_text, "html"))
+
+        # Render blocks outbound SMTP ports, so prefer an HTTPS email API when a key is configured.
+        brevo_key = os.getenv("BREVO_API_KEY", "").strip()
+        resend_key = os.getenv("RESEND_API_KEY", "").strip()
+        if brevo_key or resend_key:
+            try:
+                if brevo_key:
+                    resp = requests.post(
+                        "https://api.brevo.com/v3/smtp/email",
+                        headers={"api-key": brevo_key, "accept": "application/json"},
+                        json={
+                            "sender": {"name": self.from_name, "email": self.from_email},
+                            "to": [{"email": recipient_clean}],
+                            "subject": subject,
+                            "htmlContent": html_text,
+                            "textContent": plain_text,
+                        },
+                        timeout=15,
+                    )
+                else:
+                    resp = requests.post(
+                        "https://api.resend.com/emails",
+                        headers={"Authorization": f"Bearer {resend_key}"},
+                        json={
+                            "from": f"{self.from_name} <{self.from_email}>",
+                            "to": [recipient_clean],
+                            "subject": subject,
+                            "html": html_text,
+                            "text": plain_text,
+                        },
+                        timeout=15,
+                    )
+                if resp.status_code >= 300:
+                    raise RuntimeError(f"HTTP {resp.status_code}: {resp.text[:200]}")
+                print(f"[EMAIL SERVICE] Dispatched verification email to {recipient_clean} via HTTPS API")
+                return {"success": True, "message": f"Verification email sent to {recipient_clean}", "code": code}
+            except Exception as e:
+                print(f"[EMAIL SERVICE ERROR] HTTPS email API failed for {recipient_clean}: {e}")
+                return {"success": False, "error": str(e), "message": "Could not dispatch email.", "code": code}
 
         try:
             print(f"[EMAIL SERVICE] Connecting to SMTP server {self.smtp_host}:{self.smtp_port}...")

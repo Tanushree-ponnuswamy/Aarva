@@ -163,6 +163,7 @@ def send_verification_otp(req: SendOtpRequest, request: Request, db: Session = D
     dispatch_result = email_service.send_verification_email(email, code)
     
     if not dispatch_result.get("success"):
+        email_service.discard_otp(email)
         raise HTTPException(
             status_code=502,
             detail=f"Unable to deliver verification code to {email}. Please verify your email address and try again."
