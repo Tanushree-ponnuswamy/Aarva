@@ -48,6 +48,7 @@ class EmailService:
         self._otp_store: Dict[str, Dict[str, Any]] = {}
         self._send_log: Dict[str, list] = {}
         self._verified_emails: Dict[str, float] = {}
+        self.last_error: Optional[str] = None
 
     # ── OTP policy ───────────────────────────────────────────────────────
     OTP_TTL_SECONDS = 10 * 60          # code lifetime
@@ -253,7 +254,8 @@ class EmailService:
                 return {"success": True, "message": f"Verification email sent to {recipient_clean}", "code": code}
             except Exception as e:
                 print(f"[EMAIL SERVICE ERROR] HTTPS email API failed for {recipient_clean}: {e}")
-                return {"success": False, "error": str(e), "message": "Could not dispatch email.", "code": code}
+                self.last_error = f"HTTPS API: {str(e)[:150]}"
+                return {"success": False, "error_kind": "send", "error": str(e), "message": "Could not dispatch email.", "code": code}
 
         if not self.smtp_user or not self.smtp_password:
             print("[EMAIL SERVICE ERROR] No email credentials configured (set SMTP_USER/SMTP_PASSWORD or BREVO_API_KEY).")
@@ -264,15 +266,17 @@ class EmailService:
             server = None
             last_error: Optional[Exception] = None
             # Try STARTTLS on the configured port first, then implicit TLS on 465.
-            for port, implicit_ssl in ((self.smtp_port, False), (465, True)):
-                if implicit_ssl and port == self.smtp_port:
-                    continue
+            attempts = [(self.smtp_port, self.smtp_port == 465)]
+            for extra, ssl_mode in ((2525, False), (587, False), (465, True)):
+                if all(extra != a[0] for a in attempts):
+                    attempts.append((extra, ssl_mode))
+            for port, implicit_ssl in attempts:
                 try:
                     print(f"[EMAIL SERVICE] Connecting to SMTP server {self.smtp_host}:{port}...")
                     if implicit_ssl:
-                        server = _IPv4SMTP_SSL(self.smtp_host, port, timeout=25)
+                        server = _IPv4SMTP_SSL(self.smtp_host, port, timeout=8)
                     else:
-                        server = _IPv4SMTP(self.smtp_host, port, timeout=25)
+                        server = _IPv4SMTP(self.smtp_host, port, timeout=8)
                         if self.use_tls:
                             server.starttls()
                     break
@@ -286,11 +290,12 @@ class EmailService:
             server.sendmail(sender, recipient_clean, msg.as_string())
             server.quit()
             
-            print(f"[EMAIL SERVICE] Successfully dispatched verification email to {recipient_clean} (Code: {code})")
+            print(f"[EMAIL SERVICE] Successfully dispatched verification email to {recipient_clean}")
             return {"success": True, "message": f"Verification email sent to {recipient_clean}", "code": code}
 
         except Exception as e:
             print(f"[EMAIL SERVICE ERROR] Failed to send email via SMTP to {recipient_clean}: {type(e).__name__}: {e}")
+            self.last_error = f"{type(e).__name__}: {str(e)[:120]}"
             kind = "auth" if isinstance(e, smtplib.SMTPAuthenticationError) else "unreachable" if isinstance(e, (OSError, TimeoutError)) else "send"
             # Still keep code in memory so user can verify via preview/console in local environments
             return {

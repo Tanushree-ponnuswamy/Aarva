@@ -105,6 +105,23 @@ def root():
         }
     }
 
+@app.get("/api/health/email")
+def email_health():
+    """Which mail path is configured and why the last send failed (no secrets)."""
+    from services.email_service import email_service
+    from config import settings
+    return {
+        "brevo_api_key_set": bool(os.getenv("BREVO_API_KEY", "").strip()),
+        "smtp_host": settings.SMTP_HOST,
+        "smtp_port": settings.SMTP_PORT,
+        "smtp_user_set": bool(settings.SMTP_USER),
+        "smtp_password_set": bool(settings.SMTP_PASSWORD),
+        "from_email_set": bool(settings.SMTP_FROM_EMAIL),
+        "signup_without_verification_allowed": settings.ALLOW_SIGNUP_WITHOUT_EMAIL_VERIFICATION,
+        "last_error": email_service.last_error,
+    }
+
+
 @app.get("/api/health")
 def health_check(db: Session = Depends(get_db)):
     """Real liveness check: actually touches the database."""

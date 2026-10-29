@@ -164,6 +164,16 @@ def send_verification_otp(req: SendOtpRequest, request: Request, db: Session = D
     
     if not dispatch_result.get("success"):
         email_service.discard_otp(email)
+        if req.purpose == "signup" and settings.ALLOW_SIGNUP_WITHOUT_EMAIL_VERIFICATION:
+            # Mail is down: do not lock new users out. Password reset still requires the emailed code.
+            print(f"[AUTH] Signup continuing without email verification for {email}: {dispatch_result.get('error')}")
+            return {
+                "status": "success",
+                "email": email,
+                "message": "Email verification is temporarily unavailable; you can continue.",
+                "is_registered": bool(user),
+                "verification_skipped": True,
+            }
         reason = {
             "unreachable": "our mail server could not be reached",
             "auth": "our mail account login was rejected",

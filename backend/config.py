@@ -147,6 +147,8 @@ class Settings:
     SMTP_USER: str = os.getenv("SMTP_USER", os.getenv("EMAIL_USER", ""))
     SMTP_PASSWORD: str = os.getenv("SMTP_PASSWORD", os.getenv("EMAIL_PASS", "")).replace(" ", "")
     SMTP_FROM_EMAIL: str = os.getenv("SMTP_FROM_EMAIL") or os.getenv("EMAIL_USER") or os.getenv("SMTP_USER", "")
+    # If the mail provider is unreachable, let SIGN-UP continue without an emailed code (password reset never does).
+    ALLOW_SIGNUP_WITHOUT_EMAIL_VERIFICATION: bool = os.getenv("ALLOW_SIGNUP_WITHOUT_EMAIL_VERIFICATION", "true").lower() in ("true", "1", "yes")
     # Sender used for Brevo API mail; must be a sender verified in the Brevo account.
     BREVO_SENDER_EMAIL: str = os.getenv("BREVO_SENDER_EMAIL", "tanushreeponnuswamy2007@gmail.com")
     SMTP_FROM_NAME: str = os.getenv("SMTP_FROM_NAME", "Aarva Learning")

@@ -1128,11 +1128,17 @@ function AuthPage({ onHome, onComplete }: { onHome: () => void; onComplete: (nam
     setSignupLoading(true);
     try {
       // Dispatch real OTP verification email via SMTP with purpose: signup
-      await apiPost("/api/auth/send-otp", {
+      const otpRes = await apiPost("/api/auth/send-otp", {
         email: targetEmail,
         length: 4,
         purpose: "signup",
       });
+
+      if (otpRes?.verification_skipped) {
+        // Mail provider is down: create the account now instead of blocking the user on a code that will never arrive.
+        await createAccount(targetEmail);
+        return;
+      }
 
       setStage("signup-verify");
       setResendStatus(`Verification code sent to ${targetEmail}. Please check your inbox.`);
@@ -1207,6 +1213,35 @@ function AuthPage({ onHome, onComplete }: { onHome: () => void; onComplete: (nam
     }
   };
 
+  // ── Create the account (after a verified code, or when verification is unavailable) ──
+  const createAccount = async (targetEmail: string) => {
+    const learnerType =
+      educationLevel === "High school" ? "school"
+        : educationLevel === "Professional" ? "professional"
+          : "college";
+
+    await apiPost("/api/auth/signup", {
+      name: signupName || "Student",
+      email: targetEmail,
+      password: signupPassword,
+      learner_type: learnerType,
+      department: fieldOfStudy || undefined,
+      goals: dailyGoal ? [dailyGoal] : undefined,
+      personal_interests: selectedInterests,
+      learning_style: appPreferences,
+      role: "student",
+    });
+
+    // Clear any tokens - the user must explicitly sign in to create their session
+    localStorage.removeItem("aarva_token");
+    localStorage.removeItem("aarva_user");
+    setLoginEmail(targetEmail);
+    setLoginPassword("");
+    setForgotMsg("Account created successfully! Please sign in with your password to continue.");
+    setLoginError("");
+    setStage("login");
+  };
+
   // ── SIGNUP step 3 → Verify OTP & call signup API ─────────────────────
   const submitVerification = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -1228,31 +1263,7 @@ function AuthPage({ onHome, onComplete }: { onHome: () => void; onComplete: (nam
         code: enteredCode,
       });
 
-      const learnerType =
-        educationLevel === "High school" ? "school"
-          : educationLevel === "Professional" ? "professional"
-            : "college";
-
-      await apiPost("/api/auth/signup", {
-        name: signupName || "Student",
-        email: targetEmail,
-        password: signupPassword,
-        learner_type: learnerType,
-        department: fieldOfStudy || undefined,
-        goals: dailyGoal ? [dailyGoal] : undefined,
-        personal_interests: selectedInterests,
-        learning_style: appPreferences,
-        role: "student",
-      });
-
-      // Clear any tokens - the user must explicitly sign in to create their session
-      localStorage.removeItem("aarva_token");
-      localStorage.removeItem("aarva_user");
-      setLoginEmail(targetEmail);
-      setLoginPassword("");
-      setForgotMsg("Account created and verified successfully! Please sign in with your password to continue.");
-      setLoginError("");
-      setStage("login");
+      await createAccount(targetEmail);
     } catch (err: unknown) {
       setSignupError(err instanceof Error ? err.message : "Invalid verification code. Please check your inbox or click resend.");
     } finally {
