@@ -17,6 +17,7 @@ router = APIRouter(prefix="/api/textbooks", tags=["Textbooks Management"])
 UPLOADS_DIR = Path(__file__).resolve().parent.parent / "uploads"
 UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
 
+@router.get("", include_in_schema=False)
 @router.get("/")
 def get_textbooks(user_id: Optional[int] = None, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     user_id = current_user.id if user_id is None else user_id

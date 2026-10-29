@@ -641,13 +641,23 @@ function LandingPage({ onStart, onLogin, onNavigate }: { onStart: () => void; on
 
 type Route = "landing" | "auth" | "dashboard" | "privacy" | "terms" | "notfound";
 
+const SECTION_PATHS: Record<string, string> = {
+  Dashboard: "/dashboard", Library: "/dashboard/library", Upload: "/dashboard/upload",
+  Tests: "/dashboard/tests", Settings: "/dashboard/settings", Profile: "/dashboard/profile",
+};
+
+function sectionFromPath(path: string): string | null {
+  const clean = path.length > 1 ? path.replace(/\/+$/, "") : path;
+  return Object.keys(SECTION_PATHS).find((k) => SECTION_PATHS[k] === clean) ?? null;
+}
+
 const ROUTE_PATHS: Record<Route, string> = { landing: "/", auth: "/login", dashboard: "/dashboard", privacy: "/privacy", terms: "/terms", notfound: "/404" };
 
 function routeFromPath(path: string, hasToken: boolean): Route {
   const clean = path.length > 1 ? path.replace(/\/+$/, "") : path;
   if (clean === "/" || clean === "/index.html") return "landing";
-  if (clean === "/login") return "auth";
-  if (clean === "/dashboard") return hasToken ? "dashboard" : "auth";
+  if (["/login", "/signup", "/register", "/forgot-password"].includes(clean)) return "auth";
+  if (sectionFromPath(clean)) return hasToken ? "dashboard" : "auth";
   if (clean === "/privacy") return "privacy";
   if (clean === "/terms") return "terms";
   return "notfound";
@@ -971,7 +981,10 @@ function AuthPage({ onHome, onComplete }: { onHome: () => void; onComplete: (nam
   };
 
   // ── signup form state ─────────────────────────────────────────────────
-  const [stage, setStage] = useState<"login" | "signup-personal" | "signup-preferences" | "signup-verify" | "forgot-email" | "forgot-verify" | "success">("login");
+  const [stage, setStage] = useState<"login" | "signup-personal" | "signup-preferences" | "signup-verify" | "forgot-email" | "forgot-verify" | "success">(() => {
+    const p = window.location.pathname.replace(/\/+$/, "");
+    return p === "/signup" || p === "/register" ? "signup-personal" : p === "/forgot-password" ? "forgot-email" : "login";
+  });
   const [signupName, setSignupName] = useState("");
   const [signupEmail, setSignupEmail] = useState("");
   const [signupPassword, setSignupPassword] = useState("");
@@ -6108,7 +6121,18 @@ function Dashboard({ name, onHome }: { name: string; onHome: () => void }) {
     window.addEventListener("resize", handleResize);
     return () => window.removeEventListener("resize", handleResize);
   }, []);
-  const [active, setActive] = useState("Dashboard");
+  const [active, setActive] = useState(() => sectionFromPath(window.location.pathname) || "Dashboard");
+
+  // Keep the URL in sync with the open section so refresh, back/forward and deep links work.
+  useEffect(() => {
+    const target = SECTION_PATHS[active] || "/dashboard";
+    if (window.location.pathname.replace(/\/+$/, "") !== target) window.history.pushState({}, "", target);
+  }, [active]);
+  useEffect(() => {
+    const onPop = () => { const s = sectionFromPath(window.location.pathname); if (s) setActive(s); };
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
+  }, []);
   const [selectedBook, setSelectedBook] = useState<LearningBook | null>(null);
   const [startedTests, setStartedTests] = useState<Set<number>>(() => {
     try {
