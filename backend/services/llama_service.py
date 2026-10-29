@@ -184,6 +184,22 @@ class LlamaService:
         }
         return code_map.get(l, "en")
 
+    _SCRIPT_RANGES = {
+        "ta": (0x0B80, 0x0BFF), "hi": (0x0900, 0x097F), "mr": (0x0900, 0x097F),
+        "te": (0x0C00, 0x0C7F), "ml": (0x0D00, 0x0D7F), "or": (0x0B00, 0x0B7F), "bn": (0x0980, 0x09FF),
+    }
+
+    def _is_in_language(self, text: str, lang_code: str) -> bool:
+        """True when `text` is mostly written in the script of `lang_code` (Latin technical terms allowed)."""
+        rng = self._SCRIPT_RANGES.get(lang_code)
+        if not rng:
+            return True
+        letters = [c for c in text if c.isalpha()]
+        if len(letters) < 8:
+            return True
+        native = sum(1 for c in letters if rng[0] <= ord(c) <= rng[1])
+        return native / len(letters) >= 0.4
+
     def _is_unhelpful_refusal(self, text: str) -> bool:
         """Detects whether an LLM returned an evasive fallback apology instead of answering."""
         if not text:
@@ -302,16 +318,32 @@ class LlamaService:
             if res.status_code == 200:
                 content = res.json().get("message", {}).get("content", "").strip()
                 if content and not self._is_unhelpful_refusal(content):
-                    if lang_code != "en" and ("couldn't find" in content.lower() or "not covered" in content.lower()):
-                        pass
-                    else:
+                    if lang_code != "en" and not self._is_in_language(content, lang_code):
+                        # The model answered in the wrong language: ask it once to rewrite in the selected one.
+                        retry = requests.post(
+                            f"{self.base_url}/api/chat",
+                            json={
+                                "model": model_to_use,
+                                "messages": messages + [
+                                    {"role": "assistant", "content": content},
+                                    {"role": "user", "content": f"Rewrite your previous answer completely in {target_lang}. {native_prompts.get(lang_code, '')}"},
+                                ],
+                                "stream": False,
+                                "options": {"temperature": 0.25, "top_p": 0.9, "num_predict": 384},
+                            },
+                            timeout=90.0,
+                        )
+                        content = retry.json().get("message", {}).get("content", "").strip() if retry.status_code == 200 else ""
+                        if not content or not self._is_in_language(content, lang_code):
+                            content = ""
+                    if content and not (lang_code != "en" and ("couldn't find" in content.lower() or "not covered" in content.lower())):
                         return self._clean_tutor_response(content)
         except Exception as e:
             print(f"[OLLAMA CHAT] Error with model '{model_to_use}': {e}")
 
         # 2. Try Ollama /api/generate fallback
         try:
-            full_prompt = f"{system_prompt}\n\nUser: {query}\n\nTutor:"
+            full_prompt = f"{system_prompt}\n\nUser: {user_content}\n\nTutor:"
             res = requests.post(
                 f"{self.base_url}/api/generate",
                 json={
@@ -325,7 +357,7 @@ class LlamaService:
             if res.status_code == 200:
                 ans = res.json().get("response", "").strip()
                 if ans and not self._is_unhelpful_refusal(ans):
-                    if lang_code != "en" and ("couldn't find" in ans.lower() or "not covered" in ans.lower()):
+                    if lang_code != "en" and (not self._is_in_language(ans, lang_code) or "couldn't find" in ans.lower() or "not covered" in ans.lower()):
                         pass
                     else:
                         return self._clean_tutor_response(ans)
