@@ -238,12 +238,29 @@ def generate_quiz_questions(
         combined_context = f"Educational subject matter and core concepts regarding {topic or 'academic concepts and problem solving'}."
 
     # Step 3: Attempt LLM generation
-    llm_questions = _call_ollama_for_questions(
-        context=combined_context,
-        num_questions=num_questions,
-        topic_hint=topic or "general subject matter",
-        language=language
-    )
+    llm_questions = None
+    try:
+        from services.llama_service import llama_service
+        lang_code = llama_service._normalize_lang(language)
+    except Exception:
+        llama_service, lang_code = None, "en"
+    for _attempt in range(2):
+        candidate = _call_ollama_for_questions(
+            context=combined_context,
+            num_questions=num_questions,
+            topic_hint=topic or "general subject matter",
+            language=language
+        )
+        if not candidate:
+            break
+        sample = " ".join(
+            str(q.get("question", "")) + " " + " ".join(str(o) for o in q.get("options", [])) + " " + str(q.get("explanation", ""))
+            for q in candidate if isinstance(q, dict)
+        )
+        if llama_service is None or llama_service._is_in_language(sample, lang_code):
+            llm_questions = candidate
+            break
+        print(f"[QUIZ_SERVICE] Attempt {_attempt + 1} was not written in {language}")
     if llm_questions:
         # Normalize and enrich LLM output
         normalized = []

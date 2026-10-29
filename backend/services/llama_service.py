@@ -1028,29 +1028,42 @@ class LlamaService:
             f"DOCUMENT CONTENT:\n{clean_text}\n"
         )
 
-        # 1. Attempt generation via Ollama
-        try:
-            res = requests.post(
-                f"{self.base_url}/api/chat",
-                json={
-                    "model": model_to_use,
-                    "messages": [
-                        {"role": "system", "content": "You are a JSON-only API that outputs structured study data. Return ONLY valid JSON."},
-                        {"role": "user", "content": prompt}
-                    ],
-                    "format": "json",
-                    "stream": False,
-                    "options": {"temperature": 0.2}
-                },
-                timeout=60.0
-            )
-            if res.status_code == 200:
-                raw_json = res.json().get("message", {}).get("content", "").strip()
-                data = self._parse_json_safely(raw_json)
-                if data and data.get("overview") and data.get("key_points"):
-                    return self._validate_and_normalize_summary(data, filename, sections)
-        except Exception as e:
-            print(f"[SUMMARY GEN] Ollama JSON generation error: {e}")
+        # 1. Attempt generation via Ollama (second attempt only if the first came back in the wrong language)
+        target_code = self._normalize_lang(language)
+        for attempt in range(2):
+            attempt_prompt = prompt
+            if attempt == 1:
+                attempt_prompt += f"\nCRITICAL: Every text value in the JSON MUST be written in {language}. Do not answer in English."
+            try:
+                res = requests.post(
+                    f"{self.base_url}/api/chat",
+                    json={
+                        "model": model_to_use,
+                        "messages": [
+                            {"role": "system", "content": "You are a JSON-only API that outputs structured study data. Return ONLY valid JSON."},
+                            {"role": "user", "content": attempt_prompt}
+                        ],
+                        "format": "json",
+                        "stream": False,
+                        "options": {"temperature": 0.2}
+                    },
+                    timeout=60.0
+                )
+                if res.status_code == 200:
+                    raw_json = res.json().get("message", {}).get("content", "").strip()
+                    data = self._parse_json_safely(raw_json)
+                    if data and data.get("overview") and data.get("key_points"):
+                        sample = " ".join([str(data.get("overview", "")), str(data.get("main_takeaway", ""))] + [str(k) for k in data.get("key_points", [])])
+                        if self._is_in_language(sample, target_code):
+                            return self._validate_and_normalize_summary(data, filename, sections)
+                        print(f"[SUMMARY GEN] Attempt {attempt + 1} was not in {language}")
+                    else:
+                        break
+                else:
+                    break
+            except Exception as e:
+                print(f"[SUMMARY GEN] Ollama JSON generation error: {e}")
+                break
 
         # 2. Rule-based structured extractor fallback
         return self._rule_based_summary_extraction(full_text, filename, sections)

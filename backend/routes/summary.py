@@ -101,7 +101,11 @@ def get_summary(
                     filename=book.title,
                     language=lang_name
                 )
-                if localized and isinstance(localized, dict) and localized.get("overview"):
+                # Only use/cache the result if it really is in the requested language; when the LLM is
+                # offline the generator returns the English rule-based summary, which must not be cached
+                # under a regional-language key.
+                localized_sample = " ".join([str(localized.get("overview", "")), str(localized.get("main_takeaway", ""))] + [str(k) for k in localized.get("key_points", [])]) if isinstance(localized, dict) else ""
+                if localized_sample.strip() and llama_service._is_in_language(localized_sample, norm_code):
                     data_source = localized
                     updated_dict = dict(stored_data)
                     updated_dict[cache_key] = localized
