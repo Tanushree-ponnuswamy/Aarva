@@ -4,8 +4,14 @@ from typing import Optional
 from datetime import datetime, timedelta
 from database.postgres import get_db
 from models.models import User, StudentProfile, LoginActivity
+from services.auth_service import get_current_active_admin
 
-router = APIRouter(prefix="/api/admin", tags=["Admin User Management"])
+# Every admin route requires a valid admin token.
+router = APIRouter(
+    prefix="/api/admin",
+    tags=["Admin User Management"],
+    dependencies=[Depends(get_current_active_admin)],
+)
 
 @router.get("/metrics")
 def get_admin_metrics(db: Session = Depends(get_db)):
@@ -16,10 +22,6 @@ def get_admin_metrics(db: Session = Depends(get_db)):
         LoginActivity.session_status == "active",
         LoginActivity.login_timestamp >= cutoff
     ).distinct(LoginActivity.user_id).count()
-
-    # Fallback to at least 1 active if admin is online
-    if active_accounts == 0:
-        active_accounts = 2
 
     return {
         "total_users": total_users,

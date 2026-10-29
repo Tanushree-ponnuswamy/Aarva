@@ -6,6 +6,7 @@ from datetime import datetime
 from database.postgres import get_db
 from models.models import QuizResult, LearningProgress, Textbook, User
 from schemas.language import normalize_language_code, get_language_display_name, is_valid_language
+from services.auth_service import get_current_user, get_owned_textbook
 
 router = APIRouter(prefix="/api/quiz", tags=["Quiz and Knowledge Check"])
 
@@ -29,7 +30,7 @@ class QuizGenerateRequest(BaseModel):
 
 
 class QuizSubmission(BaseModel):
-    user_id: int
+    user_id: Optional[int] = None  # ignored: results always belong to the authenticated user
     textbook_id: Optional[int] = None
     topic: str
     answers: List[Dict[str, Any]]  # [{'question_id': 1, 'selected_option': 2, 'is_correct': True}]
@@ -38,12 +39,16 @@ class QuizSubmission(BaseModel):
 # ─── AI-Powered Quiz Generation (RAG + LLM) ──────────────────────────────────
 
 @router.post("/generate")
-def generate_ai_quiz(req: QuizGenerateRequest):
+def generate_ai_quiz(req: QuizGenerateRequest, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     """
     Generate quiz questions using Hybrid Retrieval (Dense + BM25) + LLM in the student's selected language.
     Falls back to curated question bank if Ollama is not available.
     """
     from services.quiz_service import generate_quiz_questions, get_difficulty_distribution
+
+    req.num_questions = max(1, min(req.num_questions, 20))  # bound LLM cost per call
+    if req.textbook_id is not None:
+        get_owned_textbook(db, req.textbook_id, current_user)
 
     questions = generate_quiz_questions(
         textbook_id=req.textbook_id,
@@ -71,7 +76,7 @@ def generate_ai_quiz(req: QuizGenerateRequest):
 # ─── Static Fallback Quiz (Legacy) ──────────────────────────────────────────
 
 @router.get("/{textbook_id}")
-def get_quiz_questions(textbook_id: int, db: Session = Depends(get_db)):
+def get_quiz_questions(textbook_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     """Legacy endpoint - returns curated static questions for a textbook."""
     book = db.query(Textbook).filter(Textbook.id == textbook_id).first()
     book_title = book.title if book else "Computer Networks & Systems"
@@ -162,11 +167,12 @@ def get_quiz_questions(textbook_id: int, db: Session = Depends(get_db)):
 # ─── Quiz Submission & Scoring ────────────────────────────────────────────────
 
 @router.post("/submit")
-def submit_quiz(req: QuizSubmission, db: Session = Depends(get_db)):
+def submit_quiz(req: QuizSubmission, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     """Submit completed quiz answers, record result, and update gamification."""
-    user = db.query(User).filter(User.id == req.user_id).first()
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found.")
+    user = current_user
+    req.user_id = user.id
+    if req.textbook_id is not None:
+        get_owned_textbook(db, req.textbook_id, current_user)
 
     correct_count = sum(1 for a in req.answers if a.get("is_correct", False))
     total = len(req.answers)
@@ -249,7 +255,7 @@ def submit_quiz(req: QuizSubmission, db: Session = Depends(get_db)):
 # ─── Leaderboard (Mock for now) ───────────────────────────────────────────────
 
 @router.get("/leaderboard/top")
-def get_quiz_leaderboard(db: Session = Depends(get_db)):
+def get_quiz_leaderboard(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     """Get top quiz performers for gamification leaderboard."""
     try:
         results = db.query(User, LearningProgress).join(
@@ -260,7 +266,7 @@ def get_quiz_leaderboard(db: Session = Depends(get_db)):
         for rank, (user, prog) in enumerate(results, 1):
             leaderboard.append({
                 "rank": rank,
-                "name": user.name,
+                "name": (user.name or "Student").split()[0],
                 "xp": prog.xp or 0,
                 "level": prog.level or 1,
                 "avg_score": prog.quiz_scores_avg or 0,
@@ -269,13 +275,4 @@ def get_quiz_leaderboard(db: Session = Depends(get_db)):
 
         return {"leaderboard": leaderboard}
     except Exception:
-        # Fallback mock leaderboard
-        return {
-            "leaderboard": [
-                {"rank": 1, "name": "Alex Morgan", "xp": 840, "level": 5, "avg_score": 94.2, "badge_count": 6},
-                {"rank": 2, "name": "Priya Patel", "xp": 720, "level": 4, "avg_score": 88.5, "badge_count": 4},
-                {"rank": 3, "name": "Rohan Iyer", "xp": 610, "level": 4, "avg_score": 85.0, "badge_count": 3},
-                {"rank": 4, "name": "Maya Sen", "xp": 480, "level": 3, "avg_score": 79.3, "badge_count": 2},
-                {"rank": 5, "name": "You", "xp": 240, "level": 2, "avg_score": 72.0, "badge_count": 1},
-            ]
-        }
+        return {"leaderboard": []}

@@ -43,13 +43,16 @@ services:
       APP_HOST: "0.0.0.0"
       APP_PORT: 8000
       DEBUG: ${DEBUG:-false}
-      CORS_ORIGINS: ${CORS_ORIGINS:-*}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost,http://localhost:5173}
 
       # PostgreSQL Connection
       DATABASE_URL: postgresql://${POSTGRES_USER:-aarva_user}:${POSTGRES_PASSWORD:-aarva_secure_password_2026}@postgres:5432/${POSTGRES_DB:-aarva_db}
 
       # Authentication Security
-      JWT_SECRET: ${JWT_SECRET:-aarva-secure-jwt-key-change-in-production-2026}
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET must be set (openssl rand -hex 32)}
+      ENABLE_DEMO_LOGIN: ${ENABLE_DEMO_LOGIN:-true}
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@aarva.edu}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
       JWT_ALGORITHM: ${JWT_ALGORITHM:-HS256}
       JWT_ACCESS_TOKEN_EXPIRE_MINUTES: ${JWT_ACCESS_TOKEN_EXPIRE_MINUTES:-10080}
 

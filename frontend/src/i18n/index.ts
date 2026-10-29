@@ -117,7 +117,10 @@ export function useTranslation() {
           // 2. Persist to backend database
           fetch(`/api/student/preferences/${u.id}`, {
             method: "PUT",
-            headers: { "Content-Type": "application/json" },
+            headers: {
+              "Content-Type": "application/json",
+              ...(localStorage.getItem("aarva_token") ? { Authorization: `Bearer ${localStorage.getItem("aarva_token")}` } : {}),
+            },
             body: JSON.stringify({ preferred_language: newCode }),
           }).catch(() => {
             // Non-blocking network sync

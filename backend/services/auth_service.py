@@ -12,13 +12,14 @@ from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
 
+from config import settings
 from database.postgres import get_db
-from models.models import User
+from models.models import User, UserSession
 
-# Configuration
-SECRET_KEY = os.getenv("JWT_SECRET", "aarva-tender-jwt-secret-key-prod-2026-secure")
+# Configuration (single source of truth lives in config.py; no secrets in source)
+SECRET_KEY = settings.JWT_SECRET
 ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_HOURS = 24 * 7  # 7-day session token
+ACCESS_TOKEN_EXPIRE_HOURS = max(1, settings.JWT_ACCESS_TOKEN_EXPIRE_MINUTES // 60)
 
 security = HTTPBearer(auto_error=False)
 
@@ -29,28 +30,19 @@ class AuthService:
         """Hash a plaintext password using bcrypt."""
         # Bcrypt has a 72-byte max length limitation
         pw_bytes = password[:72].encode("utf-8")
-        salt = bcrypt.gensalt(rounds=12)
+        salt = bcrypt.gensalt(rounds=settings.BCRYPT_ROUNDS)
         return bcrypt.hashpw(pw_bytes, salt).decode("utf-8")
 
     @staticmethod
     def verify_password(plain_password: str, hashed_password: str) -> bool:
-        """
-        Verify password against hash. Also supports plain text fallback
-        for existing initial database seeds, then upgrades transparently.
-        """
-        if not hashed_password:
+        """Verify a password against a bcrypt hash. Plaintext comparison is never allowed."""
+        if not hashed_password or not hashed_password.startswith(("$2a$", "$2b$", "$2y$")):
             return False
-
-        # If it looks like a bcrypt hash ($2a$, $2b$, $2y$)
-        if hashed_password.startswith(("$2a$", "$2b$", "$2y$")):
-            try:
-                pw_bytes = plain_password[:72].encode("utf-8")
-                return bcrypt.checkpw(pw_bytes, hashed_password.encode("utf-8"))
-            except Exception:
-                return False
-
-        # Fallback for demo seed users with plain passwords
-        return plain_password == hashed_password
+        try:
+            pw_bytes = plain_password[:72].encode("utf-8")
+            return bcrypt.checkpw(pw_bytes, hashed_password.encode("utf-8"))
+        except Exception:
+            return False
 
     @staticmethod
     def create_access_token(
@@ -110,6 +102,14 @@ def get_current_user(
             headers={"WWW-Authenticate": "Bearer"},
         )
 
+    jti = payload.get("jti")
+    if not jti:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid authentication token.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
     user_id = payload.get("user_id") or payload.get("sub")
     if not user_id:
         raise HTTPException(
@@ -137,7 +137,39 @@ def get_current_user(
             detail="Account is deactivated. Please contact administrator.",
         )
 
+    # Server-side session check: makes logout / session revocation actually work.
+    session = db.query(UserSession).filter(
+        UserSession.token_jti == jti,
+        UserSession.user_id == user.id,
+        UserSession.is_active == True,  # noqa: E712
+    ).first()
+    if not session:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Session has ended. Please sign in again.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
     return user
+
+
+def require_self_or_admin(user_id: int, current_user: User) -> None:
+    """Raise 403 unless the caller is acting on their own data (or is an admin)."""
+    if current_user.role != "admin" and current_user.id != user_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You can only access your own data.",
+        )
+
+
+def get_owned_textbook(db: Session, textbook_id: int, current_user: User):
+    """Return the textbook if it belongs to the caller (admins may access any); else 404."""
+    from models.models import Textbook  # local import avoids import cycles
+    book = db.query(Textbook).filter(Textbook.id == textbook_id).first()
+    if not book or (current_user.role != "admin" and book.user_id != current_user.id):
+        # 404 (not 403) so users cannot probe which textbook ids exist.
+        raise HTTPException(status_code=404, detail="Textbook not found.")
+    return book
 
 
 def get_current_active_admin(

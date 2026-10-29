@@ -93,10 +93,12 @@ docker compose up --build -d
 
 When the backend initializes, it seeds the PostgreSQL database with ready-to-test accounts:
 
-| Role | Email | Password | Details |
+| Role | Email | Access | Details |
 |---|---|---|---|
-| **Sample Student** | `student@college.edu` | `student123` | Alex Morgan (IIT Madras, CSE) |
-| **Admin** | `admin@aarva.edu` | `admin123` | Platform Admin Portal |
+| **Sample Student** | `student@college.edu` | "Try demo" button (`ENABLE_DEMO_LOGIN=true`) | Alex Morgan — IIT Madras (CSE) |
+| **Administrator** | `ADMIN_EMAIL` env var | Password from the `ADMIN_PASSWORD` env var (>=12 chars) | Only created when `ADMIN_PASSWORD` is set |
+
+> No default passwords ship with the app. `JWT_SECRET` is required; set `ADMIN_PASSWORD` to create an admin.
 
 ---
 

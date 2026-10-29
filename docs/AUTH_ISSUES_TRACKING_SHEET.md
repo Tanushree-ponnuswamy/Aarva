@@ -24,6 +24,7 @@
 | **TRK-11** | **Network / Backend** | *Sign In failing / not responding on login submission* | Submitting the login form resulted in a hang or failure (`The read operation timed out`). | `frontend/vite.config.ts` was proxying `/api` to `https://aarva-bkoc.onrender.com` (which was cold-starting / timing out). Docker on the system occupied port 8000. | Launched active Aarva backend on port 8001 (`127.0.0.1:8001`), updated `vite.config.ts` proxy to `http://127.0.0.1:8001`, and verified login responds in 15ms. | [`frontend/vite.config.ts`](file:///d:/Aarva/frontend/vite.config.ts)<br>[`backend/routes/auth.py`](file:///d:/Aarva/backend/routes/auth.py)<br>[`frontend/src/App.tsx`](file:///d:/Aarva/frontend/src/App.tsx) | **PASSED** (200 OK via proxy) | Holding (Uncommitted) |
 | **TRK-12** | **Error Handling / Proxy** | *'Server is starting up (Render free tier)' error during login* | Form displayed "Server is starting up (Render free tier). Please retry in a few seconds." whenever local backend was stopped or proxy returned non-JSON HTML error. | `apiPost` blindly threw the Render cold-start message on any JSON parse error. Port mismatch occurred when local backend was stopped or running on 8000 while proxy targeted 8001. | Started FastAPI backend on standard port 8000, synced Vite dev proxy to `http://127.0.0.1:8000`, added local `ECONNREFUSED` error detection, and introduced automated retry for transient cold starts. | [`frontend/vite.config.ts`](file:///d:/Aarva/frontend/vite.config.ts)<br>[`frontend/src/App.tsx`](file:///d:/Aarva/frontend/src/App.tsx)<br>[`backend/routes/students.py`](file:///d:/Aarva/backend/routes/students.py) | **PASSED** (200 OK via proxy on port 8000) | Committed |
 | **TRK-13** | **Security / Auth Pipeline** | *Comprehensive Auth Hardening: Signup, Login, Verification & OTP Patches* | OTP verification lacked brute-force limits; signup was callable without verified OTP check; OTP generation lacked spam cooldown; timing attack vulnerability. | Unrestricted OTP verification attempts; missing verification token gate on `/signup`; pseudo-random OTP generation; plain string equality comparison on OTP. | Implemented `secrets` cryptographic OTP generation, constant-time `secrets.compare_digest` verification, max 5 invalid attempt lockout, 30s resend cooldown, and strict `is_email_verified` gate on `/signup`. | [`backend/services/email_service.py`](file:///d:/Aarva/backend/services/email_service.py)<br>[`backend/routes/auth.py`](file:///d:/Aarva/backend/routes/auth.py) | **PASSED** (100% full lifecycle test) | Committed |
+| **TRK-14** | **Security / Route Hardening** | *Full Route Auth, Ownership (IDOR), In-Memory Rate Limiting, Default Password Removal* | Routes accessible without tokens; cross-tenant IDOR on textbooks/quizzes/chat; default seed passwords (`student123`/`admin123`) exposed in docs; wildcard CORS. | Missing session dependencies on non-auth routes; missing user ownership filters; hardcoded JWT secrets & published seed credentials; open CORS origin regex. | Added session token requirement across all endpoints; enforced `require_self_or_admin` and `get_owned_textbook`; removed default passwords; added sliding-window rate limiting; enforced server-side session checks on logout; restricted CORS allowlist; added automated security test suite. | [`backend/routes/`](file:///d:/Aarva/backend/routes/)<br>[`backend/services/rate_limit.py`](file:///d:/Aarva/backend/services/rate_limit.py)<br>[`backend/tests/test_security.py`](file:///d:/Aarva/backend/tests/test_security.py)<br>[`frontend/src/App.tsx`](file:///d:/Aarva/frontend/src/App.tsx) | **PASSED** (100% suite pass) | Committed |
 
 ---
 
@@ -73,6 +74,20 @@
   4. Signup: Registered verified student with bcrypt password hashing. Token consumed.
   5. Login: Newly registered student logged in successfully with valid signed JWT.
 - Result: All 4 flows passed 100% end-to-end. -> PASS
+
+[TEST 10] Security Regression & IDOR Suite (test_security.py):
+- Tests Executed:
+  1. Unauthorized Route Access: 14 non-auth endpoints return HTTP 401 when unauthenticated. -> PASS
+  2. Demo Login & Default Password Disablement: demo-login succeeds; published seed passwords ('student123', 'admin123') fail with 401. -> PASS
+  3. Generic Login Errors: No account enumeration; identical 401 for wrong user and wrong password. -> PASS
+  4. Role Separation: Student tokens rejected with 403 on /api/admin/students; admin tokens accepted after /api/auth/admin-login. -> PASS
+  5. IDOR & Ownership Checks: User A cannot read, modify, chat with, or delete User B's textbooks or dashboards (403/404); XP minting clamped. -> PASS
+  6. Server-Side Session Revocation: Token invalidated immediately on logout or password reset (401 on reuse); forged tokens rejected. -> PASS
+  7. Information Leakage: check-email returns only email and is_registered boolean (no names/roles). -> PASS
+  8. CORS Whitelist: Random origins (e.g. evil.onrender.com) rejected; explicit domain accepted. -> PASS
+  9. Rate Limiting: High-frequency brute force on login throttled with HTTP 429. -> PASS
+  10. OTP Policy: Cryptographic randomness, 60s cooldown, 5 wrong guess self-destruction, single-use consumption. -> PASS
+- Result: ALL SECURITY TESTS PASSED. -> PASS
 ```
 
 ---

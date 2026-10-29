@@ -326,10 +326,12 @@ Open `http://localhost:5173` in your browser.
 
 Pre-seeded at startup via `database/postgres.py`:
 
-| Role | Email | Password | Details |
+| Role | Email | Access | Details |
 |---|---|---|---|
-| **Sample Student** | `student@college.edu` | `student123` | Alex Morgan — IIT Madras (CSE) |
-| **Administrator** | `admin@aarva.edu` | `admin123` | Platform Admin Portal |
+| **Sample Student** | `student@college.edu` | "Try demo" button (`ENABLE_DEMO_LOGIN=true`) | Alex Morgan — IIT Madras (CSE) |
+| **Administrator** | `ADMIN_EMAIL` env var | Password from the `ADMIN_PASSWORD` env var (>=12 chars) | Only created when `ADMIN_PASSWORD` is set |
+
+> No default passwords ship with the app. Set `JWT_SECRET` (required) and `ADMIN_PASSWORD` in your environment.
 
 ---
 

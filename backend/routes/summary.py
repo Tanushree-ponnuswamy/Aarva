@@ -1,18 +1,19 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
-from pydantic import BaseModel, validator
+from pydantic import BaseModel, Field, validator
 from typing import Optional, List
 from datetime import datetime
 import json
 from database.postgres import get_db
-from models.models import Textbook, ChatSession, ChatMessage
+from models.models import Textbook, ChatSession, ChatMessage, User
+from services.auth_service import get_current_user, get_owned_textbook, require_self_or_admin
 from services.llama_service import llama_service
 from schemas.language import normalize_language_code, get_language_display_name, is_valid_language
 
 router = APIRouter(prefix="/api/summary", tags=["Textbook Summarization & AI Chat"])
 
 class ChatMessageRequest(BaseModel):
-    query: str
+    query: str = Field(..., min_length=1, max_length=4000)
     textbook_id: Optional[int] = None
     document_id: Optional[int] = None
     user_id: Optional[int] = None
@@ -30,10 +31,13 @@ class ChatMessageRequest(BaseModel):
 @router.get("/chat/history/{textbook_id}")
 def get_chat_history(
     textbook_id: int,
-    user_id: int = Query(..., description="User ID"),
-    db: Session = Depends(get_db)
+    user_id: Optional[int] = Query(None, description="User ID (must be the caller; defaults to the caller)"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
-    """Retrieve stored chat history for a textbook session."""
+    """Retrieve stored chat history for a textbook session (own sessions only)."""
+    user_id = current_user.id if user_id is None else user_id
+    require_self_or_admin(user_id, current_user)
     session = db.query(ChatSession).filter(
         ChatSession.textbook_id == textbook_id,
         ChatSession.user_id == user_id
@@ -66,11 +70,10 @@ def get_summary(
     language: Optional[str] = Query("English", description="Target language for summary and concepts"),
     chapter: Optional[int] = None,
     concept: Optional[str] = None,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
-    book = db.query(Textbook).filter(Textbook.id == textbook_id).first()
-    if not book:
-        raise HTTPException(status_code=404, detail="Textbook not found.")
+    book = get_owned_textbook(db, textbook_id, current_user)
 
     # If book has precomputed summary data
     stored_data = book.summary_data or {}
@@ -149,7 +152,7 @@ def get_summary(
     return llama_service.generate_summary(book.title, mode=mode)
 
 @router.post("/chat")
-def chat_with_tutor(req: ChatMessageRequest, db: Session = Depends(get_db)):
+def chat_with_tutor(req: ChatMessageRequest, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     """
     Interactive Knowledge Base / Tutor Chat endpoint.
     Retrieves grounded context using Hybrid Retrieval (Dense Vector + BM25 Lexical),
@@ -158,15 +161,13 @@ def chat_with_tutor(req: ChatMessageRequest, db: Session = Depends(get_db)):
     target_id = req.document_id if req.document_id is not None else req.textbook_id
     doc_summary_data = None
     doc_title = None
+    req.user_id = current_user.id  # never trust a client-supplied user id
+    req.conversation_history = (req.conversation_history or [])[-20:]  # bound prompt size
 
     if target_id:
-        try:
-            book = db.query(Textbook).filter(Textbook.id == target_id).first()
-            if book:
-                doc_title = book.title
-                doc_summary_data = book.summary_data
-        except Exception as e:
-            print(f"[CHAT_ROUTE] Could not load book metadata: {e}")
+        book = get_owned_textbook(db, target_id, current_user)  # 404 if not the caller's
+        doc_title = book.title
+        doc_summary_data = book.summary_data
 
     # Execute RAG query
     reply = llama_service.chat_response(

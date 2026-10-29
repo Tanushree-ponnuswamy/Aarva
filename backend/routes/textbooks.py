@@ -9,6 +9,8 @@ from database.postgres import get_db
 from models.models import Textbook, User, ChatSession, ChatMessage
 from database.chroma import chroma_store
 from services.llama_service import llama_service
+from services.auth_service import get_current_user, get_owned_textbook, require_self_or_admin
+from config import settings
 
 router = APIRouter(prefix="/api/textbooks", tags=["Textbooks Management"])
 
@@ -16,7 +18,9 @@ UPLOADS_DIR = Path(__file__).resolve().parent.parent / "uploads"
 UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
 
 @router.get("/")
-def get_textbooks(user_id: int, db: Session = Depends(get_db)):
+def get_textbooks(user_id: Optional[int] = None, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    user_id = current_user.id if user_id is None else user_id
+    require_self_or_admin(user_id, current_user)
     books = db.query(Textbook).filter(Textbook.user_id == user_id).order_by(Textbook.uploaded_at.desc()).all()
     return [
         {
@@ -40,12 +44,12 @@ async def upload_textbook(
     author: Optional[str] = Form("Unknown Author"),
     pages: Optional[int] = Form(None),
     file: Optional[UploadFile] = File(None),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
-    # Verify user
-    user = db.query(User).filter(User.id == user_id).first()
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found.")
+    # Uploads always belong to the authenticated user (client-supplied user_id must match).
+    require_self_or_admin(user_id, current_user)
+    user = current_user
 
     from services.knowledge_base_service import knowledge_base_service
     import re
@@ -73,7 +77,10 @@ async def upload_textbook(
 
     # Read uploaded file content or generate starter document
     if file:
-        file_bytes = await file.read()
+        max_bytes = settings.MAX_UPLOAD_SIZE_MB * 1024 * 1024
+        file_bytes = await file.read(max_bytes + 1)
+        if len(file_bytes) > max_bytes:
+            raise HTTPException(status_code=413, detail=f"File too large. Maximum is {settings.MAX_UPLOAD_SIZE_MB} MB.")
     else:
         # Fallback text representation
         default_content = (
@@ -151,11 +158,9 @@ async def upload_textbook(
     }
 
 @router.get("/{textbook_id}/file")
-def get_textbook_file(textbook_id: int, db: Session = Depends(get_db)):
-    """Serve the raw file content or PDF for preview."""
-    book = db.query(Textbook).filter(Textbook.id == textbook_id).first()
-    if not book:
-        raise HTTPException(status_code=404, detail="Textbook not found.")
+def get_textbook_file(textbook_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    """Serve the raw file content or PDF for preview (owner only)."""
+    book = get_owned_textbook(db, textbook_id, current_user)
 
     # Check disk for saved file securely
     for p in UPLOADS_DIR.glob(f"{textbook_id}_*"):
@@ -183,21 +188,14 @@ def get_textbook_file(textbook_id: int, db: Session = Depends(get_db)):
         media_type = mime_map.get(ext, "application/octet-stream")
         return FileResponse(path=p, media_type=media_type, filename=book.file_name, content_disposition_type="inline")
 
-    # Fallback to sample tender PDF if available on disk
-    sample_pdf = UPLOADS_DIR / "nit_scada-635.pdf"
-    if sample_pdf.exists():
-        return FileResponse(path=sample_pdf, media_type="application/pdf", filename=book.file_name or "document.pdf", content_disposition_type="inline")
-
     # Final fallback response
     summary_text = (book.summary_data or {}).get("complete_summary", f"Document summary for {book.title}.")
     content = f"# {book.title}\nAuthor: {book.author}\n\n{summary_text}"
     return Response(content=content, media_type="text/plain")
 
 @router.delete("/{textbook_id}")
-def delete_textbook(textbook_id: int, db: Session = Depends(get_db)):
-    book = db.query(Textbook).filter(Textbook.id == textbook_id).first()
-    if not book:
-        raise HTTPException(status_code=404, detail="Textbook not found.")
+def delete_textbook(textbook_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    book = get_owned_textbook(db, textbook_id, current_user)
 
     # Remove vector chunks from ChromaDB
     chroma_store.delete_textbook_chunks(textbook_id=textbook_id)

@@ -730,25 +730,17 @@ function AuthPage({ onHome, onComplete }: { onHome: () => void; onComplete: (nam
 
     try {
       const data = await apiPost("/api/auth/demo-login", { email: "student@college.edu" });
-      localStorage.setItem("aarva_token", data.access_token || data.token || "demo_token_alex_morgan");
+      localStorage.setItem("aarva_token", data.access_token || data.token);
       localStorage.setItem("aarva_user", JSON.stringify(data.user || sampleUser));
       localStorage.removeItem("aarva_active_book_id");
       onComplete((data.user && data.user.name) || sampleUser.name);
-    } catch {
-      // Guaranteed instant sample login even during cold starts or offline network
-      localStorage.setItem("aarva_token", "demo_token_alex_morgan");
-      localStorage.setItem("aarva_user", JSON.stringify(sampleUser));
-      localStorage.removeItem("aarva_active_book_id");
-      onComplete(sampleUser.name);
+    } catch (err: any) {
+      // No offline/fake session: the server must issue a real token.
+      setLoginError(err?.message || "Demo is unavailable right now. Please try again in a few seconds.");
     } finally {
       setLoginLoading(false);
       setActiveDemoLoading(null);
     }
-  };
-
-  const fillDemoCredentials = () => {
-    setLoginEmail("student@college.edu");
-    setLoginPassword("student123");
   };
 
 
@@ -1735,6 +1727,15 @@ const COVER_COLORS = ["violet", "blue", "blush", "lavender", "teal"] as const;
 // ── API helper (authenticated) ────────────────────────────────────────────
 const API = API_BASE;
 
+/** fetch() that attaches the session token (needed for /api/textbooks/:id/file previews). */
+function authFetch(url: string, init: RequestInit = {}) {
+  const token = localStorage.getItem("aarva_token") ?? "";
+  return fetch(url, {
+    ...init,
+    headers: { ...(init.headers || {}), ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+  });
+}
+
 async function apiFetch<T = any>(path: string, options: RequestInit = {}): Promise<T> {
   const token = localStorage.getItem("aarva_token") ?? "";
   try {
@@ -2247,7 +2248,7 @@ function FilePreviewPane({
 
     if (isDocx) {
       setLoading(true);
-      fetch(src)
+      (src.startsWith("blob:") || src.startsWith("data:") ? fetch(src) : authFetch(src))
         .then(r => r.arrayBuffer())
         .then(buf => import('mammoth').then(mammoth => mammoth.convertToHtml({ arrayBuffer: buf })))
         .then(({ value }) => {
@@ -2258,7 +2259,7 @@ function FilePreviewPane({
         .catch(e => { setError(`Could not render document: ${e.message}`); setLoading(false); });
     } else if (isXlsx) {
       setLoading(true);
-      fetch(src)
+      (src.startsWith("blob:") || src.startsWith("data:") ? fetch(src) : authFetch(src))
         .then(r => r.arrayBuffer())
         .then(buf => {
           return import('xlsx').then(XLSX => {
@@ -2275,7 +2276,7 @@ function FilePreviewPane({
         .catch(e => { setError(`Could not render spreadsheet: ${e.message}`); setLoading(false); });
     } else if (isText) {
       setLoading(true);
-      fetch(src)
+      (src.startsWith("blob:") || src.startsWith("data:") ? fetch(src) : authFetch(src))
         .then(r => r.text())
         .then(text => {
           const escaped = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');

@@ -6,6 +6,7 @@ from database.postgres import get_db
 from models.models import User, StudentProfile, StudentInterests, LearningPreferences, LearningProgress, Textbook, QuizResult
 from services.adaptive_service import adaptive_service
 from schemas.language import normalize_language_code, get_language_display_name, is_valid_language
+from services.auth_service import get_current_user, require_self_or_admin
 
 router = APIRouter(prefix="/api/student", tags=["Student Learning Space"])
 
@@ -27,13 +28,14 @@ class PreferencesUpdate(BaseModel):
         return get_language_display_name(v)
 
 class XpAwardRequest(BaseModel):
-    user_id: int
+    user_id: Optional[int] = None  # ignored: XP always goes to the authenticated user
     activity_type: str # "chapter_summary", "concept_review", "quiz_completion"
     details: Optional[str] = "Completed milestone"
     xp_amount: Optional[int] = 50
 
 @router.get("/dashboard/{user_id}")
-def get_student_dashboard(user_id: int, db: Session = Depends(get_db)):
+def get_student_dashboard(user_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    require_self_or_admin(user_id, current_user)
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
         raise HTTPException(status_code=404, detail="User not found.")
@@ -177,10 +179,10 @@ def get_student_dashboard(user_id: int, db: Session = Depends(get_db)):
     }
 
 @router.post("/award-xp")
-def award_xp(req: XpAwardRequest, db: Session = Depends(get_db)):
-    user = db.query(User).filter(User.id == req.user_id).first()
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found.")
+def award_xp(req: XpAwardRequest, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    user = current_user
+    # Clients must not be able to mint arbitrary XP: clamp to a sane per-call range.
+    req.xp_amount = max(0, min(req.xp_amount or 50, 100))
 
     progress = user.progress
     if not progress:
@@ -213,7 +215,8 @@ def award_xp(req: XpAwardRequest, db: Session = Depends(get_db)):
     }
 
 @router.put("/preferences/{user_id}")
-def update_preferences(user_id: int, req: PreferencesUpdate, db: Session = Depends(get_db)):
+def update_preferences(user_id: int, req: PreferencesUpdate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    require_self_or_admin(user_id, current_user)
     prefs = db.query(LearningPreferences).filter(LearningPreferences.user_id == user_id).first()
     if not prefs:
         prefs = LearningPreferences(user_id=user_id)

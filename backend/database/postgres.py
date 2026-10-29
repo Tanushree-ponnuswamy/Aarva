@@ -1,4 +1,5 @@
 import os
+import secrets
 from dotenv import load_dotenv
 from pathlib import Path
 from sqlalchemy import create_engine
@@ -9,6 +10,7 @@ from models.models import (
     UserSession, ChatSession, ChatMessage
 )
 from datetime import datetime, timedelta
+from config import settings
 
 # Load .env so DATABASE_URL is always available (backend/.env or root .env)
 load_dotenv(dotenv_path=Path(__file__).resolve().parent.parent / ".env")
@@ -60,24 +62,41 @@ def seed_demo_data():
             pw_bytes = pw[:72].encode("utf-8")
             return bcrypt.hashpw(pw_bytes, bcrypt.gensalt(12)).decode("utf-8")
 
-        # 1. Admin Account
-        admin = db.query(User).filter(User.email == "admin@aarva.edu").first()
-        if not admin:
-            admin = User(
-                name="AARVA Administrator",
-                email="admin@aarva.edu",
-                password_hash=_hash_pw("admin123"),
-                phone="+91 98765 43210",
-                role="admin",
-                is_active=True
-            )
-            db.add(admin)
-            db.flush()
-        else:
-            admin.is_active = True
-            if not admin.password_hash or not admin.password_hash.startswith(("$2a$", "$2b$", "$2y$")):
-                admin.password_hash = _hash_pw("admin123")
-            db.flush()
+        def _is_known_default(user, default_pw: str) -> bool:
+            """True if this account still uses a password that was published in the repo/docs."""
+            try:
+                return bool(user.password_hash) and bcrypt.checkpw(
+                    default_pw.encode("utf-8"), user.password_hash.encode("utf-8")
+                )
+            except Exception:
+                return False
+
+        # 1. Admin account: only seeded from ADMIN_PASSWORD (env). No default password.
+        admin_pw = settings.ADMIN_PASSWORD
+        admin = db.query(User).filter(User.email == settings.ADMIN_EMAIL).first()
+        if admin and _is_known_default(admin, "admin123"):
+            # A previous deployment seeded the publicly-known password: rotate it immediately.
+            admin.password_hash = _hash_pw(admin_pw if len(admin_pw) >= 12 else secrets.token_urlsafe(24))
+            print("[SECURITY] Rotated the legacy default admin password.")
+        if len(admin_pw) >= 12:
+            if not admin:
+                db.add(User(
+                    name="AARVA Administrator", email=settings.ADMIN_EMAIL,
+                    password_hash=_hash_pw(admin_pw), role="admin", is_active=True,
+                ))
+        elif not admin:
+            print("[SEED] ADMIN_PASSWORD (>=12 chars) not set: admin account not created.")
+        db.flush()
+
+        # Demo student is optional (ENABLE_DEMO_LOGIN). When off, make sure it cannot be used.
+        if not settings.ENABLE_DEMO_LOGIN:
+            demo = db.query(User).filter(User.email == "student@college.edu").first()
+            if demo:
+                demo.is_active = False
+                if _is_known_default(demo, "student123"):
+                    demo.password_hash = _hash_pw(secrets.token_urlsafe(24))
+            db.commit()
+            return
 
         # 2. ONLY ONE Sample Student Account: Alex Morgan
         s1 = db.query(User).filter(User.email == "student@college.edu").first()
@@ -85,7 +104,7 @@ def seed_demo_data():
             s1 = User(
                 name="Alex Morgan",
                 email="student@college.edu",
-                password_hash=_hash_pw("student123"),
+                password_hash=_hash_pw(settings.DEMO_STUDENT_PASSWORD),
                 phone="+91 98123 45678",
                 dob="2003-05-14",
                 gender="Male",
@@ -97,8 +116,10 @@ def seed_demo_data():
         else:
             s1.name = "Alex Morgan"
             s1.is_active = True
+            if _is_known_default(s1, "student123"):
+                s1.password_hash = _hash_pw(settings.DEMO_STUDENT_PASSWORD)  # retire the published password
             if not s1.password_hash or not s1.password_hash.startswith(("$2a$", "$2b$", "$2y$")):
-                s1.password_hash = _hash_pw("student123")
+                s1.password_hash = _hash_pw(settings.DEMO_STUDENT_PASSWORD)
             db.flush()
 
         if not db.query(StudentProfile).filter(StudentProfile.user_id == s1.id).first():
@@ -185,7 +206,7 @@ def seed_demo_data():
         db.flush()
 
         db.commit()
-        print("[DATABASE] Successfully synchronized single sample account (Alex Morgan: student@college.edu) and admin account!")
+        print("[DATABASE] Successfully synchronized demo account")
     except Exception as e:
         db.rollback()
         print(f"Error seeding database: {e}")

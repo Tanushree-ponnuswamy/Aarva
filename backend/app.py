@@ -7,9 +7,13 @@ os.environ["ANONYMIZED_TELEMETRY"] = "False"
 if "opentelemetry.exporter.otlp.proto.grpc.trace_exporter" not in sys.modules:
     sys.modules["opentelemetry.exporter.otlp.proto.grpc.trace_exporter"] = unittest.mock.MagicMock()
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Depends
 from fastapi.middleware.cors import CORSMiddleware
-from database.postgres import init_db
+from sqlalchemy import text
+from sqlalchemy.orm import Session
+from database.postgres import init_db, get_db
+from models.models import User
+from services.auth_service import get_current_user, get_owned_textbook
 from routes.auth import router as auth_router
 from routes.admin import router as admin_router
 from routes.students import router as student_router
@@ -23,30 +27,27 @@ app = FastAPI(
     version="1.0.0"
 )
 
-# Enable CORS for frontend securely
-cors_origins_env = os.getenv("CORS_ORIGINS", "")
+# CORS: explicit allow-list only. No wildcard and no "*.onrender.com" regex
+# (anyone can register a free onrender.com subdomain, and credentials are allowed).
 allowed_origins = [
     "http://localhost:5173",
     "http://localhost:3000",
-    "http://localhost:80",
-    "http://localhost",
     "http://127.0.0.1:5173",
     "http://127.0.0.1:3000",
+    "https://aarva-1.onrender.com",
     "https://aarva-bkoc.onrender.com",
 ]
-if cors_origins_env:
-    for o in cors_origins_env.split(","):
-        clean_o = o.strip()
-        if clean_o and clean_o not in allowed_origins:
-            allowed_origins.append(clean_o)
+for o in os.getenv("CORS_ORIGINS", "").split(","):
+    clean_o = o.strip().rstrip("/")
+    if clean_o and clean_o != "*" and clean_o not in allowed_origins:
+        allowed_origins.append(clean_o)
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=allowed_origins,
-    allow_origin_regex=r"^https?://(localhost|127\.0\.0\.1|.*\.onrender\.com)(:\d+)?$",
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
-    allow_headers=["*"],
+    allow_headers=["Authorization", "Content-Type"],
 )
 
 # Include Routers
@@ -61,14 +62,20 @@ from routes.summary import ChatMessageRequest
 from services.llama_service import llama_service
 
 @app.post("/api/chat", tags=["Textbook Summarization & AI Chat"])
-def direct_chat_endpoint(req: ChatMessageRequest):
-    """Direct alias for interactive Hybrid RAG Knowledge Base Chat."""
+def direct_chat_endpoint(
+    req: ChatMessageRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Direct alias for interactive Hybrid RAG Knowledge Base Chat (authenticated, owner-only)."""
     target_id = req.document_id if req.document_id is not None else req.textbook_id
+    if target_id is not None:
+        get_owned_textbook(db, target_id, current_user)
     return llama_service.chat_response(
         query=req.query,
         textbook_id=target_id,
         language=req.language or "English",
-        conversation_history=req.conversation_history
+        conversation_history=(req.conversation_history or [])[-20:]
     )
 
 @app.on_event("startup")
@@ -90,9 +97,15 @@ def root():
     }
 
 @app.get("/api/health")
-def health_check():
-    return {"status": "healthy", "database": "connected", "chromadb": "ready"}
+def health_check(db: Session = Depends(get_db)):
+    """Real liveness check: actually touches the database."""
+    try:
+        db.execute(text("SELECT 1"))
+        return {"status": "healthy", "database": "connected"}
+    except Exception:
+        from fastapi.responses import JSONResponse
+        return JSONResponse(status_code=503, content={"status": "unhealthy", "database": "unreachable"})
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run("app:app", host="0.0.0.0", port=8000, reload=True)
+    uvicorn.run("app:app", host="0.0.0.0", port=8000, reload=False)

@@ -12,6 +12,7 @@ Loads all environment variables from .env with typed defaults for:
 """
 
 import os
+import secrets
 from pathlib import Path
 from dotenv import load_dotenv
 
@@ -24,7 +25,6 @@ load_dotenv(dotenv_path=ENV_PATH)
 ROOT_ENV = BASE_DIR.parent / ".env"
 if ROOT_ENV.exists():
     load_dotenv(dotenv_path=ROOT_ENV)
-
 
 
 def _int_env(key: str, default: int) -> int:
@@ -45,20 +45,45 @@ def _float_env(key: str, default: float) -> float:
     except (ValueError, TypeError):
         return default
 
+def _bool_env(key: str, default: bool) -> bool:
+    val = os.getenv(key)
+    if val is None:
+        return default
+    return val.strip().lower() in ("true", "1", "yes")
+
+
+def _resolve_jwt_secret() -> str:
+    """JWT signing key comes ONLY from the environment. Never hardcode one in source."""
+    secret = os.getenv("JWT_SECRET") or os.getenv("JWT_SECRET_KEY")
+    if secret and len(secret) >= 32:
+        return secret
+    if os.getenv("APP_ENV", "development").lower() == "production":
+        raise RuntimeError(
+            "JWT_SECRET is missing or shorter than 32 characters. "
+            "Set it in the environment (generate one with: openssl rand -hex 32)."
+        )
+    print(
+        "[SECURITY WARNING] JWT_SECRET not set (or too short). Using a random per-process "
+        "secret: all sessions are invalidated on every restart. Set JWT_SECRET in the environment."
+    )
+    return secrets.token_urlsafe(48)
+
+
 class Settings:
     # ── Application ──────────────────────────────────────────
     APP_NAME: str = os.getenv("APP_NAME", "AARVA AI Document & Tender Intelligence")
     APP_ENV: str = os.getenv("APP_ENV", "development")
     APP_HOST: str = os.getenv("APP_HOST", "0.0.0.0")
     APP_PORT: int = _int_env("APP_PORT", 8000)
-    CORS_ORIGINS: str = os.getenv("CORS_ORIGINS", "*")
-    DEBUG: bool = os.getenv("DEBUG", "true").lower() in ("true", "1", "yes")
+    # Comma-separated list of extra allowed browser origins (no wildcard).
+    CORS_ORIGINS: str = os.getenv("CORS_ORIGINS", "")
+    DEBUG: bool = _bool_env("DEBUG", False)
 
     # ── Database ─────────────────────────────────────────────
     DATABASE_URL: str = os.getenv("DATABASE_URL", "sqlite:///./aarva.db")
 
     # ── Authentication & Security ────────────────────────────
-    JWT_SECRET: str = os.getenv("JWT_SECRET", os.getenv("JWT_SECRET_KEY", "aarva-tender-jwt-secret-key-prod-2026-secure"))
+    JWT_SECRET: str = _resolve_jwt_secret()
     JWT_ALGORITHM: str = os.getenv("JWT_ALGORITHM", "HS256")
     JWT_ACCESS_TOKEN_EXPIRE_MINUTES: int = _int_env("JWT_ACCESS_TOKEN_EXPIRE_MINUTES", _int_env("JWT_EXPIRE_MINUTES", 10080))
     BCRYPT_ROUNDS: int = _int_env("BCRYPT_ROUNDS", 12)
@@ -108,12 +133,20 @@ class Settings:
     LLM_TIMEOUT_SECONDS: int = _int_env("LLM_TIMEOUT_SECONDS", 45)
 
 
+    # ── Demo / seed accounts ─────────────────────────────────
+    # Shared demo student (student@college.edu) used by the "Try demo" button.
+    ENABLE_DEMO_LOGIN: bool = _bool_env("ENABLE_DEMO_LOGIN", True)
+    DEMO_STUDENT_PASSWORD: str = os.getenv("DEMO_STUDENT_PASSWORD", "") or secrets.token_urlsafe(18)
+    # Admin is only seeded when ADMIN_PASSWORD (>=12 chars) is provided via the environment.
+    ADMIN_EMAIL: str = os.getenv("ADMIN_EMAIL", "admin@aarva.edu")
+    ADMIN_PASSWORD: str = os.getenv("ADMIN_PASSWORD", "")
+
     # ── Email / SMTP Configuration ───────────────────────────
     SMTP_HOST: str = os.getenv("SMTP_HOST", "smtp.gmail.com")
     SMTP_PORT: int = _int_env("SMTP_PORT", 587)
-    SMTP_USER: str = os.getenv("SMTP_USER", os.getenv("EMAIL_USER", "thanushreeponix1977@gmail.com"))
-    SMTP_PASSWORD: str = os.getenv("SMTP_PASSWORD", os.getenv("EMAIL_PASS", "hokw qfxq dxiz zyof")).replace(" ", "")
-    SMTP_FROM_EMAIL: str = os.getenv("SMTP_FROM_EMAIL", os.getenv("EMAIL_USER", "thanushreeponix1977@gmail.com"))
+    SMTP_USER: str = os.getenv("SMTP_USER", os.getenv("EMAIL_USER", ""))
+    SMTP_PASSWORD: str = os.getenv("SMTP_PASSWORD", os.getenv("EMAIL_PASS", "")).replace(" ", "")
+    SMTP_FROM_EMAIL: str = os.getenv("SMTP_FROM_EMAIL", os.getenv("EMAIL_USER", ""))
     SMTP_FROM_NAME: str = os.getenv("SMTP_FROM_NAME", "Aarva Learning")
     SMTP_USE_TLS: bool = os.getenv("SMTP_USE_TLS", "true").lower() in ("true", "1", "yes")
 
