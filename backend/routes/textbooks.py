@@ -89,7 +89,8 @@ async def upload_textbook(
             f"Covers system architecture, protocols, performance metrics, and compliance guidelines.\n"
         )
         file_bytes = default_content.encode("utf-8")
-        filename = f"{re.sub(r'[^\w\s\.\-_]', '_', title.lower()).strip() or 'document'}.txt"
+        clean_name = re.sub(r'[^\w\s\.\-_]', '_', title.lower()).strip() or 'document'
+        filename = f"{clean_name}.txt"
 
     # Execute end-to-end ingestion pipeline (Parsing -> Chunking -> Embedding -> DB)
     result = knowledge_base_service.ingest_document(
