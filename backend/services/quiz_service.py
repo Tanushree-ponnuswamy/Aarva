@@ -175,6 +175,7 @@ def _call_ollama_for_questions(context: str, num_questions: int, topic_hint: str
                 "model": model_to_use,
                 "prompt": prompt,
                 "stream": False,
+                "think": False,
                 "options": {"temperature": 0.5, "top_p": 0.9, "num_predict": 450}
             },
             timeout=60.0

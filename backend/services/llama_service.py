@@ -307,6 +307,7 @@ class LlamaService:
                     "model": model_to_use,
                     "messages": messages,
                     "stream": False,
+                    "think": False,
                     "options": {
                         "temperature": 0.25,
                         "top_p": 0.9,
@@ -329,6 +330,7 @@ class LlamaService:
                                     {"role": "user", "content": f"Rewrite your previous answer completely in {target_lang}. {native_prompts.get(lang_code, '')}"},
                                 ],
                                 "stream": False,
+                                "think": False,
                                 "options": {"temperature": 0.25, "top_p": 0.9, "num_predict": 384},
                             },
                             timeout=90.0,
@@ -350,6 +352,7 @@ class LlamaService:
                     "model": model_to_use,
                     "prompt": full_prompt,
                     "stream": False,
+                    "think": False,
                     "options": {"temperature": 0.25, "num_predict": 384}
                 },
                 timeout=60.0
@@ -375,6 +378,7 @@ class LlamaService:
 
     def _clean_tutor_response(self, text: str) -> str:
         """Removes robotic boilerplate prefixes like 'Based on the document'."""
+        text = re.sub(r"<think>.*?</think>", "", text, flags=re.DOTALL).strip()
         cleaned = re.sub(r"^(Based on the (provided )?document,?\s*|According to the (provided )?text,?\s*)", "", text, flags=re.IGNORECASE)
         # Capitalize first letter if needed
         if cleaned and cleaned[0].islower():
@@ -1045,6 +1049,7 @@ class LlamaService:
                         ],
                         "format": "json",
                         "stream": False,
+                        "think": False,
                         "options": {"temperature": 0.2}
                     },
                     timeout=60.0
