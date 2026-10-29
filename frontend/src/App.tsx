@@ -418,7 +418,7 @@ function FeatureVisual({ type }: { type: string }) {
   );
 }
 
-function LandingPage({ onStart, onLogin }: { onStart: () => void; onLogin: () => void }) {
+function LandingPage({ onStart, onLogin, onNavigate }: { onStart: () => void; onLogin: () => void; onNavigate: (route: Route) => void }) {
   const [subscribed, setSubscribed] = useState(false);
 
   function subscribe(event: FormEvent<HTMLFormElement>) {
@@ -631,14 +631,42 @@ function LandingPage({ onStart, onLogin }: { onStart: () => void; onLogin: () =>
         <div className="footer-bottom section-pad">
           <span>© 2026 Aarva Studio</span>
           <span>Made with care for people with ideas.</span>
-          <div><a href="#home">Privacy</a><a href="#home">Terms</a></div>
+          <div><a href="/privacy" onClick={(e) => { e.preventDefault(); onNavigate("privacy"); }}>Privacy</a><a href="/terms" onClick={(e) => { e.preventDefault(); onNavigate("terms"); }}>Terms</a></div>
         </div>
       </footer>
     </div>
   );
 }
 
-type Route = "landing" | "auth" | "dashboard";
+type Route = "landing" | "auth" | "dashboard" | "privacy" | "terms" | "notfound";
+
+const ROUTE_PATHS: Record<Route, string> = { landing: "/", auth: "/login", dashboard: "/dashboard", privacy: "/privacy", terms: "/terms", notfound: "/404" };
+
+function routeFromPath(path: string, hasToken: boolean): Route {
+  const clean = path.length > 1 ? path.replace(/\/+$/, "") : path;
+  if (clean === "/" || clean === "/index.html") return "landing";
+  if (clean === "/login") return "auth";
+  if (clean === "/dashboard") return hasToken ? "dashboard" : "auth";
+  if (clean === "/privacy") return "privacy";
+  if (clean === "/terms") return "terms";
+  return "notfound";
+}
+
+function InfoPage({ route, onHome }: { route: Route; onHome: () => void }) {
+  const content: Record<string, { title: string; body: string[] }> = {
+    privacy: { title: "Privacy Policy", body: ["Aarva stores your account details, uploaded study material and learning activity only to provide the service.", "We do not sell your personal data. You can request an export or deletion of your data at any time by emailing hello@aarva.app."] },
+    terms: { title: "Terms of Service", body: ["By using Aarva you agree to use it lawfully and only upload material you have the right to use.", "Aarva is provided as is. AI-generated summaries and quizzes should be checked against your source material."] },
+    notfound: { title: "Page not found", body: ["The page you are looking for does not exist or has moved."] },
+  };
+  const page = content[route] || content.notfound;
+  return (
+    <main style={{ maxWidth: 720, margin: "0 auto", padding: "96px 24px", fontFamily: "inherit" }}>
+      <h1 style={{ fontSize: 36, marginBottom: 16 }}>{page.title}</h1>
+      {page.body.map((text) => <p key={text} style={{ marginBottom: 12, lineHeight: 1.6 }}>{text}</p>)}
+      <button type="button" onClick={onHome} style={{ marginTop: 24, textDecoration: "underline" }}>Back to home</button>
+    </main>
+  );
+}
 
 const studyImage =
   "https://images.unsplash.com/photo-1763890965393-1cea435581ab?crop=entropy&cs=tinysrgb&fit=crop&fm=jpg&q=85&w=1200&h=1500";
@@ -6525,18 +6553,13 @@ export default function App() {
   });
 
   const getInitialRoute = (): Route => {
-    const hasToken = Boolean(localStorage.getItem("aarva_token"));
-    const path = window.location.pathname;
-    if (path === "/login") return "auth";
-    if (path === "/dashboard" && hasToken) return "dashboard";
-    if (path === "/dashboard") return "auth"; // force login if no token
-    return "landing";
+    return routeFromPath(window.location.pathname, Boolean(localStorage.getItem("aarva_token")));
   };
 
   const [route, setRoute] = useState<Route>(getInitialRoute);
 
   const navigate = (next: Route) => {
-    const path = next === "landing" ? "/" : `/${next === "auth" ? "login" : "dashboard"}`;
+    const path = ROUTE_PATHS[next];
     window.history.pushState({}, "", path);
     window.scrollTo({ top: 0, behavior: "smooth" });
     setRoute(next);
@@ -6567,15 +6590,13 @@ export default function App() {
 
   useEffect(() => {
     const syncRoute = () => {
-      const path = window.location.pathname;
-      const tok = Boolean(localStorage.getItem("aarva_token"));
-      if (path === "/dashboard" && !tok) { setRoute("auth"); return; }
-      setRoute(path === "/login" ? "auth" : path === "/dashboard" ? "dashboard" : "landing");
+      setRoute(routeFromPath(window.location.pathname, Boolean(localStorage.getItem("aarva_token"))));
     };
     window.addEventListener("popstate", syncRoute);
     return () => window.removeEventListener("popstate", syncRoute);
   }, []);
 
+  if (route === "privacy" || route === "terms" || route === "notfound") return <InfoPage route={route} onHome={() => navigate("landing")} />;
   if (route === "auth") return <AuthPage onHome={() => navigate("landing")} onComplete={(name) => { setUserName(name); navigate("dashboard"); }} />;
   if (route === "dashboard") {
     const activeUserKey = (() => {
@@ -6588,5 +6609,5 @@ export default function App() {
     })();
     return <Dashboard key={activeUserKey} name={userName} onHome={handleLogout} />;
   }
-  return <LandingPage onStart={() => navigate("auth")} onLogin={handleLoginNav} />;
+  return <LandingPage onStart={() => navigate("auth")} onLogin={handleLoginNav} onNavigate={navigate} />;
 }
