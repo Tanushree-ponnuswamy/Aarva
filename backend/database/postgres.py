@@ -84,7 +84,12 @@ def seed_demo_data():
                     name="AARVA Administrator", email=settings.ADMIN_EMAIL,
                     password_hash=_hash_pw(admin_pw), role="admin", is_active=True,
                 ))
-        elif not admin:
+        else:
+            if admin:
+                db.query(LoginActivity).filter(LoginActivity.user_id == admin.id).delete(synchronize_session=False)
+                db.query(UserSession).filter(UserSession.user_id == admin.id).delete(synchronize_session=False)
+                db.delete(admin)
+                admin = None
             print("[SEED] ADMIN_PASSWORD (>=12 chars) not set: admin account not created.")
         db.flush()
 
@@ -193,16 +198,26 @@ def seed_demo_data():
             db.add(tb1)
             db.flush()
 
-        # Clean up any legacy secondary demo users if present to enforce only one sample student account
-        legacy_emails = ["priya.patel@school.edu", "rohan.iyer@techcorp.com"]
-        for legacy_user in db.query(User).filter(User.email.in_(legacy_emails)).all():
-            db.query(Textbook).filter(Textbook.user_id == legacy_user.id).delete(synchronize_session=False)
-            db.query(StudentProfile).filter(StudentProfile.user_id == legacy_user.id).delete(synchronize_session=False)
-            db.query(StudentInterests).filter(StudentInterests.user_id == legacy_user.id).delete(synchronize_session=False)
-            db.query(LearningPreferences).filter(LearningPreferences.user_id == legacy_user.id).delete(synchronize_session=False)
-            db.query(LearningProgress).filter(LearningProgress.user_id == legacy_user.id).delete(synchronize_session=False)
-            db.query(LoginActivity).filter(LoginActivity.user_id == legacy_user.id).delete(synchronize_session=False)
-            db.delete(legacy_user)
+        # Enforce ONLY ONE test student account: remove all other old/stale logins
+        allowed_emails = ["student@college.edu"]
+        if len(admin_pw) >= 12:
+            allowed_emails.append(settings.ADMIN_EMAIL)
+
+        for old_user in db.query(User).filter(~User.email.in_(allowed_emails)).all():
+            # Cascade clean all user associations
+            chat_session_ids = [cs.id for cs in db.query(ChatSession).filter(ChatSession.user_id == old_user.id).all()]
+            if chat_session_ids:
+                db.query(ChatMessage).filter(ChatMessage.chat_session_id.in_(chat_session_ids)).delete(synchronize_session=False)
+            db.query(ChatSession).filter(ChatSession.user_id == old_user.id).delete(synchronize_session=False)
+            db.query(QuizResult).filter(QuizResult.user_id == old_user.id).delete(synchronize_session=False)
+            db.query(Textbook).filter(Textbook.user_id == old_user.id).delete(synchronize_session=False)
+            db.query(StudentProfile).filter(StudentProfile.user_id == old_user.id).delete(synchronize_session=False)
+            db.query(StudentInterests).filter(StudentInterests.user_id == old_user.id).delete(synchronize_session=False)
+            db.query(LearningPreferences).filter(LearningPreferences.user_id == old_user.id).delete(synchronize_session=False)
+            db.query(LearningProgress).filter(LearningProgress.user_id == old_user.id).delete(synchronize_session=False)
+            db.query(LoginActivity).filter(LoginActivity.user_id == old_user.id).delete(synchronize_session=False)
+            db.query(UserSession).filter(UserSession.user_id == old_user.id).delete(synchronize_session=False)
+            db.delete(old_user)
         db.flush()
 
         db.commit()

@@ -1624,7 +1624,7 @@ function AuthPage({ onHome, onComplete }: { onHome: () => void; onComplete: (nam
                 <p className="verify-kicker">CHECK YOUR INBOX</p>
                 <h1 className="verify-heading">Verify your email.</h1>
                 <p className="verify-caption">
-                  We sent a four-digit code to <strong>{signupEmail || "tanushreep.cs24@bitsathy.ac.in"}</strong>. Enter it below to continue.
+                  We sent a four-digit code to <strong>{signupEmail || "your email"}</strong>. Enter it below to continue.
                 </p>
               </div>
 
