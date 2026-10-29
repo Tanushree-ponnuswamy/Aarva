@@ -6,6 +6,7 @@ Supports Gmail, Outlook, AWS SES, or any standard SMTP relay with STARTTLS.
 
 import os
 import smtplib
+import socket
 import requests
 import hmac
 import secrets
@@ -14,6 +15,23 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from typing import Dict, Any, Optional
 from config import settings
+
+
+def _connect_ipv4(host: str, port: int, timeout: float, source_address=None):
+    """Connect over IPv4 only. Some hosts (Render) resolve smtp.gmail.com to an IPv6 address they cannot route."""
+    ip = socket.getaddrinfo(host, port, socket.AF_INET, socket.SOCK_STREAM)[0][4][0]
+    return socket.create_connection((ip, port), timeout, source_address)
+
+
+class _IPv4SMTP(smtplib.SMTP):
+    def _get_socket(self, host, port, timeout):
+        return _connect_ipv4(host, port, timeout, self.source_address)
+
+
+class _IPv4SMTP_SSL(smtplib.SMTP_SSL):
+    def _get_socket(self, host, port, timeout):
+        raw = _connect_ipv4(host, port, timeout, self.source_address)
+        return self.context.wrap_socket(raw, server_hostname=self._host)
 
 
 class EmailService:
@@ -252,9 +270,9 @@ class EmailService:
                 try:
                     print(f"[EMAIL SERVICE] Connecting to SMTP server {self.smtp_host}:{port}...")
                     if implicit_ssl:
-                        server = smtplib.SMTP_SSL(self.smtp_host, port, timeout=12)
+                        server = _IPv4SMTP_SSL(self.smtp_host, port, timeout=25)
                     else:
-                        server = smtplib.SMTP(self.smtp_host, port, timeout=12)
+                        server = _IPv4SMTP(self.smtp_host, port, timeout=25)
                         if self.use_tls:
                             server.starttls()
                     break
