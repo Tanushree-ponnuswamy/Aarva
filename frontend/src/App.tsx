@@ -1948,6 +1948,29 @@ function PdfJsViewer({
     const loadPdfDoc = async () => {
       try {
         let uint8Data: Uint8Array;
+        if (!src.startsWith("blob:") && !src.startsWith("data:")) {
+          // Let pdf.js fetch only the bytes it needs (first page, then pages on demand).
+          const token = localStorage.getItem("aarva_token") ?? "";
+          const task = pdfjsLib.getDocument({
+            url: src,
+            httpHeaders: token ? { Authorization: `Bearer ${token}` } : {},
+            rangeChunkSize: 262144,
+            disableAutoFetch: true,
+            cMapUrl: `https://unpkg.com/pdfjs-dist@${pdfjsLib.version || "4.10.38"}/cmaps/`,
+            cMapPacked: true,
+          });
+          try {
+            const streamed = await task.promise;
+            if (isCancelled) return;
+            setPdfDoc(streamed);
+            setNumPages(streamed.numPages);
+            setCurrentPage(pageNumber && pageNumber <= streamed.numPages ? pageNumber : 1);
+            setLoading(false);
+            return;
+          } catch {
+            // Not a PDF (the server may have returned text) or range loading failed: use the full-download path below.
+          }
+        }
         if (src.startsWith("blob:") || src.startsWith("data:")) {
           const res = await fetch(src);
           const buf = await res.arrayBuffer();
@@ -2623,6 +2646,7 @@ function UploadWorkspace({
   const [showProcessingPrompt, setShowProcessingPrompt] = useState(false);
   const stageTimerRef = useRef<any>(null);
   const [dragOver, setDragOver] = useState(false);
+  const [localPreview, setLocalPreview] = useState<{ bookId: number; url: string; name: string; type: string } | null>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [filePreviewUrl, setFilePreviewUrl] = useState<string | null>(null);
   const summaryPollRef = useRef(0);
@@ -3129,6 +3153,11 @@ function UploadWorkspace({
 
   // ── End-to-end Document Ingestion & RAG Ingestion with 0-100% Progress ──
   const doUpload = async (file: File, initialQuery?: string) => {
+    // Show the document immediately from the local file while it is being processed.
+    const localUrl = URL.createObjectURL(file);
+    setChatPreviewFile(file);
+    setChatPreviewUrl(localUrl);
+    setLeftView("files");
     setUploadError("");
     setUploading(true);
     setUploadingFile(file);
@@ -3249,6 +3278,13 @@ function UploadWorkspace({
       await new Promise((r) => setTimeout(r, 400));
 
       onUploaded(); // refresh library
+      // Keep serving the preview from the local file (already in memory) instead of downloading it again.
+      setLocalPreview((prev) => {
+        if (prev?.url && prev.url !== localUrl) { try { URL.revokeObjectURL(prev.url); } catch { /* ignore */ } }
+        return { bookId: finished.textbook.id, url: localUrl, name: file.name, type: file.type };
+      });
+      setChatPreviewFile(null);
+      setChatPreviewUrl(null);
 
       const newBook: LearningBook = {
         ...finished.textbook,
@@ -3282,6 +3318,9 @@ function UploadWorkspace({
         // User deliberately cancelled upload and removed the file
         return;
       }
+      try { URL.revokeObjectURL(localUrl); } catch { /* ignore */ }
+      setChatPreviewFile(null);
+      setChatPreviewUrl(null);
       const errMsg = err instanceof Error ? err.message : "Upload failed.";
       setUploadError(errMsg);
       setMessages((c) => [
@@ -3558,6 +3597,14 @@ function UploadWorkspace({
                   src={filePreviewUrl}
                   fileName={selectedFile.name}
                   fileType={selectedFile.type}
+                  pageNumber={currentPage}
+                  onPageChange={setCurrentPage}
+                />
+              ) : book?.id && localPreview && localPreview.bookId === book.id ? (
+                <FilePreviewPane
+                  src={localPreview.url}
+                  fileName={localPreview.name}
+                  fileType={localPreview.type}
                   pageNumber={currentPage}
                   onPageChange={setCurrentPage}
                 />

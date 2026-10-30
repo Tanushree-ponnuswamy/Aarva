@@ -298,7 +298,7 @@ def get_textbook_file(textbook_id: int, db: Session = Depends(get_db), current_u
         media_type = mime_map.get(ext, "application/octet-stream")
         return FileResponse(
             path=p, media_type=media_type, filename=book.file_name, content_disposition_type="inline",
-            headers={"X-Content-Type-Options": "nosniff", "Content-Security-Policy": "sandbox"},
+            headers={"X-Content-Type-Options": "nosniff", "Content-Security-Policy": "sandbox", "Cache-Control": "private, max-age=3600"},
         )
 
     # Final fallback response
