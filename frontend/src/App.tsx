@@ -2607,6 +2607,8 @@ function UploadWorkspace({
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadingFile, setUploadingFile] = useState<File | null>(null);
   const uploadXhrRef = useRef<XMLHttpRequest | null>(null);
+  const uploadIdRef = useRef<string>("");
+  const [showProcessingPrompt, setShowProcessingPrompt] = useState(false);
   const stageTimerRef = useRef<any>(null);
   const [dragOver, setDragOver] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -2980,8 +2982,31 @@ function UploadWorkspace({
     setSubFilter("All");
   };
 
+  // "New chat" is blocked while a book is still processing: ask whether to delete it.
+  const requestNewChat = () => {
+    if (uploading) {
+      setShowProcessingPrompt(true);
+      return;
+    }
+    handleNewChat();
+  };
+
+  const confirmDeleteProcessingBook = () => {
+    setShowProcessingPrompt(false);
+    handleCancelUpload();
+    handleNewChat();
+  };
+
   // ── Cancel In-Progress Upload & Remove File ────────────────────────────────
   const handleCancelUpload = () => {
+    if (uploadIdRef.current) {
+      // Server stops at its next checkpoint and removes the book, so it never reaches the library.
+      apiFetch("/api/textbooks/upload/cancel", {
+        method: "POST",
+        body: JSON.stringify({ client_upload_id: uploadIdRef.current }),
+      }).catch(() => { /* best effort */ });
+      uploadIdRef.current = "";
+    }
     if (uploadXhrRef.current) {
       uploadXhrRef.current.abort();
       uploadXhrRef.current = null;
@@ -3115,6 +3140,9 @@ function UploadWorkspace({
     form.append("title", file.name.replace(/\.[^.]+$/, "").replace(/[-_]/g, " "));
     form.append("author", user?.name || "Uploaded by student");
     form.append("file", file);
+    const clientUploadId = (typeof crypto !== "undefined" && "randomUUID" in crypto) ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    uploadIdRef.current = clientUploadId;
+    form.append("client_upload_id", clientUploadId);
 
     try {
       const data = await new Promise<any>((resolve, reject) => {
@@ -3434,7 +3462,7 @@ function UploadWorkspace({
               <button
                 type="button"
                 className="new-chat-pill-btn"
-                onClick={handleNewChat}
+                onClick={requestNewChat}
                 title="Start a new chat session"
                 aria-label="New chat"
               >
@@ -3619,6 +3647,29 @@ function UploadWorkspace({
                       <span className="typing-dot" style={{ width: "6px", height: "6px", background: "#7458f5", borderRadius: "50%", animation: "pulse 1s infinite alternate" }} />
                       <span className="typing-dot" style={{ width: "6px", height: "6px", background: "#7458f5", borderRadius: "50%", animation: "pulse 1s infinite alternate 0.2s" }} />
                       <span className="typing-dot" style={{ width: "6px", height: "6px", background: "#7458f5", borderRadius: "50%", animation: "pulse 1s infinite alternate 0.4s" }} />
+                    </div>
+                  </div>
+                )}
+
+                {showProcessingPrompt && (
+                  <div
+                    role="dialog"
+                    aria-modal="true"
+                    style={{ position: "fixed", inset: 0, background: "rgba(15,23,42,0.45)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000, padding: "1rem" }}
+                  >
+                    <div style={{ background: "#fff", borderRadius: "1rem", padding: "1.5rem", maxWidth: "26rem", width: "100%", boxShadow: "0 20px 50px rgba(0,0,0,0.25)" }}>
+                      <h3 style={{ margin: "0 0 0.5rem", fontSize: "1.1rem" }}>This book isn&apos;t fully processed yet</h3>
+                      <p style={{ margin: "0 0 1.25rem", color: "#475569", lineHeight: 1.5 }}>
+                        {uploadingFile ? `"${uploadingFile.name}" is still being processed.` : "Your book is still being processed."} Do you want to delete it? If you delete it, it won&apos;t appear in your library.
+                      </p>
+                      <div style={{ display: "flex", gap: "0.6rem", justifyContent: "flex-end", flexWrap: "wrap" }}>
+                        <button type="button" onClick={() => setShowProcessingPrompt(false)} style={{ padding: "0.55rem 1rem", borderRadius: "0.6rem", border: "1px solid #cbd5e1", background: "#fff", fontWeight: 600, cursor: "pointer" }}>
+                          No, keep processing
+                        </button>
+                        <button type="button" onClick={confirmDeleteProcessingBook} style={{ padding: "0.55rem 1rem", borderRadius: "0.6rem", border: "none", background: "#dc2626", color: "#fff", fontWeight: 700, cursor: "pointer" }}>
+                          Yes, delete it
+                        </button>
+                      </div>
                     </div>
                   </div>
                 )}

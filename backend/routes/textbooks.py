@@ -1,7 +1,10 @@
 import os
 from pathlib import Path
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
-from fastapi.responses import FileResponse, Response
+from fastapi.responses import FileResponse, Response, JSONResponse
+from fastapi.concurrency import run_in_threadpool
+from pydantic import BaseModel
+import time
 from sqlalchemy.orm import Session
 from typing import Optional, List
 from datetime import datetime
@@ -14,6 +17,21 @@ from config import settings
 
 router = APIRouter(prefix="/api/textbooks", tags=["Textbooks Management"])
 
+# Uploads currently being processed, so the user can cancel (delete) one before it finishes.
+# { (user_id, client_upload_id): {"cancelled": bool, "at": float} }  (per process)
+_uploads: dict = {}
+
+
+def _prune_uploads() -> None:
+    cutoff = time.time() - 3600
+    for k in [k for k, v in _uploads.items() if v["at"] < cutoff]:
+        _uploads.pop(k, None)
+
+
+class CancelUploadRequest(BaseModel):
+    client_upload_id: str
+
+
 UPLOADS_DIR = Path(__file__).resolve().parent.parent / "uploads"
 UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -22,7 +40,15 @@ UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
 def get_textbooks(user_id: Optional[int] = None, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     user_id = current_user.id if user_id is None else user_id
     require_self_or_admin(user_id, current_user)
-    books = db.query(Textbook).filter(Textbook.user_id == user_id).order_by(Textbook.uploaded_at.desc()).all()
+    # Drop books stuck in "processing" (e.g. the server restarted mid-upload); hide in-flight ones.
+    from datetime import timedelta
+    stale = db.query(Textbook).filter(Textbook.user_id == user_id, Textbook.status == "processing",
+                                      Textbook.uploaded_at < datetime.utcnow() - timedelta(minutes=30)).all()
+    for s in stale:
+        db.delete(s)
+    if stale:
+        db.commit()
+    books = db.query(Textbook).filter(Textbook.user_id == user_id, Textbook.status != "processing").order_by(Textbook.uploaded_at.desc()).all()
     return [
         {
             "id": b.id,
@@ -44,6 +70,7 @@ async def upload_textbook(
     title: str = Form(...),
     author: Optional[str] = Form("Unknown Author"),
     pages: Optional[int] = Form(None),
+    client_upload_id: Optional[str] = Form(None),
     file: Optional[UploadFile] = File(None),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
@@ -98,14 +125,31 @@ async def upload_textbook(
         filename = f"{clean_name}.txt"
 
     # Execute end-to-end ingestion pipeline (Parsing -> Chunking -> Embedding -> DB)
-    result = knowledge_base_service.ingest_document(
-        file_bytes=file_bytes,
-        filename=filename,
-        user_id=user_id,
-        title=title,
-        author=author or "Academic Author",
-        db=db
-    )
+    from services.knowledge_base_service import UploadCancelled
+    upload_key = (current_user.id, (client_upload_id or "")[:80]) if client_upload_id else None
+    if upload_key:
+        _prune_uploads()
+        entry = _uploads.setdefault(upload_key, {"cancelled": False, "at": time.time()})
+    else:
+        entry = {"cancelled": False, "at": time.time()}
+
+    try:
+        # Blocking pipeline runs in a worker thread so the cancel request can be served meanwhile.
+        result = await run_in_threadpool(
+            knowledge_base_service.ingest_document,
+            file_bytes=file_bytes,
+            filename=filename,
+            user_id=user_id,
+            title=title,
+            author=author or "Academic Author",
+            db=db,
+            should_cancel=lambda: entry["cancelled"],
+        )
+    except UploadCancelled:
+        return JSONResponse(status_code=409, content={"success": False, "cancelled": True, "detail": "Upload cancelled and removed."})
+    finally:
+        if upload_key:
+            _uploads.pop(upload_key, None)
 
     # Save file to disk for preview securely within UPLOADS_DIR
     target_path = (UPLOADS_DIR / f"{result['document_id']}_{filename}").resolve()
@@ -162,6 +206,15 @@ async def upload_textbook(
             "summary": result["summary"]
         }
     }
+
+@router.post("/upload/cancel")
+def cancel_upload(req: CancelUploadRequest, current_user: User = Depends(get_current_user)):
+    """Delete a book that is still being processed: the pipeline stops at its next checkpoint and removes it."""
+    _prune_uploads()
+    key = (current_user.id, req.client_upload_id[:80])
+    _uploads.setdefault(key, {"cancelled": False, "at": time.time()})["cancelled"] = True
+    return {"success": True}
+
 
 @router.get("/{textbook_id}/file")
 def get_textbook_file(textbook_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):

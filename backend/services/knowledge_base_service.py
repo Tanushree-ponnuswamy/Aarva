@@ -9,7 +9,7 @@ Orchestrates:
 5. Session & Document tracking in relational database
 """
 
-from typing import Dict, Any, List, Optional
+from typing import Callable, Dict, Any, List, Optional
 from datetime import datetime
 from sqlalchemy.orm import Session
 
@@ -39,6 +39,10 @@ def _safe_print(*args, **kwargs):
             pass
 
 
+class UploadCancelled(Exception):
+    """Raised when the user chose to delete a book while it was still being processed."""
+
+
 class KnowledgeBaseService:
     def ingest_document(
         self,
@@ -47,7 +51,8 @@ class KnowledgeBaseService:
         user_id: int,
         title: Optional[str] = None,
         author: Optional[str] = None,
-        db: Optional[Session] = None
+        db: Optional[Session] = None,
+        should_cancel: Optional[Callable[[], bool]] = None
     ) -> Dict[str, Any]:
         """
         Full ingestion pipeline: Parse -> Chunk -> Embed into ChromaDB -> Record in DB.
@@ -72,6 +77,12 @@ class KnowledgeBaseService:
         if parse_result.parse_warnings:
             _safe_print(f"   • Warnings: {', '.join(parse_result.parse_warnings)}")
 
+        def check_cancel():
+            if should_cancel and should_cancel():
+                raise UploadCancelled()
+
+        check_cancel()
+
         # 2. Chunk text with metadata
         _safe_print(f"🧩 [CHUNKING PIPELINE] Chunking '{doc_title}' with semantic boundary detection...")
         chunks: List[DocumentChunk] = chunking_service.chunk_parsed_result(
@@ -85,11 +96,14 @@ class KnowledgeBaseService:
         if len(chunks) > 3:
             _safe_print(f"     ... and {len(chunks) - 3} additional chunks generated.")
 
+        check_cancel()
+
         # 3. Create or update Database Record
         size_mb = f"{max(0.1, round(len(file_bytes) / (1024 * 1024), 2))} MB"
         
         # Build initial summary from parsed chapters/sheets
         initial_summary = self._generate_initial_summary(parse_result, doc_title, chunks)
+        check_cancel()
 
         new_doc = None
         if db:
@@ -100,7 +114,7 @@ class KnowledgeBaseService:
                 file_name=filename,
                 file_size=size_mb,
                 total_pages=parse_result.page_count,
-                status="processed",
+                status="processing",  # hidden from the library until embedding finishes
                 summary_data=initial_summary
             )
             db.add(new_doc)
@@ -111,6 +125,13 @@ class KnowledgeBaseService:
             doc_id = int(datetime.utcnow().timestamp())
 
         # 4. Embed into ChromaDB & BM25
+        try:
+            check_cancel()
+        except UploadCancelled:
+            if db and new_doc is not None:
+                db.delete(new_doc)
+                db.commit()
+            raise
         _safe_print(f"\n⚡ [CHROMADB VECTOR EMBEDDING] Embedding {len(chunks)} chunks into ChromaDB...")
         chunk_dicts = [c.to_dict() for c in chunks]
         indexed_count = chroma_store.add_textbook_chunks(
@@ -120,6 +141,17 @@ class KnowledgeBaseService:
             file_name=filename,
             file_type=parse_result.file_type
         )
+        try:
+            check_cancel()
+        except UploadCancelled:
+            chroma_store.delete_textbook_chunks(textbook_id=doc_id)
+            if db and new_doc is not None:
+                db.delete(new_doc)
+                db.commit()
+            raise
+        if db and new_doc is not None:
+            new_doc.status = "processed"
+            db.commit()
         _safe_print(f"🎯 [INGESTION COMPLETED] Document ID #{doc_id} ('{doc_title}') indexed with {indexed_count} vectors into ChromaDB.\n")
 
         return {

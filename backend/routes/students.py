@@ -40,7 +40,7 @@ def get_student_dashboard(user_id: int, db: Session = Depends(get_db), current_u
     if not user:
         raise HTTPException(status_code=404, detail="User not found.")
 
-    textbooks = db.query(Textbook).filter(Textbook.user_id == user_id).all()
+    textbooks = db.query(Textbook).filter(Textbook.user_id == user_id, Textbook.status != "processing").all()
     quizzes = db.query(QuizResult).filter(QuizResult.user_id == user_id).order_by(QuizResult.completed_at.desc()).all()
     quiz_scores = [q.percentage for q in quizzes] if quizzes else [85.0]
 
