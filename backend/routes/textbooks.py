@@ -312,9 +312,14 @@ def get_textbook_file(textbook_id: int, db: Session = Depends(get_db), current_u
             ".csv":  "text/csv",
         }
         media_type = mime_map.get(ext, "application/octet-stream")
+        headers = {"X-Content-Type-Options": "nosniff", "Cache-Control": "private, max-age=3600"}
+        if ext != ".pdf":
+            # Anything the browser could render as a page is sandboxed. PDFs are excluded: a sandbox policy
+            # also disables Chrome's built-in PDF viewer ("Popout" and "Open in new tab" showed a blocked page).
+            headers["Content-Security-Policy"] = "sandbox"
         return FileResponse(
             path=p, media_type=media_type, filename=book.file_name, content_disposition_type="inline",
-            headers={"X-Content-Type-Options": "nosniff", "Content-Security-Policy": "sandbox", "Cache-Control": "private, max-age=3600"},
+            headers=headers,
         )
 
     # Final fallback response

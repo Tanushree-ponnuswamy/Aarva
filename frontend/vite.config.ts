@@ -13,6 +13,18 @@ export default defineConfig({
       '@': path.resolve(import.meta.dirname, './src'),
     },
   },
+  build: {
+    rollupOptions: {
+      output: {
+        // nginx serves *.mjs as application/octet-stream, and browsers refuse to load a module worker with that
+        // type, which broke every PDF preview in production. Emit those assets as .js (always application/javascript).
+        assetFileNames: (info: { names?: string[]; name?: string }) => {
+          const n = (info.names && info.names[0]) || info.name || ''
+          return n.endsWith('.mjs') ? 'assets/[name]-[hash].js' : 'assets/[name]-[hash][extname]'
+        },
+      },
+    },
+  },
   server: {
     host: '0.0.0.0',
     port: 5173,

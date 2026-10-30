@@ -1924,6 +1924,7 @@ function PdfJsViewer({
   const containerRef = useRef<HTMLDivElement | null>(null);
   const renderTaskRef = useRef<any>(null);
   const [boxWidth, setBoxWidth] = useState<number>(0);
+  const [nativeUrl, setNativeUrl] = useState<string | null>(null); // last resort: the browser's own PDF viewer
 
   // Re-fit whenever the pane changes size (window resize, sidebar collapse, split drag)
   useEffect(() => {
@@ -1957,6 +1958,7 @@ function PdfJsViewer({
     setLoading(true);
     setError(null);
     setFallbackText(null);
+    setNativeUrl((prev) => { if (prev) { try { URL.revokeObjectURL(prev); } catch { /* ignore */ } } return null; });
 
     const loadPdfDoc = async () => {
       try {
@@ -2035,9 +2037,22 @@ function PdfJsViewer({
         setCurrentPage(initialP);
         setLoading(false);
       } catch (err: any) {
-        if (!isCancelled) {
-          console.error("PDF.js loading error:", err);
-          setError(err.message || "Failed to parse PDF document.");
+        if (isCancelled) return;
+        console.error("PDF.js loading error:", err);
+        // pdf.js could not open it (unusual fonts/structure, or a failed range download): hand the file to the
+        // browser's built-in PDF viewer, which opens almost any PDF.
+        try {
+          const token = localStorage.getItem("aarva_token") ?? "";
+          const res = await fetch(src, src.startsWith("blob:") || src.startsWith("data:") ? {} : { headers: token ? { Authorization: `Bearer ${token}` } : {} });
+          if (!res.ok) throw new Error(`The server answered ${res.status} when the document was requested.`);
+          const blob = await res.blob();
+          if (!blob.size) throw new Error("The server returned an empty file.");
+          if (isCancelled) return;
+          setNativeUrl(URL.createObjectURL(new Blob([blob], { type: "application/pdf" })));
+          setLoading(false);
+        } catch (err2: any) {
+          if (isCancelled) return;
+          setError(`${err2?.message || err?.message || "Failed to load the document."}`);
           setLoading(false);
         }
       }
@@ -2314,6 +2329,8 @@ function PdfJsViewer({
                 ? "Preview file is not available on the server. Upload a document to view pages and study with AI."
                 : "Unable to load document preview."}
             </p>
+            <p style={{ margin: 0, color: "#94a3b8", fontSize: "0.72rem", lineHeight: 1.4, maxWidth: "320px", wordBreak: "break-word" }}>{error}</p>
+            <a href={src} target="_blank" rel="noopener noreferrer" style={{ color: "#6366f1", fontSize: "0.8rem", fontWeight: 700 }}>Open the file in a new tab</a>
           </div>
         )}
 
@@ -2339,7 +2356,11 @@ function PdfJsViewer({
           </div>
         )}
 
-        {!loading && !error && !fallbackText && (
+        {!loading && !error && !fallbackText && nativeUrl && (
+          <iframe title={fileName || "Document"} src={nativeUrl} style={{ width: "100%", flex: 1, minHeight: "70vh", border: 0, background: "#fff" }} />
+        )}
+
+        {!loading && !error && !fallbackText && !nativeUrl && (
           <div
             className="pdf-page-wrapper"
             style={{
