@@ -66,6 +66,13 @@ def generate_ai_quiz(req: QuizGenerateRequest, db: Session = Depends(get_db), cu
                 if cached:
                     return cached  # the same lesson's test opens instantly the next time
 
+    if req.textbook_id is not None:
+        try:
+            from services.knowledge_base_service import knowledge_base_service
+            knowledge_base_service.ensure_indexed(req.textbook_id, db)
+        except Exception as e:
+            print(f"[REINDEX WARN] {e}")
+
     questions = generate_quiz_questions(
         textbook_id=req.textbook_id,
         topic=req.topic,

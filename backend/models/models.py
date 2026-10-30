@@ -1,6 +1,6 @@
 from datetime import datetime
-from sqlalchemy import Column, Integer, String, Boolean, DateTime, ForeignKey, Text, JSON, Float
-from sqlalchemy.orm import relationship, declarative_base
+from sqlalchemy import Column, Integer, String, Boolean, DateTime, ForeignKey, Text, JSON, Float, LargeBinary
+from sqlalchemy.orm import relationship, declarative_base, deferred
 
 Base = declarative_base()
 
@@ -125,6 +125,9 @@ class Textbook(Base):
     uploaded_at = Column(DateTime, default=datetime.utcnow)
     status = Column(String(50), default="processed") # "uploading", "processing", "processed"
     summary_data = Column(JSON, default=dict)
+    # The original upload, kept in the database so previews and re-indexing survive restarts and redeploys
+    # (the server's disk is temporary on most hosts). Deferred: only loaded when explicitly needed.
+    file_data = deferred(Column(LargeBinary, nullable=True))
 
     user = relationship("User", back_populates="textbooks")
     quiz_results = relationship("QuizResult", back_populates="textbook", cascade="all, delete-orphan")

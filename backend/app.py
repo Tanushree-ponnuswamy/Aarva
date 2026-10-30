@@ -77,22 +77,34 @@ def direct_chat_endpoint(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Direct alias for interactive Hybrid RAG Knowledge Base Chat (authenticated, owner-only)."""
-    target_id = req.document_id if req.document_id is not None else req.textbook_id
-    if target_id is not None:
-        get_owned_textbook(db, target_id, current_user)
-    return llama_service.chat_response(
-        query=req.query,
-        textbook_id=target_id,
-        language=req.language or "English",
-        conversation_history=(req.conversation_history or [])[-20:]
-    )
+    """Alias of /api/summary/chat so every chat path stores its history and re-indexes lost books."""
+    from routes.summary import chat_with_tutor
+    return chat_with_tutor(req, db, current_user)
+
 
 @app.on_event("startup")
 def on_startup():
     print("[STARTUP] Initializing AARVA Database and Seeding Demo Data...")
     init_db()
     print("[OK] AARVA Database Initialized with Admin and Student seed records.")
+
+    def reindex_sweep():
+        """After a restart, quietly rebuild the search index of any book whose vectors were lost."""
+        from database.postgres import SessionLocal
+        from models.models import Textbook
+        from services.knowledge_base_service import knowledge_base_service
+        db = SessionLocal()
+        try:
+            for (bid,) in db.query(Textbook.id).filter(Textbook.status == "processed").all():
+                try:
+                    knowledge_base_service.ensure_indexed(bid, db)
+                except Exception as e:
+                    print(f"[REINDEX] book {bid}: {type(e).__name__}: {e}")
+        finally:
+            db.close()
+
+    import threading
+    threading.Thread(target=reindex_sweep, daemon=True).start()
 
 @app.get("/")
 def root():

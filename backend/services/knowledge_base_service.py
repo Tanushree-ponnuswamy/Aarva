@@ -44,7 +44,47 @@ class UploadCancelled(Exception):
     """Raised when the user chose to delete a book while it was still being processed."""
 
 
+_index_locks: Dict[int, Any] = {}
+
+
 class KnowledgeBaseService:
+    def ensure_indexed(self, book_id: int, db: Session) -> bool:
+        """Rebuild a book's search index from its stored file if the vector store lost it (restart, redeploy, new disk)."""
+        import threading
+        from pathlib import Path
+        coll = chroma_store.collection
+        if coll is None:
+            return False
+        def has_vectors() -> bool:
+            got = coll.get(where={"textbook_id": book_id}, limit=1, include=[])
+            return bool(got and got.get("ids"))
+        try:
+            if has_vectors():
+                return True
+        except Exception:
+            return False
+        lock = _index_locks.setdefault(book_id, threading.Lock())
+        with lock:
+            if has_vectors():
+                return True
+            book = db.query(Textbook).filter(Textbook.id == book_id).first()
+            if book is None or book.status != "processed":
+                return False
+            data = book.file_data
+            if not data:
+                disk = next(iter((Path(__file__).resolve().parent.parent / "uploads").glob(f"{book_id}_*")), None)
+                data = disk.read_bytes() if disk else None
+            if not data:
+                return False
+            _safe_print(f"[REINDEX] Rebuilding the search index for book {book_id} from its stored file")
+            pr = parse_document(data, book.file_name)
+            chunks = chunking_service.chunk_parsed_result(parse_result=pr, file_name=book.file_name)
+            chroma_store.add_textbook_chunks(
+                textbook_id=book_id, book_title=book.title, chunks=[c.to_dict() for c in chunks],
+                file_name=book.file_name, file_type=pr.file_type,
+            )
+            return True
+
     def ingest_document(
         self,
         file_bytes: bytes,
@@ -312,7 +352,7 @@ class KnowledgeBaseService:
         step = max(1, span // target_count)
         for idx in range(target_count):
             start_p = first_content + idx * step
-            end_p = total_p if idx == target_count - 1 else min(total_p, (idx + 1) * step)
+            end_p = total_p if idx == target_count - 1 else min(total_p, first_content + (idx + 1) * step - 1)
             sec_title = f"Section {idx + 1} (Pages {start_p}–{end_p})"
             # Search for best substantive heading within range
             for p in range(start_p, min(end_p + 1, start_p + 3)):

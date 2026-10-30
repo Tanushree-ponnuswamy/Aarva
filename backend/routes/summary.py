@@ -144,6 +144,13 @@ def chat_with_tutor(req: ChatMessageRequest, db: Session = Depends(get_db), curr
         doc_title = book.title
         doc_summary_data = book.summary_data
 
+    if target_id:
+        try:
+            from services.knowledge_base_service import knowledge_base_service
+            knowledge_base_service.ensure_indexed(target_id, db)  # rebuilds the index if the server lost it
+        except Exception as e:
+            print(f"[REINDEX WARN] {e}")
+
     # Execute RAG query
     reply = llama_service.chat_response(
         query=req.query,

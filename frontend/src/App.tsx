@@ -4901,9 +4901,13 @@ function TestView({
   const [aiInputText, setAiInputText] = useState<{ [qId: number]: string }>({});
 
   // Track concept step progress per book: { [bookId: number]: number } (0 = step 1 active, 1 = step 2 unlocked, etc.)
+  // Stored per user so two people sharing a browser keep separate progress.
+  const stepsKey = (() => {
+    try { const u = JSON.parse(localStorage.getItem("aarva_user") || "null"); return u?.id ? `aarva_concept_steps_${u.id}` : "aarva_concept_steps"; } catch { return "aarva_concept_steps"; }
+  })();
   const [bookSteps, setBookSteps] = useState<{ [bookId: number]: number }>(() => {
     try {
-      const saved = localStorage.getItem("aarva_concept_steps");
+      const saved = localStorage.getItem(stepsKey);
       return saved ? JSON.parse(saved) : {};
     } catch {
       return {};
@@ -4921,7 +4925,7 @@ function TestView({
       const nextStep = Math.max(current, completedIdx + 1);
       const updated = { ...prev, [bookId]: nextStep };
       try {
-        localStorage.setItem("aarva_concept_steps", JSON.stringify(updated));
+        localStorage.setItem(stepsKey, JSON.stringify(updated));
       } catch {}
       return updated;
     });
@@ -6477,6 +6481,26 @@ function Dashboard({ name, onHome }: { name: string; onHome: () => void }) {
 
   useEffect(() => { loadBooks(); }, [userId]);
 
+  // After a refresh, keep telling the user about books that are still being processed, and add them to the library when done.
+  const [processingBooks, setProcessingBooks] = useState<{ id: number; title: string }[]>([]);
+  useEffect(() => {
+    if (!userId) return;
+    let stop = false;
+    const tick = async () => {
+      try {
+        const rows = await apiFetch<{ id: number; title: string }[]>("/api/textbooks/processing");
+        if (stop) return;
+        setProcessingBooks((prev) => {
+          if (prev.length > 0 && rows.length === 0) loadBooks();
+          return rows;
+        });
+      } catch { /* ignore */ }
+    };
+    tick();
+    const timer = setInterval(tick, 6000);
+    return () => { stop = true; clearInterval(timer); };
+  }, [userId]);
+
   const selectBookAndSave = (b: LearningBook | null) => {
     setSelectedBook(b);
     if (b?.id && userId) {
@@ -6562,6 +6586,11 @@ function Dashboard({ name, onHome }: { name: string; onHome: () => void }) {
           </div>
         </header>
 
+        {processingBooks.length > 0 && active !== "Upload" && (
+          <div role="status" style={{ margin: "0 0 1rem", padding: "0.65rem 0.9rem", background: "#f5f3ff", border: "1px solid #ddd6fe", borderRadius: "0.7rem", color: "#4c1d95", fontSize: "0.85rem" }}>
+            Still processing: <b>{processingBooks.map((b) => b.title).join(", ")}</b>. It will appear in your library as soon as it is ready.
+          </div>
+        )}
         {active === "Dashboard" && <section className="dashboard-content">
           <div className="welcome-card">
             <div>

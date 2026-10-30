@@ -126,6 +126,7 @@ async def upload_textbook(
         total_pages=0,
         status="processing",
         summary_data=None,
+        file_data=file_bytes,
     )
     db.add(book)
     db.commit()
@@ -244,6 +245,13 @@ def _process_in_background(book_id: int, file_bytes: bytes, filename: str, user_
         db.close()
 
 
+@router.get("/processing")
+def list_processing(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    """Books of the caller that are still being processed (so the app can resume showing progress after a refresh)."""
+    rows = db.query(Textbook).filter(Textbook.user_id == current_user.id, Textbook.status == "processing").all()
+    return [{"id": b.id, "title": b.title, "alive": b.id in _active} for b in rows]
+
+
 @router.get("/{textbook_id}/status")
 def get_textbook_status(textbook_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     """Polled by the app while a book is processing."""
@@ -272,6 +280,13 @@ def get_textbook_status(textbook_id: int, db: Session = Depends(get_db), current
 def get_textbook_file(textbook_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     """Serve the raw file content or PDF for preview (owner only)."""
     book = get_owned_textbook(db, textbook_id, current_user)
+
+    # The disk copy is only a cache: restore it from the database if the server's disk was reset.
+    if not any(UPLOADS_DIR.glob(f"{textbook_id}_*")) and book.file_data:
+        try:
+            (UPLOADS_DIR / f"{textbook_id}_{os.path.basename(book.file_name)}").write_bytes(book.file_data)
+        except Exception as e:
+            print(f"[WARN] Could not restore preview file from database: {e}")
 
     # Check disk for saved file securely
     for p in UPLOADS_DIR.glob(f"{textbook_id}_*"):

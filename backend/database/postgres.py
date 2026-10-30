@@ -75,8 +75,23 @@ def get_db():
     finally:
         db.close()
 
+def _ensure_columns():
+    """create_all() never alters existing tables: add columns introduced after a database was first created."""
+    from sqlalchemy import inspect, text
+    try:
+        cols = {c["name"] for c in inspect(engine).get_columns("textbooks")}
+        if "file_data" not in cols:
+            ddl = "ALTER TABLE textbooks ADD COLUMN file_data BYTEA" if engine.dialect.name == "postgresql" else "ALTER TABLE textbooks ADD COLUMN file_data BLOB"
+            with engine.begin() as conn:
+                conn.execute(text(ddl))
+            print("[DATABASE] Added textbooks.file_data column")
+    except Exception as e:
+        print(f"[DATABASE WARNING] Could not verify textbooks.file_data column: {e}")
+
+
 def init_db():
     Base.metadata.create_all(bind=engine)
+    _ensure_columns()
     seed_demo_data()
 
 def seed_demo_data():
