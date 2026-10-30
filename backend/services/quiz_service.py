@@ -204,12 +204,66 @@ def _call_ollama_for_questions(context: str, num_questions: int, topic_hint: str
     return None
 
 
+def _extractive_questions(chunks: List[Dict[str, Any]], n: int) -> List[Dict[str, Any]]:
+    """Multiple-choice 'complete the sentence' questions built straight from the document text.
+
+    Used when the LLM is unavailable so a quiz still comes from the PDF (never from a generic bank).
+    """
+    import random
+    from services.deep_summary import _sentences, _STOP
+
+    items = []  # (sentence, page)
+    for c in chunks:
+        page = (c.get("metadata") or {}).get("page") or (c.get("metadata") or {}).get("page_number") or 1
+        for s in _sentences(c.get("content", "")):
+            if 40 <= len(s) <= 220 and s not in [i[0] for i in items]:
+                items.append((s, page))
+    if not items:
+        return []
+    tok = lambda s: re.findall(r"[A-Za-z0-9][A-Za-z0-9'-]{3,}", s)
+    freq: Dict[str, int] = {}
+    for s, _ in items:
+        for w in set(tok(s)):
+            freq[w] = freq.get(w, 0) + 1
+    pool = [w for w, k in freq.items() if w.lower() not in _STOP and len(w) >= 4]
+    rng = random.Random(len(items) * 7919 + sum(len(s) for s, _ in items))
+    rng.shuffle(items)
+    out: List[Dict[str, Any]] = []
+    for s, page in items:
+        cands = [w for w in tok(s) if w in pool and not s.startswith(w)]
+        if not cands:
+            continue
+        answer = min(cands, key=lambda w: (freq[w], -len(w)))  # a distinctive term of this sentence
+        kind_num = answer[0].isdigit()
+        same = [w for w in pool if w != answer and w not in s and (w[0].isdigit() == kind_num) and (w[0].isupper() == answer[0].isupper())]
+        if len(same) < 3:
+            same = [w for w in pool if w != answer and w not in s]
+        if len(same) < 3:
+            continue
+        options = rng.sample(same, 3) + [answer]
+        rng.shuffle(options)
+        out.append({
+            "id": len(out) + 1,
+            "question": "Which word correctly completes this statement from the lesson?\n\n\u201c" + s.replace(answer, "_____", 1) + "\u201d",
+            "options": options,
+            "correct_option": options.index(answer),
+            "explanation": f"The lesson says: \u201c{s}\u201d (Page {page}).",
+            "difficulty": "easy" if kind_num or answer[0].isupper() else "medium",
+            "topic": "From your document",
+            "source": "Generated from your document",
+        })
+        if len(out) >= n:
+            break
+    return out
+
+
 def generate_quiz_questions(
     textbook_id: Optional[int],
     topic: Optional[str] = None,
     num_questions: int = 5,
     difficulty: str = "mixed",
-    language: str = "English"
+    language: str = "English",
+    page_range: Optional[tuple] = None
 ) -> List[Dict[str, Any]]:
     """
     Main quiz generation pipeline:
@@ -222,8 +276,18 @@ def generate_quiz_questions(
     query = topic or "key concepts definitions and mechanisms"
     retrieved_chunks = []
 
-    # Step 1: Retrieve context only if textbook_id is provided to prevent unnecessary embedding lookups
-    if textbook_id:
+    # Step 1: a lesson's questions come from that lesson's own pages; otherwise retrieve by topic
+    if textbook_id and page_range:
+        try:
+            lo, hi = page_range
+            corpus = hybrid_retrieval_engine._get_corpus_chunks(textbook_id)
+            inside = sorted((c for c in corpus if lo <= int((c.get('metadata') or {}).get('page') or (c.get('metadata') or {}).get('page_number') or 0) <= hi),
+                            key=lambda c: int((c.get('metadata') or {}).get('page') or 0))
+            step = max(1, len(inside) // 12)
+            retrieved_chunks = inside[::step][:12]
+        except Exception as e:
+            print(f"[QUIZ_SERVICE] Lesson chunk load failed: {e}")
+    elif textbook_id:
         try:
             retrieved_chunks = hybrid_retrieval_engine.retrieve(
                 query=query,
@@ -290,7 +354,12 @@ def generate_quiz_questions(
         print(f"[QUIZ_SERVICE] Generated {len(normalized)} AI questions via Ollama")
         return normalized
 
-    # Step 4: Contextual fallback — select from curated bank
+    # Step 4: no LLM. With a document, build questions from its own text; the generic bank only serves requests with no document.
+    if retrieved_chunks:
+        own = _extractive_questions(retrieved_chunks, num_questions)
+        if own:
+            print(f"[QUIZ_SERVICE] LLM unavailable: built {len(own)} questions from the document text")
+            return own
     print("[QUIZ_SERVICE] Ollama unavailable — using curated question bank")
 
     pool = FALLBACK_QUESTIONS_BANK.copy()

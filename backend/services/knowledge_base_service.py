@@ -9,6 +9,7 @@ Orchestrates:
 5. Session & Document tracking in relational database
 """
 
+import re
 from typing import Callable, Dict, Any, List, Optional
 from datetime import datetime
 from sqlalchemy.orm import Session
@@ -218,7 +219,33 @@ class KnowledgeBaseService:
             return s[:260] + "..." if len(s) > 260 else s
         return f"Core curriculum concepts, analysis, and practice exercises for {fallback_title}."
 
+    _FRONT_MATTER = re.compile(
+        r"^\s*(first page|front ?matter|cover|title page|copyright|preface|foreword|acknowledg|about (this|the) book|how to use|"
+        r"contents?|table of contents|introduction (&|and) front matter|index|bibliography|references)\b", re.IGNORECASE)
+
+    def _is_front_matter(self, title: str) -> bool:
+        return bool(self._FRONT_MATTER.match(title or ""))
+
+    def _content_start_page(self, pages: list) -> int:
+        """First page that looks like real lesson text (skips cover, copyright, preface, contents)."""
+        boiler = ("all rights reserved", "first edition", "not for sale", "isbn", "printed by", "published by", "government of")
+        for p in pages:
+            t = (p.text or "").lower()
+            if len(t.split()) >= 120 and not any(b in t for b in boiler) and "table of contents" not in t[:200] and not t.lstrip().startswith("contents"):
+                return p.page_number
+        return 1
+
     def _build_document_sections(self, parse_result: ParseResult, title: str) -> List[Dict[str, Any]]:
+        sections = self._build_raw_sections(parse_result, title)
+        # Lessons only: drop front matter, then number what is left from 1.
+        kept = [s for s in sections if not self._is_front_matter(s.get("title", ""))]
+        if kept and len(kept) != len(sections):
+            sections = kept
+        for idx, s in enumerate(sections):
+            s["chapter"] = idx + 1
+        return sections
+
+    def _build_raw_sections(self, parse_result: ParseResult, title: str) -> List[Dict[str, Any]]:
         """Extract structured chapters and sections across the entire document (1 to total_pages)."""
         sections: List[Dict[str, Any]] = []
         pages = parse_result.pages or []
@@ -228,6 +255,12 @@ class KnowledgeBaseService:
 
         # 1. Check for embedded Table of Contents (TOC)
         toc = getattr(parse_result, "toc", [])
+        if toc:
+            # Prefer the top level of the outline (the lessons) over every sub-heading.
+            top = min(e.get("level", 1) for e in toc)
+            top_entries = [e for e in toc if e.get("level", 1) == top]
+            if 3 <= len(top_entries) <= 80:
+                toc = top_entries
         if toc:
             for idx, entry in enumerate(toc):
                 start_p = entry["page"]
@@ -248,7 +281,7 @@ class KnowledgeBaseService:
         last_chap = None
         for p in pages:
             chap_name = p.chapter.strip() if p.chapter else ""
-            if chap_name and not chap_name.lower().startswith("page ") and chap_name != "Unknown Chapter":
+            if chap_name and not chap_name.lower().startswith("page ") and chap_name != "Unknown Chapter" and not self._is_front_matter(chap_name):
                 if chap_name != last_chap:
                     detected_chapters.append((p.page_number, chap_name))
                     last_chap = chap_name
@@ -274,9 +307,11 @@ class KnowledgeBaseService:
         else:
             target_count = min(15, max(8, total_p // 15))
 
-        step = max(1, total_p // target_count)
+        first_content = self._content_start_page(pages)
+        span = max(1, total_p - first_content + 1)
+        step = max(1, span // target_count)
         for idx in range(target_count):
-            start_p = 1 + idx * step
+            start_p = first_content + idx * step
             end_p = total_p if idx == target_count - 1 else min(total_p, (idx + 1) * step)
             sec_title = f"Section {idx + 1} (Pages {start_p}–{end_p})"
             # Search for best substantive heading within range
@@ -311,7 +346,11 @@ class KnowledgeBaseService:
 
         # Quick, extractive first summary so the book is usable immediately; the deep summariser
         # (services/deep_summary.py) then reads every page with the LLM in the background and replaces it.
-        initial = llama_service._rule_based_summary_extraction(parse_result.full_text, title, sections)
+        lesson_text = parse_result.full_text
+        if sections:
+            a, b = sections[0]["page"], sections[-1].get("page_end", sections[-1]["page"])
+            lesson_text = "\n\n".join((p.text or "") for p in parse_result.pages if a <= p.page_number <= b) or lesson_text
+        initial = llama_service._rule_based_summary_extraction(lesson_text, title, sections)
         initial["summary_state"] = "running"
         initial["summary_progress"] = {"done": 0, "total": 0}
         return initial

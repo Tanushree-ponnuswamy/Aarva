@@ -19,6 +19,7 @@ class QuizGenerateRequest(BaseModel):
     num_questions: int = 5
     difficulty: str = "mixed"  # easy | medium | hard | mixed
     language: Optional[str] = "English"
+    lesson_index: Optional[int] = None  # 0-based lesson of the book; questions come from that lesson's pages
 
     @validator("language", pre=True, always=True)
     def validate_language(cls, v):
@@ -50,30 +51,57 @@ def generate_ai_quiz(req: QuizGenerateRequest, db: Session = Depends(get_db), cu
     if req.difficulty not in ("easy", "medium", "hard", "mixed"):
         req.difficulty = "mixed"
     req.topic = (req.topic or "")[:200] or None  # bound LLM cost per call
+    page_range = None
+    cache_key = None
+    book = None
     if req.textbook_id is not None:
-        get_owned_textbook(db, req.textbook_id, current_user)
+        book = get_owned_textbook(db, req.textbook_id, current_user)
+        chapters = (book.summary_data or {}).get("chapters", []) if req.lesson_index is not None else []
+        if req.lesson_index is not None and 0 <= req.lesson_index < len(chapters):
+            ch = chapters[req.lesson_index]
+            if ch.get("page"):
+                page_range = (int(ch["page"]), int(ch.get("page_end") or ch["page"]))
+                cache_key = f"{req.lesson_index}:{req.num_questions}:{req.difficulty}"
+                cached = ((book.summary_data or {}).get("quiz_cache") or {}).get(cache_key)
+                if cached:
+                    return cached  # the same lesson's test opens instantly the next time
 
     questions = generate_quiz_questions(
         textbook_id=req.textbook_id,
         topic=req.topic,
         num_questions=req.num_questions,
         difficulty=req.difficulty,
-        language=req.language or "English"
+        language=req.language or "English",
+        page_range=page_range,
     )
 
     difficulty_dist = get_difficulty_distribution(questions)
     source = questions[0].get("source", "Curated Question Bank") if questions else "Curated Question Bank"
     is_ai_generated = "AI-Generated" in source
+    document_based = source.startswith(("AI-Generated", "Generated from your document"))
 
-    return {
+    response = {
         "textbook_id": req.textbook_id,
         "topic": req.topic or "Adaptive Knowledge Assessment",
         "total_questions": len(questions),
         "questions": questions,
         "difficulty_distribution": difficulty_dist,
-        "generation_method": "AI-Generated from Textbook RAG (Hybrid Retrieval + Ollama LLM)" if is_ai_generated else "Curated Expert Question Bank",
-        "ai_powered": is_ai_generated
+        "generation_method": "AI-Generated from Textbook RAG (Hybrid Retrieval + Ollama LLM)" if is_ai_generated else ("Generated from your document" if document_based else "Curated Expert Question Bank"),
+        "ai_powered": is_ai_generated,
+        "document_based": document_based,
     }
+
+    if cache_key and book is not None and document_based and questions:
+        try:
+            data = dict(book.summary_data or {})
+            cache = dict(data.get("quiz_cache") or {})
+            cache[cache_key] = response
+            data["quiz_cache"] = cache
+            book.summary_data = data
+            db.commit()
+        except Exception:
+            db.rollback()
+    return response
 
 
 # ─── Static Fallback Quiz (Legacy) ──────────────────────────────────────────

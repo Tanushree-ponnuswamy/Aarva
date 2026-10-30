@@ -49,7 +49,8 @@ def get_textbooks(user_id: Optional[int] = None, db: Session = Depends(get_db), 
             "total_pages": b.total_pages,
             "status": b.status,
             "uploaded_at": b.uploaded_at.strftime("%Y-%m-%d %H:%M"),
-            "has_summary": bool(b.summary_data)
+            "has_summary": bool(b.summary_data),
+            "lessons": [c.get("title") for c in (b.summary_data or {}).get("chapters", []) if isinstance(c, dict) and c.get("title")]
         }
         for b in books
     ]

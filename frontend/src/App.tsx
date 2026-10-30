@@ -1923,6 +1923,19 @@ function PdfJsViewer({
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const renderTaskRef = useRef<any>(null);
+  const [boxWidth, setBoxWidth] = useState<number>(0);
+
+  // Re-fit whenever the pane changes size (window resize, sidebar collapse, split drag)
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const update = () => setBoxWidth(el.clientWidth);
+    update();
+    if (typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
 
   // Sync external pageNumber if changed
   useEffect(() => {
@@ -2097,7 +2110,7 @@ function PdfJsViewer({
     return () => {
       isCancelled = true;
     };
-  }, [pdfDoc, currentPage, zoom, fitWidth]);
+  }, [pdfDoc, currentPage, zoom, fitWidth, boxWidth]);
 
   const handlePopout = () => {
     window.open(src, "_blank", "noopener,noreferrer");
@@ -2277,7 +2290,7 @@ function PdfJsViewer({
           overflowX: "auto",
           display: "flex",
           flexDirection: "column",
-          alignItems: "center",
+          alignItems: fallbackText ? "center" : "flex-start", // "center" would push a wide page off the left edge
           padding: fallbackText ? "1.5rem" : "1.5rem 1rem",
           background: fallbackText ? "#f1f5f9" : "#525659",
           position: "relative"
@@ -2335,10 +2348,13 @@ function PdfJsViewer({
               borderRadius: "2px",
               position: "relative",
               marginBottom: "1rem",
+              marginLeft: "auto",
+              marginRight: "auto", // centres a page that fits, left-aligns (scrollable) one that is wider
               height: "max-content",
               display: "flex",
               flexDirection: "column",
-              alignItems: "center"
+              alignItems: "center",
+              flexShrink: 0
             }}
           >
             <canvas ref={canvasRef} style={{ display: "block" }} />
@@ -3289,7 +3305,9 @@ function UploadWorkspace({
       const newBook: LearningBook = {
         ...finished.textbook,
         color: COVER_COLORS[books.length % COVER_COLORS.length],
-        concepts: ["Core Concepts", "Architecture", "Protocols", "Key Rules"],
+        concepts: (finished.textbook?.summary?.chapters || []).map((c: any) => c.title).filter(Boolean).length
+          ? (finished.textbook.summary.chapters as any[]).map((c: any) => c.title).filter(Boolean)
+          : ["Core Concepts", "Architecture", "Protocols", "Key Rules"],
       };
       onSelectBook(newBook);
 
@@ -3423,6 +3441,12 @@ function UploadWorkspace({
   const topicsCoveredList = (summaryData?.topics_covered && summaryData.topics_covered.length > 0)
     ? summaryData.topics_covered
     : ["No topics extracted yet"];
+
+  // Open the preview where the first lesson starts, not on the cover or copyright pages.
+  const firstLessonPage = (summaryData as any)?.chapters?.[0]?.page as number | undefined;
+  useEffect(() => {
+    if (book?.id && firstLessonPage && firstLessonPage > 1) setCurrentPage(firstLessonPage);
+  }, [book?.id, firstLessonPage]);
 
   const chapterList: Array<{ chapter?: number; page?: number; title?: string; summary?: string }> = (summaryData?.chapters && summaryData.chapters.length > 0)
     ? summaryData.chapters
@@ -3937,8 +3961,7 @@ function UploadWorkspace({
           {/* Main Top Tab Row with dynamic counts — only shown when a book is loaded */}
           <div className="right-main-tab-bar" style={{ display: (book || summaryData) ? "flex" : "none", alignItems: "center", borderBottom: "1px solid #eef0f3", padding: "0 1.25rem", background: "#ffffff", gap: "1.25rem", flexShrink: 0, overflowX: "auto" }}>
             {[
-              { id: "Summary", label: t("summary") },
-              { id: "Chapters", label: t("chapters"), count: chapterList.length },
+              { id: "Summary", label: "Lessons", count: chapterList.length },
               { id: "Concepts", label: t("concepts"), count: conceptList.length },
               { id: "Definitions", label: t("definitions"), count: definitionList.length },
               { id: "Important Notes", label: t("importantNotes"), count: notesList.length },
@@ -3995,163 +4018,28 @@ function UploadWorkspace({
           <div className="analysis-cards-scroll" style={{ padding: "1.4rem 1.6rem", flex: 1, overflowY: "auto" }}>
 
             {/* ── 1. SUMMARY TAB ── */}
-            {(book || summaryData) && activeTab === "Summary" && (
-              <div style={{ display: "flex", flexDirection: "column", gap: "1.4rem", maxWidth: "800px" }}>
-                {/* AI Summary Banner with Language Switcher */}
-                <div style={{ background: "#f5f3ff", borderRadius: "0.8rem", padding: "1.25rem 1.4rem", border: "1px solid #ede9fe" }}>
-                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "0.5rem", marginBottom: "0.75rem" }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: "0.4rem", color: "#6366f1", fontSize: "0.85rem", fontWeight: 700 }}>
-                      <span>✦</span> AI-generated summary · Based on the uploaded textbook
-                    </div>
-
-                    {/* Language Preference Toggle: Interface Language vs Original Textbook */}
-                    {languageObj.code !== "en" && (
-                      <div style={{ display: "inline-flex", alignItems: "center", gap: "0.35rem", background: "#ede9fe", padding: "2px 4px", borderRadius: "8px" }}>
-                        <span style={{ fontSize: "0.72rem", color: "#5b21b6", fontWeight: 700, paddingLeft: "4px" }}>
-                          Language:
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() => setSummaryLangMode("interface")}
-                          style={{
-                            border: "none",
-                            background: summaryLangMode === "interface" ? "#6366f1" : "transparent",
-                            color: summaryLangMode === "interface" ? "#ffffff" : "#4338ca",
-                            borderRadius: "6px",
-                            padding: "3px 8px",
-                            fontSize: "0.75rem",
-                            fontWeight: 700,
-                            cursor: "pointer",
-                            transition: "all 0.15s ease",
-                            display: "inline-flex",
-                            alignItems: "center",
-                            gap: "3px"
-                          }}
-                          title={`Display summary translated to your selected interface language (${languageObj.nativeName})`}
-                        >
-                          <span>🇮🇳</span> {languageObj.nativeName}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setSummaryLangMode("textbook")}
-                          style={{
-                            border: "none",
-                            background: summaryLangMode === "textbook" ? "#6366f1" : "transparent",
-                            color: summaryLangMode === "textbook" ? "#ffffff" : "#4338ca",
-                            borderRadius: "6px",
-                            padding: "3px 8px",
-                            fontSize: "0.75rem",
-                            fontWeight: 700,
-                            cursor: "pointer",
-                            transition: "all 0.15s ease",
-                            display: "inline-flex",
-                            alignItems: "center",
-                            gap: "3px"
-                          }}
-                          title="Display summary in the original textbook language (English)"
-                        >
-                          <span>🌐</span> Original (English)
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                  {summaryData?.summary_state === "running" && (
-                    <div style={{ background: "#fff", border: "1px solid #ddd6fe", borderRadius: "0.6rem", padding: "0.7rem 0.9rem", marginBottom: "0.8rem" }}>
-                      <div style={{ fontSize: "0.82rem", fontWeight: 700, color: "#6366f1", marginBottom: "0.4rem" }}>
-                        Reading your whole book{summaryData.summary_progress?.total ? `: section ${Math.min(summaryData.summary_progress.done + 1, summaryData.summary_progress.total)} of ${summaryData.summary_progress.total}` : "…"}
-                      </div>
-                      <div style={{ height: "6px", background: "#ede9fe", borderRadius: "999px", overflow: "hidden" }}>
-                        <div style={{ height: "100%", width: `${summaryData.summary_progress?.total ? Math.round((summaryData.summary_progress.done / summaryData.summary_progress.total) * 100) : 5}%`, background: "#6366f1", transition: "width 0.4s" }} />
-                      </div>
-                      <div style={{ fontSize: "0.75rem", color: "#64748b", marginTop: "0.4rem" }}>
-                        You can already chat with the book. Chapter summaries appear below as each part is finished.
-                      </div>
-                    </div>
-                  )}
-                  {summaryLoading ? (
-                    <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", color: "#6366f1", fontSize: "0.85rem", padding: "0.5rem 0" }}>
-                      <span className="typing-dot" style={{ width: "6px", height: "6px", background: "#6366f1", borderRadius: "50%", animation: "pulse 1s infinite alternate" }} />
-                      <span>Generating summary in {summaryLangMode === "interface" ? languageObj.nativeName : "English"}...</span>
-                    </div>
-                  ) : (
-                    <p style={{ margin: 0, color: "#475569", fontSize: "0.92rem", lineHeight: 1.65 }}>
-                      {overviewText}
-                    </p>
-                  )}
-                </div>
-
-                {/* In One Sentence Highlight Box */}
-                <div style={{ background: "#ffffff", border: "1px solid #6366f1", borderRadius: "0.8rem", padding: "1.25rem 1.4rem", boxShadow: "0 4px 14px rgba(99, 102, 241, 0.08)" }}>
-                  <div style={{ display: "inline-flex", alignItems: "center", gap: "0.4rem", color: "#6366f1", fontSize: "0.78rem", fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: "0.8rem" }}>
-                    <span>💡</span> In one sentence
-                  </div>
-                  <p style={{ margin: 0, color: "#1e293b", fontSize: "1.05rem", lineHeight: 1.5, fontWeight: 600 }}>
-                    "{docDisplayTitle}"
-                  </p>
-                </div>
-
-                {/* Key Takeaways */}
-                <div style={{ background: "#ffffff", border: "1px solid #e2e8f0", borderRadius: "1rem", padding: "1.25rem 1.4rem", boxShadow: "0 1px 4px rgba(0,0,0,0.03)" }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.85rem" }}>
-                    <span style={{ color: "#ef4444", fontSize: "1rem" }}>📌</span>
-                    <h3 style={{ margin: 0, fontSize: "0.95rem", fontWeight: 800, color: "#1e293b" }}>
-                      Key takeaways
-                    </h3>
-                  </div>
-                  <div style={{ display: "flex", flexDirection: "column", gap: "0.6rem" }}>
-                    {keyPointsList.map((pt, idx) => (
-                      <div key={idx} style={{ display: "flex", alignItems: "flex-start", gap: "0.6rem", background: "#f8fafc", padding: "0.8rem 1rem", borderRadius: "0.6rem", border: "1px solid #f1f5f9" }}>
-                        <span style={{ color: "#6366f1", fontWeight: 800, fontSize: "1.1rem", lineHeight: 1 }}>•</span>
-                        <span style={{ color: "#334155", fontSize: "0.9rem", lineHeight: 1.55 }}>{pt}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Topics Covered */}
-                <div>
-                  <h3 style={{ margin: "0 0 0.65rem", fontSize: "0.95rem", fontWeight: 800, color: "#1e293b", textTransform: "uppercase", letterSpacing: "0.03em" }}>
-                    Topics covered
-                  </h3>
-                  <div style={{ display: "flex", flexWrap: "wrap", gap: "0.5rem" }}>
-                    {topicsCoveredList.map((topic: any, idx: number) => (
-                      <button
-                        key={idx}
-                        type="button"
-                        onClick={() => handleChipClick(`Explain the "${topic}" section in detail`)}
-                        style={{
-                          background: "#f8fafc",
-                          border: "1px solid #e2e8f0",
-                          borderRadius: "0.6rem",
-                          padding: "0.5rem 0.9rem",
-                          fontSize: "0.85rem",
-                          fontWeight: 600,
-                          color: "#334155",
-                          cursor: "pointer",
-                          display: "inline-flex",
-                          alignItems: "center",
-                          gap: "0.4rem",
-                          transition: "all 0.15s ease"
-                        }}
-                      >
-                        <span>📘</span>
-                        <span>{topic}</span>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            )}
-
             {/* ── 2. CHAPTERS / SECTIONS TAB ── */}
-            {activeTab === "Chapters" && (
+            {(activeTab === "Chapters" || activeTab === "Summary") && (
               <div style={{ display: "flex", flexDirection: "column", gap: "1rem", maxWidth: "800px" }}>
+                {summaryData?.summary_state === "running" && (
+                  <div style={{ background: "#f5f3ff", border: "1px solid #ddd6fe", borderRadius: "0.6rem", padding: "0.7rem 0.9rem" }}>
+                    <div style={{ fontSize: "0.82rem", fontWeight: 700, color: "#6366f1", marginBottom: "0.4rem" }}>
+                      Reading lesson {Math.min((summaryData.summary_progress?.done || 0) + 1, summaryData.summary_progress?.total || 1)} of {summaryData.summary_progress?.total || "…"}
+                    </div>
+                    <div style={{ height: "6px", background: "#ede9fe", borderRadius: "999px", overflow: "hidden" }}>
+                      <div style={{ height: "100%", width: `${summaryData.summary_progress?.total ? Math.round((summaryData.summary_progress.done / summaryData.summary_progress.total) * 100) : 5}%`, background: "#6366f1", transition: "width 0.4s" }} />
+                    </div>
+                    <div style={{ fontSize: "0.75rem", color: "#64748b", marginTop: "0.4rem" }}>
+                      You can already chat with the book. Each lesson&apos;s summary appears here as soon as it is ready.
+                    </div>
+                  </div>
+                )}
                 <div style={{ marginBottom: "0.4rem" }}>
                   <h3 style={{ margin: "0 0 0.2rem", fontSize: "1.15rem", fontWeight: 800, color: "#0f172a" }}>
-                    Document Sections &amp; Chapters
+                    Lessons
                   </h3>
                   <p style={{ margin: 0, color: "#64748b", fontSize: "0.85rem" }}>
-                    Actual structural topics detected from the uploaded document
+                    Lesson-by-lesson summaries taken from the pages of your book
                   </p>
                 </div>
 
@@ -4160,7 +4048,7 @@ function UploadWorkspace({
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "0.5rem" }}>
                       <div>
                         <span style={{ fontSize: "0.72rem", color: "#6366f1", fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.04em", background: "#ede9fe", padding: "2px 8px", borderRadius: "6px" }}>
-                          {ch.chapter ? `Section ${ch.chapter}` : `Topic #${idx + 1}`}
+                          {ch.chapter ? `Lesson ${ch.chapter}` : `Lesson ${idx + 1}`}
                         </span>
                         <h4 style={{ margin: "0.4rem 0 0", fontSize: "1rem", fontWeight: 700, color: "#1e293b" }}>
                           {ch.title || `Section ${idx + 1}`}
@@ -4172,19 +4060,26 @@ function UploadWorkspace({
                           onClick={() => { setCurrentPage(ch.page || 1); setLeftView("files"); }}
                           style={{ color: "#6366f1", background: "#f5f3ff", border: "1px solid #ede9fe", borderRadius: "6px", padding: "3px 8px", cursor: "pointer", fontSize: "0.76rem", fontWeight: 700 }}
                         >
-                          pg {ch.page} →
+                          pp. {ch.page}{(ch as any).page_end && (ch as any).page_end !== ch.page ? `–${(ch as any).page_end}` : ""} →
                         </button>
                       )}
                     </div>
                     <p style={{ margin: "0 0 0.85rem", color: "#475569", fontSize: "0.88rem", lineHeight: 1.6 }}>
-                      {ch.summary || "Summary of this section based on extracted content."}
+                      {ch.summary || "This lesson is still being read…"}
                     </p>
+                    {Array.isArray((ch as any).key_terms) && (ch as any).key_terms.length > 0 && (
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: "0.35rem", margin: "0 0 0.8rem" }}>
+                        {(ch as any).key_terms.map((kt: string, ki: number) => (
+                          <span key={ki} style={{ background: "#f1f5f9", color: "#475569", borderRadius: "999px", padding: "2px 9px", fontSize: "0.74rem", fontWeight: 600 }}>{kt}</span>
+                        ))}
+                      </div>
+                    )}
                     <button
                       type="button"
                       onClick={() => handleChipClick(`Explain ${ch.title || "this section"} in simpler terms`)}
                       style={{ color: "#4f46e5", background: "transparent", border: "none", cursor: "pointer", fontSize: "0.82rem", fontWeight: 700, padding: 0, display: "inline-flex", alignItems: "center", gap: "0.3rem" }}
                     >
-                      <span>💬</span> Ask AI about this section
+                      <span>💬</span> Ask AI about this lesson
                     </button>
                   </div>
                 ))}
@@ -4635,13 +4530,13 @@ interface TestResultSummary {
 const AI_DIFFICULTY: Record<string, TestQuestion["difficulty"]> = { easy: "Basic", medium: "Medium", hard: "Advanced" };
 
 // Asks the backend (RAG + Qwen) for questions grounded in the uploaded document; null when unavailable.
-async function fetchAiQuestions(bookId: number, topic: string, language: string): Promise<TestQuestion[] | null> {
+async function fetchAiQuestions(bookId: number, topic: string, language: string, lessonIndex?: number): Promise<TestQuestion[] | null> {
   try {
     const res = await apiFetch<any>("/api/quiz/generate", {
       method: "POST",
-      body: JSON.stringify({ textbook_id: bookId, topic, num_questions: 10, difficulty: "mixed", language }),
+      body: JSON.stringify({ textbook_id: bookId, topic, num_questions: 10, difficulty: "mixed", language, lesson_index: lessonIndex }),
     });
-    if (!res?.ai_powered || !Array.isArray(res.questions) || res.questions.length < 3) return null;
+    if (!(res?.ai_powered || res?.document_based) || !Array.isArray(res.questions) || res.questions.length < 3) return null;
     return res.questions.map((q: any, i: number): TestQuestion => ({
       id: i + 1,
       difficulty: AI_DIFFICULTY[String(q.difficulty || "medium").toLowerCase()] || "Medium",
@@ -4907,11 +4802,11 @@ function TestView({
   const [quizLoading, setQuizLoading] = useState(false);
   const quizRequestRef = useRef(0);
 
-  const loadQuestions = async (item: string, targetBook: LearningBook) => {
+  const loadQuestions = async (item: string, targetBook: LearningBook, lessonIdx?: number) => {
     const requestId = ++quizRequestRef.current;
     setQuizLoading(true);
     setCurrentQuestions([]);
-    const ai = targetBook?.id ? await fetchAiQuestions(targetBook.id, item, languageObj.name) : null;
+    const ai = targetBook?.id ? await fetchAiQuestions(targetBook.id, item, languageObj.name, lessonIdx) : null;
     if (requestId !== quizRequestRef.current) return; // a newer request superseded this one
     setCurrentQuestions(ai || generateConceptQuestions(item, targetBook.title, languageObj.code));
     setQuizLoading(false);
@@ -4976,12 +4871,12 @@ function TestView({
     setUserAnswers({});
     setTestResult(null);
     setDiscussingQuestionId(null);
-    loadQuestions(item, chosen);
+    loadQuestions(item, chosen, idx);
     onStarted(chosen);
   };
 
   useEffect(() => {
-    if (concept) loadQuestions(concept, activeBook);
+    if (concept) loadQuestions(concept, activeBook, conceptIndex);
   }, [languageObj.code]);
 
   const handleSelectAnswer = (optIdx: number) => {
@@ -6473,7 +6368,7 @@ function Dashboard({ name, onHome }: { name: string; onHome: () => void }) {
     setBooksLoading(true);
     try {
       const data: LearningBook[] = await apiFetch(`/api/textbooks/?user_id=${userId}`);
-      const colored = data.map((b, i) => ({ ...b, color: COVER_COLORS[i % COVER_COLORS.length], concepts: ["Key Concepts", "Core Ideas", "Definitions", "Important Notes"] }));
+      const colored = data.map((b, i) => ({ ...b, color: COVER_COLORS[i % COVER_COLORS.length], concepts: (b as any).lessons?.length ? (b as any).lessons : ["Key Concepts", "Core Ideas", "Definitions", "Important Notes"] }));
       setBooks(colored);
 
       const activeKey = `aarva_active_book_id_${userId}`;
