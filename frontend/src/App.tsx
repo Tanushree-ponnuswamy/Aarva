@@ -2841,126 +2841,175 @@ function UploadWorkspace({
     });
   };
 
+  // ── Voice: text-to-speech (read answers aloud) and speech-to-text (speak your question) ──
+  const sttSupported = typeof window !== "undefined" && !!((window as any).SpeechRecognition || (window as any).webkitSpeechRecognition);
+  const ttsSupported = typeof window !== "undefined" && "speechSynthesis" in window;
+  const [voiceNotice, setVoiceNotice] = useState("");
+  const chatFormRef = useRef<HTMLFormElement>(null);
+  const voiceDraftRef = useRef("");
+  const voiceModeRef = useRef(false);
+  const listeningRef = useRef(false);
+  const noticeTimerRef = useRef<number | null>(null);
+  const [speakingIndex, setSpeakingIndex] = useState<number | null>(null);
+
+  const showVoiceNotice = (msg: string) => {
+    setVoiceNotice(msg);
+    if (noticeTimerRef.current) window.clearTimeout(noticeTimerRef.current);
+    noticeTimerRef.current = window.setTimeout(() => setVoiceNotice(""), 8000);
+  };
+
   // Stop Speech Synthesis
   const stopSpeaking = () => {
-    if (typeof window !== "undefined" && "speechSynthesis" in window) {
-      window.speechSynthesis.cancel();
-    }
+    if (ttsSupported) window.speechSynthesis.cancel();
     setIsSpeaking(false);
+    setSpeakingIndex(null);
   };
 
-  // Regional BCP-47 language tags for SpeechSynthesis & SpeechRecognition
-  const BCP47_LANG_TAGS: Record<string, string> = {
-    en: "en-US",
-    ta: "ta-IN",
-    hi: "hi-IN",
-    te: "te-IN",
-    mr: "mr-IN",
-    ml: "ml-IN",
-    or: "or-IN",
-    bn: "bn-IN",
+  const BCP47_LANG_TAGS: Record<string, string> = { en: "en-US" };
+
+  const pickVoice = (tag: string): SpeechSynthesisVoice | null => {
+    const voices = window.speechSynthesis.getVoices();
+    const t = tag.toLowerCase();
+    return voices.find((v) => v.lang.toLowerCase() === t) || voices.find((v) => v.lang.toLowerCase().startsWith(t.slice(0, 2))) || null;
   };
 
-  // Speak AI response text aloud in selected language
-  const speakText = (text: string) => {
-    if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
+  // Read text aloud. Long answers are spoken sentence by sentence (browsers cut off long utterances).
+  const speakText = (text: string, onDone?: () => void, messageIndex?: number) => {
+    if (!ttsSupported) {
+      showVoiceNotice("Read-aloud is not supported in this browser. Please use Chrome, Edge or Safari.");
+      return;
+    }
     window.speechSynthesis.cancel();
     const clean = text
-      .replace(/[*_#`~>]/g, "")
+      .replace(/```[\s\S]*?```/g, " ")
       .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
-      .replace(/\n+/g, ". ");
-    const utterance = new SpeechSynthesisUtterance(clean);
-    const langTag = BCP47_LANG_TAGS[languageObj.code] || "en-US";
-    utterance.lang = langTag;
-    utterance.rate = 1.0;
-    utterance.pitch = 1.0;
-
-    // Check voice availability for selected regional language
-    const voices = window.speechSynthesis.getVoices();
-    const regionalVoice = voices.find(
-      (v) =>
-        v.lang.toLowerCase() === langTag.toLowerCase() ||
-        v.lang.toLowerCase().replace("_", "-").startsWith(languageObj.code)
-    );
-    if (regionalVoice) {
-      utterance.voice = regionalVoice;
+      .replace(/[*_#`~>|]/g, "")
+      .replace(/\s*\n+\s*/g, ". ")
+      .replace(/\s{2,}/g, " ")
+      .trim();
+    if (!clean) { onDone?.(); return; }
+    const sentences = clean.match(/[^.!?]+[.!?]*/g) || [clean];
+    const chunks: string[] = [];
+    let cur = "";
+    for (const sent of sentences) {
+      if ((cur + sent).length > 180 && cur) { chunks.push(cur.trim()); cur = sent; } else { cur += sent; }
     }
+    if (cur.trim()) chunks.push(cur.trim());
 
-    utterance.onstart = () => setIsSpeaking(true);
-    utterance.onend = () => setIsSpeaking(false);
-    utterance.onerror = () => setIsSpeaking(false);
-    window.speechSynthesis.speak(utterance);
+    const tag = BCP47_LANG_TAGS[languageObj.code] || "en-US";
+    const run = () => {
+      const voice = pickVoice(tag);
+      chunks.forEach((chunk, i) => {
+        const u = new SpeechSynthesisUtterance(chunk);
+        u.lang = tag;
+        if (voice) u.voice = voice;
+        u.rate = 1.0;
+        u.pitch = 1.0;
+        if (i === 0) u.onstart = () => { setIsSpeaking(true); setSpeakingIndex(messageIndex ?? -1); };
+        u.onend = () => {
+          if (i === chunks.length - 1) { setIsSpeaking(false); setSpeakingIndex(null); onDone?.(); }
+        };
+        u.onerror = (e: SpeechSynthesisErrorEvent) => {
+          setIsSpeaking(false);
+          setSpeakingIndex(null);
+          if (e.error !== "canceled" && e.error !== "interrupted") showVoiceNotice(`Could not play audio (${e.error}). Check your device volume.`);
+        };
+        window.speechSynthesis.speak(u);
+      });
+    };
+    // Voices load asynchronously in Chrome/Edge: wait for them once instead of speaking with no voice.
+    if (window.speechSynthesis.getVoices().length === 0) {
+      let started = false;
+      const go = () => { if (!started) { started = true; run(); } };
+      window.speechSynthesis.addEventListener("voiceschanged", go, { once: true });
+      window.setTimeout(go, 700);
+    } else {
+      run();
+    }
   };
 
-  // Toggle Live Speech Recognition (Microphone) with language support checks
-  const toggleSpeechRecognition = () => {
-    const SpeechRec =
-      (window as unknown as { SpeechRecognition?: any; webkitSpeechRecognition?: any }).SpeechRecognition ||
-      (window as unknown as { SpeechRecognition?: any; webkitSpeechRecognition?: any }).webkitSpeechRecognition;
-    if (!SpeechRec) {
-      alert("Voice speech recognition is supported in Google Chrome, Microsoft Edge, and Safari.");
+  // Speak a question instead of typing it
+  const startListening = () => {
+    const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SR) {
+      showVoiceNotice("Speech-to-text is not supported in this browser. Please use Google Chrome or Microsoft Edge.");
       return;
     }
-
-    if (isListening) {
-      try {
-        recognitionRef.current?.stop();
-      } catch {
-        // ignore
-      }
-      setIsListening(false);
-      return;
-    }
-
+    if (listeningRef.current) return;
+    stopSpeaking(); // never listen to our own voice
     try {
-      const recognition = new SpeechRec();
-      recognitionRef.current = recognition;
-      recognition.continuous = false;
-      recognition.interimResults = true;
-      const langTag = BCP47_LANG_TAGS[languageObj.code] || "en-US";
-      recognition.lang = langTag;
+      const rec = new SR();
+      recognitionRef.current = rec;
+      rec.continuous = false;
+      rec.interimResults = true;
+      rec.maxAlternatives = 1;
+      rec.lang = BCP47_LANG_TAGS[languageObj.code] || "en-US";
+      voiceDraftRef.current = "";
 
-      recognition.onstart = () => {
-        setIsListening(true);
-      };
-
-      recognition.onresult = (event: any) => {
+      rec.onstart = () => { listeningRef.current = true; setIsListening(true); showVoiceNotice("Listening… speak your question now."); };
+      rec.onresult = (event: any) => {
         let transcript = "";
-        for (let i = event.resultIndex; i < event.results.length; ++i) {
-          transcript += event.results[i][0].transcript;
-        }
-        if (transcript) {
-          setMessage(transcript);
-        }
+        for (let i = 0; i < event.results.length; i++) transcript += event.results[i][0].transcript;
+        voiceDraftRef.current = transcript;
+        setMessage(transcript);
       };
-
-      recognition.onerror = () => {
+      rec.onerror = (event: any) => {
+        listeningRef.current = false;
         setIsListening(false);
+        voiceDraftRef.current = "";
+        const reasons: Record<string, string> = {
+          "not-allowed": "Microphone access is blocked. Click the lock icon in the address bar, allow the microphone for this site, then try again.",
+          "service-not-allowed": "Microphone access is blocked. Allow the microphone for this site and try again.",
+          "no-speech": "I didn't hear anything. Tap the mic and try again.",
+          "audio-capture": "No microphone was found. Connect one and try again.",
+          "network": "Speech recognition needs an internet connection (the browser sends your audio to its speech service). Check your connection.",
+        };
+        if (event.error !== "aborted") showVoiceNotice(reasons[event.error] || `Voice input stopped (${event.error}). Please try again.`);
+        if (voiceModeRef.current && event.error === "no-speech") window.setTimeout(() => { if (voiceModeRef.current) startListening(); }, 400);
       };
-
-      recognition.onend = () => {
+      rec.onend = () => {
+        listeningRef.current = false;
         setIsListening(false);
+        const heard = voiceDraftRef.current.trim();
+        voiceDraftRef.current = "";
+        // In voice mode a finished sentence is sent straight away
+        if (heard && voiceModeRef.current) window.setTimeout(() => chatFormRef.current?.requestSubmit(), 80);
       };
-
-      recognition.start();
+      rec.start();
     } catch {
+      listeningRef.current = false;
       setIsListening(false);
+      showVoiceNotice("Could not start the microphone. Please try again.");
     }
   };
 
-  // Toggle Live Voice Assistant Mode
+  const toggleSpeechRecognition = () => {
+    if (listeningRef.current) {
+      try { recognitionRef.current?.stop(); } catch { /* ignore */ }
+      return;
+    }
+    startListening();
+  };
+
+  // Hands-free voice mode: listen -> send -> read the answer aloud -> listen again
   const toggleVoiceAssistant = () => {
     if (voiceAssistantActive) {
+      voiceModeRef.current = false;
       stopSpeaking();
-      if (isListening) {
-        try { recognitionRef.current?.stop(); } catch { /* ignore */ }
-        setIsListening(false);
-      }
+      try { recognitionRef.current?.abort(); } catch { /* ignore */ }
+      listeningRef.current = false;
+      setIsListening(false);
       setVoiceAssistantActive(false);
-    } else {
-      setVoiceAssistantActive(true);
-      speakText(`Voice Assistant connected. How can I help you study ${book?.title || "your textbook"}?`);
+      showVoiceNotice("Voice mode off.");
+      return;
     }
+    if (!sttSupported || !ttsSupported) {
+      showVoiceNotice(!sttSupported ? "Voice mode needs speech-to-text, which this browser does not support. Use Chrome or Edge." : "Voice mode needs read-aloud, which this browser does not support.");
+      return;
+    }
+    voiceModeRef.current = true;
+    setVoiceAssistantActive(true);
+    speakText(`Voice mode on. Ask me about ${book?.title || "your textbook"}.`, () => { if (voiceModeRef.current) startListening(); });
   };
 
   // Handle Attach Files - Strictly enforce only one file per chat session
@@ -3121,8 +3170,8 @@ function UploadWorkspace({
 
       // 1. Append response to chat stream with retrieved page sources
       setMessages((c) => [...c, { from: "ai", text: res.response, sources: res.sources || [] }]);
-      if (voiceAssistantActive) {
-        speakText(res.response);
+      if (voiceModeRef.current) {
+        speakText(res.response, () => { if (voiceModeRef.current) startListening(); });
       }
 
       // 2. Update latest retrieval reference
@@ -3137,8 +3186,8 @@ function UploadWorkspace({
     } catch {
       const fallback = "I'm having trouble retrieving details right now. Please verify your connection or try asking again.";
       setMessages((c) => [...c, { from: "ai", text: fallback }]);
-      if (voiceAssistantActive) {
-        speakText(fallback);
+      if (voiceModeRef.current) {
+        speakText(fallback, () => { if (voiceModeRef.current) startListening(); });
       }
     } finally {
       setIsSending(false);
@@ -3693,6 +3742,18 @@ function UploadWorkspace({
                       {item.from === "ai" && <span><Icon name="spark" size={13} /></span>}
                       <div className="chat-bubble-content">
                         {renderMarkdown(item.text)}
+                        {item.from === "ai" && ttsSupported && item.text.length > 20 && (
+                          <button
+                            type="button"
+                            onClick={() => (speakingIndex === index ? stopSpeaking() : speakText(item.text, undefined, index))}
+                            title={speakingIndex === index ? "Stop reading" : "Read this answer aloud"}
+                            aria-label={speakingIndex === index ? "Stop reading" : "Read this answer aloud"}
+                            style={{ marginTop: "0.5rem", background: "transparent", border: "1px solid #e2e8f0", borderRadius: "999px", padding: "2px 10px", fontSize: "0.75rem", color: "#475569", cursor: "pointer", display: "inline-flex", alignItems: "center", gap: "0.3rem" }}
+                          >
+                            <span>{speakingIndex === index ? "⏹" : "🔊"}</span>
+                            <span>{speakingIndex === index ? "Stop" : "Listen"}</span>
+                          </button>
+                        )}
                         {item.sources && item.sources.length > 0 && (
                           <div style={{ marginTop: "0.6rem", display: "flex", flexWrap: "wrap", gap: "0.4rem", alignItems: "center" }}>
                             <span style={{ fontSize: "0.72rem", color: "#64748b", fontWeight: 700 }}>Cited Pages:</span>
@@ -3874,7 +3935,12 @@ function UploadWorkspace({
               </div>
 
               {/* Modern Chat Bar */}
-              <form className="chat-input-modern" onSubmit={sendMessage}>
+              {voiceNotice && (
+                <div role="status" style={{ margin: "0 0.75rem 0.4rem", padding: "0.45rem 0.75rem", background: "#eef2ff", color: "#3730a3", border: "1px solid #c7d2fe", borderRadius: "0.6rem", fontSize: "0.8rem", lineHeight: 1.4 }}>
+                  {voiceNotice}
+                </div>
+              )}
+              <form className="chat-input-modern" ref={chatFormRef} onSubmit={sendMessage}>
                 {/* File Attachment Button */}
                 <input
                   type="file"
@@ -3917,6 +3983,23 @@ function UploadWorkspace({
 
                 {/* Right Controls */}
                 <div className="chat-right-controls">
+                  {/* Stop reading aloud */}
+                  {isSpeaking && (
+                    <button type="button" className="chat-action-btn" onClick={stopSpeaking} title="Stop reading aloud" aria-label="Stop reading aloud">
+                      <span style={{ fontSize: "0.95rem" }}>⏹</span>
+                    </button>
+                  )}
+                  {/* Voice mode: hands-free conversation */}
+                  <button
+                    type="button"
+                    className={`chat-action-btn ${voiceAssistantActive ? "listening" : ""}`}
+                    onClick={toggleVoiceAssistant}
+                    title={voiceAssistantActive ? "Voice mode is on (click to turn off)" : "Voice mode: talk to the tutor and hear the answers"}
+                    aria-label="Voice mode"
+                    aria-pressed={voiceAssistantActive}
+                  >
+                    <span style={{ fontSize: "1rem" }}>{voiceAssistantActive ? "🔊" : "🔈"}</span>
+                  </button>
                   {/* Mic Button */}
                   <button
                     type="button"
