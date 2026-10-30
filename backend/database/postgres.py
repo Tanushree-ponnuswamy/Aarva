@@ -25,6 +25,15 @@ DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./aarva.db")
 if DATABASE_URL.startswith("postgres://"):
     DATABASE_URL = "postgresql://" + DATABASE_URL[len("postgres://"):]
 
+DB_FALLBACK_REASON = None  # why Postgres was not used (sanitised), shown by /api/health
+
+
+def _clean_err(exc: Exception) -> str:
+    import re as _re
+    msg = _re.sub(r"://[^@\s]*@", "://***@", f"{type(exc).__name__}: {exc}")
+    return " ".join(msg.split())[:220]
+
+
 if DATABASE_URL.startswith("sqlite"):
     engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
 else:
@@ -33,14 +42,16 @@ else:
         engine = create_engine(DATABASE_URL, pool_pre_ping=True)
         with engine.connect() as conn:
             pass
-    except Exception:
+    except Exception as _pg_err:
+        DB_FALLBACK_REASON = "psycopg2: " + _clean_err(_pg_err)
         try:
             # 2. Try pg8000 pure-python driver
             pg_url = DATABASE_URL.replace("postgresql://", "postgresql+pg8000://", 1)
             engine = create_engine(pg_url, pool_pre_ping=True)
             with engine.connect() as conn:
                 pass
-        except Exception:
+        except Exception as _pg8_err:
+            DB_FALLBACK_REASON = (DB_FALLBACK_REASON or "") + " | pg8000: " + _clean_err(_pg8_err)
             # 3. Fall back to local SQLite if PostgreSQL service is unavailable
             print("[DATABASE WARNING] PostgreSQL connection unavailable. Falling back to local SQLite (aarva.db).")
             engine = create_engine("sqlite:///./aarva.db", connect_args={"check_same_thread": False})
