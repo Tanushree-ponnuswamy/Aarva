@@ -127,7 +127,8 @@ def health_check(db: Session = Depends(get_db)):
     """Real liveness check: actually touches the database."""
     try:
         db.execute(text("SELECT 1"))
-        return {"status": "healthy", "database": "connected"}
+        from database.postgres import engine
+        return {"status": "healthy", "database": "connected", "engine": engine.dialect.name}
     except Exception:
         from fastapi.responses import JSONResponse
         return JSONResponse(status_code=503, content={"status": "unhealthy", "database": "unreachable"})
