@@ -20,6 +20,10 @@ if root_env.exists():
 
 # Default to Postgres if env provided, or SQLite for local dev
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./aarva.db")
+# Render (and Heroku) hand out "postgres://..." URLs, which SQLAlchemy 2 rejects; without this the app
+# silently fell back to a throwaway SQLite file and every deploy wiped all accounts.
+if DATABASE_URL.startswith("postgres://"):
+    DATABASE_URL = "postgresql://" + DATABASE_URL[len("postgres://"):]
 
 if DATABASE_URL.startswith("sqlite"):
     engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
