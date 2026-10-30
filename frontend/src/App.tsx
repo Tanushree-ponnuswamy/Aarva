@@ -991,6 +991,8 @@ function AuthPage({ onHome, onComplete }: { onHome: () => void; onComplete: (nam
   const [signupName, setSignupName] = useState("");
   const [signupEmail, setSignupEmail] = useState("");
   const [signupPassword, setSignupPassword] = useState("");
+  const [showSignupPassword, setShowSignupPassword] = useState(false);
+  const [showForgotPassword, setShowForgotPassword] = useState(false);
   const [signupLoading, setSignupLoading] = useState(false);
   const [signupError, setSignupError] = useState("");
 
@@ -1443,9 +1445,10 @@ function AuthPage({ onHome, onComplete }: { onHome: () => void; onComplete: (nam
 
                 <label style={{ marginTop: "0.8rem" }}>
                   New password
+                  <div className="password-input-wrap">
                   <input
                     id="forgot-new-password"
-                    type="password"
+                    type={showForgotPassword ? "text" : "password"}
                     value={forgotNewPassword}
                     onChange={(e) => setForgotNewPassword(e.target.value)}
                     placeholder="Enter new password (min. 10 chars)"
@@ -1453,13 +1456,24 @@ function AuthPage({ onHome, onComplete }: { onHome: () => void; onComplete: (nam
                     autoComplete="new-password"
                     required
                   />
+                    <button
+                      type="button"
+                      className="password-toggle-btn"
+                      onClick={() => setShowForgotPassword(!showForgotPassword)}
+                      aria-label={showForgotPassword ? "Hide password" : "Show password"}
+                      title={showForgotPassword ? "Hide password" : "Show password"}
+                    >
+                      <MiniIcon name={showForgotPassword ? "library" : "book"} />
+                    </button>
+                  </div>
                 </label>
 
                 <label>
                   Confirm new password
+                  <div className="password-input-wrap">
                   <input
                     id="forgot-confirm-password"
-                    type="password"
+                    type={showForgotPassword ? "text" : "password"}
                     value={forgotConfirmPassword}
                     onChange={(e) => setForgotConfirmPassword(e.target.value)}
                     placeholder="Confirm your new password"
@@ -1467,6 +1481,16 @@ function AuthPage({ onHome, onComplete }: { onHome: () => void; onComplete: (nam
                     autoComplete="new-password"
                     required
                   />
+                    <button
+                      type="button"
+                      className="password-toggle-btn"
+                      onClick={() => setShowForgotPassword(!showForgotPassword)}
+                      aria-label={showForgotPassword ? "Hide password" : "Show password"}
+                      title={showForgotPassword ? "Hide password" : "Show password"}
+                    >
+                      <MiniIcon name={showForgotPassword ? "library" : "book"} />
+                    </button>
+                  </div>
                 </label>
 
                 {forgotError && <p className="form-error" role="alert" style={{ textAlign: "center" }}>{forgotError}</p>}
@@ -1537,9 +1561,10 @@ function AuthPage({ onHome, onComplete }: { onHome: () => void; onComplete: (nam
                 </label>
                 <label>
                   Create password
+                  <div className="password-input-wrap">
                   <input
                     id="signup-password"
-                    type="password"
+                    type={showSignupPassword ? "text" : "password"}
                     value={signupPassword}
                     onChange={(e) => setSignupPassword(e.target.value)}
                     placeholder="Enter your password"
@@ -1547,6 +1572,16 @@ function AuthPage({ onHome, onComplete }: { onHome: () => void; onComplete: (nam
                     autoComplete="new-password"
                     required
                   />
+                    <button
+                      type="button"
+                      className="password-toggle-btn"
+                      onClick={() => setShowSignupPassword(!showSignupPassword)}
+                      aria-label={showSignupPassword ? "Hide password" : "Show password"}
+                      title={showSignupPassword ? "Hide password" : "Show password"}
+                    >
+                      <MiniIcon name={showSignupPassword ? "library" : "book"} />
+                    </button>
+                  </div>
                 </label>
                 <button className="auth-btn-azure" type="submit">
                   <span>Continue to preferences</span> <Icon name="arrow" size={18} />
