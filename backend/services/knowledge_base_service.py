@@ -52,7 +52,8 @@ class KnowledgeBaseService:
         title: Optional[str] = None,
         author: Optional[str] = None,
         db: Optional[Session] = None,
-        should_cancel: Optional[Callable[[], bool]] = None
+        should_cancel: Optional[Callable[[], bool]] = None,
+        existing_id: Optional[int] = None
     ) -> Dict[str, Any]:
         """
         Full ingestion pipeline: Parse -> Chunk -> Embed into ChromaDB -> Record in DB.
@@ -105,8 +106,30 @@ class KnowledgeBaseService:
         initial_summary = self._generate_initial_summary(parse_result, doc_title, chunks)
         check_cancel()
 
+        def discard_record(doc_id_to_drop: int):
+            """Remove the book row if it still exists (the user may already have deleted it)."""
+            if not db:
+                return
+            try:
+                db.rollback()
+                row = db.get(Textbook, doc_id_to_drop)
+                if row is not None:
+                    db.delete(row)
+                    db.commit()
+            except Exception:
+                db.rollback()
+
         new_doc = None
-        if db:
+        if db and existing_id:
+            new_doc = db.get(Textbook, existing_id)
+            if new_doc is None:
+                raise UploadCancelled()  # deleted while processing
+            new_doc.total_pages = parse_result.page_count
+            new_doc.file_size = size_mb
+            new_doc.summary_data = initial_summary
+            db.commit()
+            doc_id = existing_id
+        elif db:
             new_doc = Textbook(
                 user_id=user_id,
                 title=doc_title,
@@ -128,9 +151,7 @@ class KnowledgeBaseService:
         try:
             check_cancel()
         except UploadCancelled:
-            if db and new_doc is not None:
-                db.delete(new_doc)
-                db.commit()
+            discard_record(doc_id)
             raise
         _safe_print(f"\n⚡ [CHROMADB VECTOR EMBEDDING] Embedding {len(chunks)} chunks into ChromaDB...")
         chunk_dicts = [c.to_dict() for c in chunks]
@@ -145,9 +166,7 @@ class KnowledgeBaseService:
             check_cancel()
         except UploadCancelled:
             chroma_store.delete_textbook_chunks(textbook_id=doc_id)
-            if db and new_doc is not None:
-                db.delete(new_doc)
-                db.commit()
+            discard_record(doc_id)
             raise
         if db and new_doc is not None:
             new_doc.status = "processed"

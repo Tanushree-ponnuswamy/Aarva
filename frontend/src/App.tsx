@@ -2607,7 +2607,7 @@ function UploadWorkspace({
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadingFile, setUploadingFile] = useState<File | null>(null);
   const uploadXhrRef = useRef<XMLHttpRequest | null>(null);
-  const uploadIdRef = useRef<string>("");
+  const uploadBookIdRef = useRef<number>(0); // id of the book being processed server-side (0 = none / cancelled)
   const [showProcessingPrompt, setShowProcessingPrompt] = useState(false);
   const stageTimerRef = useRef<any>(null);
   const [dragOver, setDragOver] = useState(false);
@@ -2999,13 +2999,10 @@ function UploadWorkspace({
 
   // ── Cancel In-Progress Upload & Remove File ────────────────────────────────
   const handleCancelUpload = () => {
-    if (uploadIdRef.current) {
-      // Server stops at its next checkpoint and removes the book, so it never reaches the library.
-      apiFetch("/api/textbooks/upload/cancel", {
-        method: "POST",
-        body: JSON.stringify({ client_upload_id: uploadIdRef.current }),
-      }).catch(() => { /* best effort */ });
-      uploadIdRef.current = "";
+    if (uploadBookIdRef.current) {
+      // Deleting a book that is still processing stops the server-side work and removes it from the library.
+      apiFetch(`/api/textbooks/${uploadBookIdRef.current}`, { method: "DELETE" }).catch(() => { /* best effort */ });
+      uploadBookIdRef.current = 0;
     }
     if (uploadXhrRef.current) {
       uploadXhrRef.current.abort();
@@ -3140,9 +3137,7 @@ function UploadWorkspace({
     form.append("title", file.name.replace(/\.[^.]+$/, "").replace(/[-_]/g, " "));
     form.append("author", user?.name || "Uploaded by student");
     form.append("file", file);
-    const clientUploadId = (typeof crypto !== "undefined" && "randomUUID" in crypto) ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
-    uploadIdRef.current = clientUploadId;
-    form.append("client_upload_id", clientUploadId);
+    uploadBookIdRef.current = 0;
 
     try {
       const data = await new Promise<any>((resolve, reject) => {
@@ -3216,6 +3211,35 @@ function UploadWorkspace({
         xhr.send(form);
       });
 
+      // Large documents are processed in the background: poll until the book is ready (or failed).
+      let finished = data;
+      if (data?.processing && data.textbook?.id) {
+        uploadBookIdRef.current = data.textbook.id;
+        setUploadProgress(50);
+        const startedAt = Date.now();
+        for (;;) {
+          await sleep(3000);
+          if (!uploadBookIdRef.current) throw new Error("ABORTED_BY_USER"); // user chose to delete it
+          if (Date.now() - startedAt > 25 * 60 * 1000) throw new Error("Processing is taking too long. Please try again.");
+          let st: any;
+          try {
+            st = await apiFetch<any>(`/api/textbooks/${data.textbook.id}/status`);
+          } catch {
+            continue; // brief network or server hiccup: keep waiting
+          }
+          if (st.status === "failed") {
+            uploadBookIdRef.current = 0;
+            throw new Error(st.error || "Processing failed.");
+          }
+          if (st.status === "processed") {
+            finished = st;
+            break;
+          }
+          setUploadProgress((pr) => Math.min(95, pr + 2));
+        }
+        uploadBookIdRef.current = 0;
+      }
+
       // Jump to 100% when backend completes processing
       setUploadProgress(100);
       await new Promise((r) => setTimeout(r, 400));
@@ -3223,14 +3247,14 @@ function UploadWorkspace({
       onUploaded(); // refresh library
 
       const newBook: LearningBook = {
-        ...data.textbook,
+        ...finished.textbook,
         color: COVER_COLORS[books.length % COVER_COLORS.length],
         concepts: ["Core Concepts", "Architecture", "Protocols", "Key Rules"],
       };
       onSelectBook(newBook);
 
-      if (data.textbook?.summary) {
-        setSummaryData(data.textbook.summary);
+      if (finished.textbook?.summary) {
+        setSummaryData(finished.textbook.summary);
       }
 
       setMessages((c) => [

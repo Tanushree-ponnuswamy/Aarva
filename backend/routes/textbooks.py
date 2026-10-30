@@ -1,9 +1,8 @@
 import os
 from pathlib import Path
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
-from fastapi.responses import FileResponse, Response, JSONResponse
-from fastapi.concurrency import run_in_threadpool
-from pydantic import BaseModel
+from fastapi.responses import FileResponse, JSONResponse, Response
+import threading
 import time
 from sqlalchemy.orm import Session
 from typing import Optional, List
@@ -17,19 +16,10 @@ from config import settings
 
 router = APIRouter(prefix="/api/textbooks", tags=["Textbooks Management"])
 
-# Uploads currently being processed, so the user can cancel (delete) one before it finishes.
-# { (user_id, client_upload_id): {"cancelled": bool, "at": float} }  (per process)
-_uploads: dict = {}
-
-
-def _prune_uploads() -> None:
-    cutoff = time.time() - 3600
-    for k in [k for k, v in _uploads.items() if v["at"] < cutoff]:
-        _uploads.pop(k, None)
-
-
-class CancelUploadRequest(BaseModel):
-    client_upload_id: str
+# Books being processed in the background: ids still running, and ids the user asked to delete mid-way.
+_active: set = set()
+_cancelled: set = set()
+_process_slots = threading.Semaphore(2)  # bound memory: at most two documents processed at once
 
 
 UPLOADS_DIR = Path(__file__).resolve().parent.parent / "uploads"
@@ -40,15 +30,15 @@ UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
 def get_textbooks(user_id: Optional[int] = None, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     user_id = current_user.id if user_id is None else user_id
     require_self_or_admin(user_id, current_user)
-    # Drop books stuck in "processing" (e.g. the server restarted mid-upload); hide in-flight ones.
+    # Drop books stuck in "processing" (e.g. the server restarted mid-upload); hide in-flight and failed ones.
     from datetime import timedelta
     stale = db.query(Textbook).filter(Textbook.user_id == user_id, Textbook.status == "processing",
-                                      Textbook.uploaded_at < datetime.utcnow() - timedelta(minutes=30)).all()
+                                      Textbook.uploaded_at < datetime.utcnow() - timedelta(minutes=60)).all()
     for s in stale:
         db.delete(s)
     if stale:
         db.commit()
-    books = db.query(Textbook).filter(Textbook.user_id == user_id, Textbook.status != "processing").order_by(Textbook.uploaded_at.desc()).all()
+    books = db.query(Textbook).filter(Textbook.user_id == user_id, Textbook.status.notin_(["processing", "failed"])).order_by(Textbook.uploaded_at.desc()).all()
     return [
         {
             "id": b.id,
@@ -70,7 +60,6 @@ async def upload_textbook(
     title: str = Form(...),
     author: Optional[str] = Form("Unknown Author"),
     pages: Optional[int] = Form(None),
-    client_upload_id: Optional[str] = Form(None),
     file: Optional[UploadFile] = File(None),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
@@ -124,96 +113,131 @@ async def upload_textbook(
         clean_name = re.sub(r'[^\w\s\.\-_]', '_', title.lower()).strip() or 'document'
         filename = f"{clean_name}.txt"
 
-    # Execute end-to-end ingestion pipeline (Parsing -> Chunking -> Embedding -> DB)
-    from services.knowledge_base_service import UploadCancelled
-    upload_key = (current_user.id, (client_upload_id or "")[:80]) if client_upload_id else None
-    if upload_key:
-        _prune_uploads()
-        entry = _uploads.setdefault(upload_key, {"cancelled": False, "at": time.time()})
-    else:
-        entry = {"cancelled": False, "at": time.time()}
+    # Create the book right away as "processing" and finish the heavy work in the background, so a
+    # large document never hits the proxy's request timeout (which showed up as a 502).
+    size_mb = f"{max(0.1, round(len(file_bytes) / (1024 * 1024), 2))} MB"
+    book = Textbook(
+        user_id=user_id,
+        title=title,
+        author=author or "Academic Author",
+        file_name=filename,
+        file_size=size_mb,
+        total_pages=0,
+        status="processing",
+        summary_data=None,
+    )
+    db.add(book)
+    db.commit()
+    db.refresh(book)
+    book_id = book.id
 
-    try:
-        # Blocking pipeline runs in a worker thread so the cancel request can be served meanwhile.
-        result = await run_in_threadpool(
-            knowledge_base_service.ingest_document,
-            file_bytes=file_bytes,
-            filename=filename,
-            user_id=user_id,
-            title=title,
-            author=author or "Academic Author",
-            db=db,
-            should_cancel=lambda: entry["cancelled"],
-        )
-    except UploadCancelled:
-        return JSONResponse(status_code=409, content={"success": False, "cancelled": True, "detail": "Upload cancelled and removed."})
-    finally:
-        if upload_key:
-            _uploads.pop(upload_key, None)
-
-    # Save file to disk for preview securely within UPLOADS_DIR
-    target_path = (UPLOADS_DIR / f"{result['document_id']}_{filename}").resolve()
+    # Keep the original file for the preview pane.
+    target_path = (UPLOADS_DIR / f"{book_id}_{filename}").resolve()
     if not target_path.is_relative_to(UPLOADS_DIR.resolve()):
         raise HTTPException(status_code=400, detail="Invalid target file destination.")
-
     try:
         with open(target_path, "wb") as f:
             f.write(file_bytes)
     except Exception as e:
         print(f"[WARN] Failed to write preview file to disk: {e}")
 
-    # Persist the upload event to the chat history
-    try:
-        session = ChatSession(
-            user_id=user_id,
-            textbook_id=result['document_id'],
-            session_title=f"Chat about {title}",
-            message_count=2
-        )
-        db.add(session)
-        db.commit()
-        db.refresh(session)
-        
-        user_msg = ChatMessage(
-            chat_session_id=session.id,
-            role="user",
-            content=f"📎 Attached: {filename}"
-        )
-        ai_msg = ChatMessage(
-            chat_session_id=session.id,
-            role="assistant",
-            content=f"✅ **{result['title']}** has been uploaded successfully!\n\nThe extracted summary and breakdown are now loaded on the right. Ask me any question about this document!"
-        )
-        db.add(user_msg)
-        db.add(ai_msg)
-        db.commit()
-    except Exception as e:
-        print(f"[WARN] Failed to save upload chat history: {e}")
+    _active.add(book_id)
+    threading.Thread(
+        target=_process_in_background,
+        args=(book_id, file_bytes, filename, user_id, title, author or "Academic Author"),
+        daemon=True,
+    ).start()
 
-    return {
+    return JSONResponse(status_code=202, content={
         "success": True,
-        "message": f"'{result['title']}' ({result['file_type'].upper()}) parsed and indexed successfully ({result['total_chunks']} chunks, {result['total_pages']} pages/sheets).",
+        "processing": True,
+        "message": f"'{title}' uploaded. Processing has started.",
         "textbook": {
-            "id": result["document_id"],
-            "title": result["title"],
-            "author": result["author"],
-            "file_name": result["file_name"],
-            "file_type": result["file_type"],
-            "file_size": result["file_size"],
-            "total_pages": result["total_pages"],
-            "total_chunks": result["total_chunks"],
-            "status": "processed",
-            "summary": result["summary"]
-        }
-    }
+            "id": book_id,
+            "title": title,
+            "author": author or "Academic Author",
+            "file_name": filename,
+            "file_size": size_mb,
+            "total_pages": 0,
+            "status": "processing",
+        },
+    })
 
-@router.post("/upload/cancel")
-def cancel_upload(req: CancelUploadRequest, current_user: User = Depends(get_current_user)):
-    """Delete a book that is still being processed: the pipeline stops at its next checkpoint and removes it."""
-    _prune_uploads()
-    key = (current_user.id, req.client_upload_id[:80])
-    _uploads.setdefault(key, {"cancelled": False, "at": time.time()})["cancelled"] = True
-    return {"success": True}
+
+def _process_in_background(book_id: int, file_bytes: bytes, filename: str, user_id: int, title: str, author: str) -> None:
+    """Parse, chunk, summarise and index one document; runs in its own thread with its own DB session."""
+    from database.postgres import SessionLocal
+    from services.knowledge_base_service import knowledge_base_service, UploadCancelled
+
+    db = SessionLocal()
+    try:
+        with _process_slots:
+            result = knowledge_base_service.ingest_document(
+                file_bytes=file_bytes,
+                filename=filename,
+                user_id=user_id,
+                title=title,
+                author=author,
+                db=db,
+                should_cancel=lambda: book_id in _cancelled,
+                existing_id=book_id,
+            )
+        try:
+            session = ChatSession(user_id=user_id, textbook_id=book_id, session_title=f"Chat about {title}", message_count=2)
+            db.add(session)
+            db.commit()
+            db.refresh(session)
+            db.add(ChatMessage(chat_session_id=session.id, role="user", content=f"📎 Attached: {filename}"))
+            db.add(ChatMessage(
+                chat_session_id=session.id,
+                role="assistant",
+                content=f"✅ **{result['title']}** has been processed!\n\nThe summary and breakdown are on the right. Ask me anything about this document!",
+            ))
+            db.commit()
+        except Exception as e:
+            db.rollback()
+            print(f"[WARN] Failed to save upload chat history: {e}")
+    except UploadCancelled:
+        pass  # the user deleted the book while it was processing; the pipeline already cleaned up
+    except Exception as e:
+        print(f"[UPLOAD ERROR] Processing book {book_id} failed: {type(e).__name__}: {e}")
+        try:
+            db.rollback()
+            row = db.get(Textbook, book_id)
+            if row is not None:
+                row.status = "failed"
+                row.summary_data = {"error": f"{type(e).__name__}: {str(e)[:200]}"}
+                db.commit()
+        except Exception:
+            db.rollback()
+    finally:
+        _active.discard(book_id)
+        _cancelled.discard(book_id)
+        db.close()
+
+
+@router.get("/{textbook_id}/status")
+def get_textbook_status(textbook_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    """Polled by the app while a book is processing."""
+    book = get_owned_textbook(db, textbook_id, current_user)
+    status = book.status
+    if status == "processing" and textbook_id not in _active:
+        status = "failed"  # the worker is gone (server restarted); do not leave the user waiting
+    payload = {"status": status}
+    if status == "failed":
+        payload["error"] = (book.summary_data or {}).get("error") or "Processing did not finish. Please upload the file again."
+    if status == "processed":
+        payload["textbook"] = {
+            "id": book.id,
+            "title": book.title,
+            "author": book.author,
+            "file_name": book.file_name,
+            "file_size": book.file_size,
+            "total_pages": book.total_pages,
+            "status": "processed",
+            "summary": book.summary_data or {},
+        }
+    return payload
 
 
 @router.get("/{textbook_id}/file")
@@ -258,6 +282,8 @@ def get_textbook_file(textbook_id: int, db: Session = Depends(get_db), current_u
 @router.delete("/{textbook_id}")
 def delete_textbook(textbook_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     book = get_owned_textbook(db, textbook_id, current_user)
+    if textbook_id in _active:
+        _cancelled.add(textbook_id)  # worker stops at its next checkpoint
 
     # Remove vector chunks from ChromaDB
     chroma_store.delete_textbook_chunks(textbook_id=textbook_id)

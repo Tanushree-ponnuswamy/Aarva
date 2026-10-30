@@ -19,18 +19,23 @@ class OllamaBgeEmbeddingFunction(EmbeddingFunction[Documents]):
         super().__init__()
         self.model_name = model_name or settings.EMBEDDING_MODEL
         self.base_url = base_url or settings.OLLAMA_BASE_URL
+        self._down_until = 0.0  # circuit breaker: skip the embedding server briefly after a failure
 
     def name(self) -> str:
         return f"ollama_{self.model_name.replace(':', '_').replace('-', '_')}"
 
     def __call__(self, input: Documents) -> Embeddings:
         embeddings: Embeddings = []
+        import time as _time
         for text in input:
+            if _time.time() < self._down_until:
+                embeddings.append([0.0] * settings.EMBEDDING_DIMENSION)
+                continue
             try:
                 res = requests.post(
                     f"{self.base_url}/api/embeddings",
                     json={"model": self.model_name, "prompt": text[:2000]},
-                    timeout=15.0
+                    timeout=8.0
                 )
                 if res.status_code == 200:
                     emb = res.json().get("embedding", [])
@@ -38,7 +43,8 @@ class OllamaBgeEmbeddingFunction(EmbeddingFunction[Documents]):
                         embeddings.append(emb)
                         continue
             except Exception as e:
-                print(f"[EMBEDDING] Warning: Failed embedding chunk with {self.model_name}: {e}")
+                self._down_until = _time.time() + 60
+                print(f"[EMBEDDING] Warning: embedding server unavailable ({type(e).__name__}); skipping it for 60s")
             embeddings.append([0.0] * settings.EMBEDDING_DIMENSION)
         return embeddings
 
