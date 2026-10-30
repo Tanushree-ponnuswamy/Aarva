@@ -197,6 +197,33 @@ def _process_in_background(book_id: int, file_bytes: bytes, filename: str, user_
         except Exception as e:
             db.rollback()
             print(f"[WARN] Failed to save upload chat history: {e}")
+        # Stage 2: the book is already searchable and visible; now read EVERY page for the full summary.
+        try:
+            from services.deep_summary import run_deep_summary
+            parse_result = result.get("_parse_result")
+            if parse_result is not None:
+                sections = knowledge_base_service._build_document_sections(parse_result, title)
+                run_deep_summary(
+                    book_id=book_id,
+                    pages=parse_result.pages,
+                    sections=sections,
+                    title=title,
+                    filename=filename,
+                    db=db,
+                    should_cancel=lambda: book_id in _cancelled,
+                )
+        except Exception as e:
+            print(f"[DEEP SUMMARY ERROR] Book {book_id}: {type(e).__name__}: {e}")
+            try:
+                db.rollback()
+                row = db.get(Textbook, book_id)
+                if row is not None and (row.summary_data or {}).get("summary_state") == "running":
+                    data = dict(row.summary_data)
+                    data["summary_state"] = "done"  # keep the quick summary rather than showing progress forever
+                    row.summary_data = data
+                    db.commit()
+            except Exception:
+                db.rollback()
     except UploadCancelled:
         pass  # the user deleted the book while it was processing; the pipeline already cleaned up
     except Exception as e:

@@ -223,28 +223,26 @@ def seed_demo_data():
             db.add(tb1)
             db.flush()
 
-        # Enforce ONLY ONE test student account: remove all other old/stale logins
-        allowed_emails = ["student@college.edu"]
-        if len(admin_pw) >= 12:
-            allowed_emails.append(settings.ADMIN_EMAIL)
+        # Optional extra seeded login, configured through the environment (never hard-code credentials in source).
+        seed_email = os.getenv("SEED_USER_EMAIL", "").strip().lower()
+        seed_password = os.getenv("SEED_USER_PASSWORD", "")
+        if seed_email and len(seed_password) >= 10 and not db.query(User).filter(User.email == seed_email).first():
+            seeded = User(
+                name=os.getenv("SEED_USER_NAME", "Student"),
+                email=seed_email,
+                password_hash=_hash_pw(seed_password),
+                role="student",
+                is_active=True,
+            )
+            db.add(seeded)
+            db.flush()
+            db.add(StudentProfile(user_id=seeded.id, learner_type="college", institution="Academic Institution", department="General", year="1st Year", semester="Semester 1"))
+            db.add(StudentInterests(user_id=seeded.id, subjects=["General"]))
+            db.add(LearningPreferences(user_id=seeded.id, preferred_language="English", voice_assistance=True))
+            db.add(LearningProgress(user_id=seeded.id, completed_topics=0, quiz_scores_avg=0.0, streak_days=0))
+            db.flush()
 
-        for old_user in db.query(User).filter(~User.email.in_(allowed_emails)).all():
-            # Cascade clean all user associations
-            chat_session_ids = [cs.id for cs in db.query(ChatSession).filter(ChatSession.user_id == old_user.id).all()]
-            if chat_session_ids:
-                db.query(ChatMessage).filter(ChatMessage.chat_session_id.in_(chat_session_ids)).delete(synchronize_session=False)
-            db.query(ChatSession).filter(ChatSession.user_id == old_user.id).delete(synchronize_session=False)
-            db.query(QuizResult).filter(QuizResult.user_id == old_user.id).delete(synchronize_session=False)
-            db.query(Textbook).filter(Textbook.user_id == old_user.id).delete(synchronize_session=False)
-            db.query(StudentProfile).filter(StudentProfile.user_id == old_user.id).delete(synchronize_session=False)
-            db.query(StudentInterests).filter(StudentInterests.user_id == old_user.id).delete(synchronize_session=False)
-            db.query(LearningPreferences).filter(LearningPreferences.user_id == old_user.id).delete(synchronize_session=False)
-            db.query(LearningProgress).filter(LearningProgress.user_id == old_user.id).delete(synchronize_session=False)
-            db.query(LoginActivity).filter(LoginActivity.user_id == old_user.id).delete(synchronize_session=False)
-            db.query(UserSession).filter(UserSession.user_id == old_user.id).delete(synchronize_session=False)
-            db.delete(old_user)
-        db.flush()
-
+        # Keep existing registered users and demo data intact
         db.commit()
         print("[DATABASE] Successfully synchronized demo account")
     except Exception as e:

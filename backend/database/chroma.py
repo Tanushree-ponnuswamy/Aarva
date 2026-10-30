@@ -54,6 +54,7 @@ class ChromaStore:
         self.persist_dir = persist_dir or settings.CHROMA_PERSIST_DIR
         self.client = None
         self.collection = None
+        self.emb_fn = None
         self._init_chroma()
 
     def _init_chroma(self):
@@ -64,6 +65,7 @@ class ChromaStore:
                 model_name=settings.EMBEDDING_MODEL,
                 base_url=settings.OLLAMA_BASE_URL
             )
+            self.emb_fn = emb_fn
             # Configure collection with distance metric (e.g. cosine)
             metadata = {
                 "description": "Textbook and Tender chunks for hybrid semantic search",
@@ -131,8 +133,13 @@ class ChromaStore:
         if self.collection:
             where_filter = {"textbook_id": textbook_id} if textbook_id else None
             try:
+                query_vec = None
+                if self.emb_fn is not None:
+                    query_vec = self.emb_fn([query])[0]
+                    if not any(query_vec):
+                        return []  # embedding server unavailable: let keyword (BM25) search answer instead
                 results = self.collection.query(
-                    query_texts=[query],
+                    **({"query_embeddings": [query_vec]} if query_vec is not None else {"query_texts": [query]}),
                     n_results=min(n_results, max(1, self.collection.count() or 1)),
                     where=where_filter
                 )
@@ -157,15 +164,8 @@ class ChromaStore:
             except Exception as e:
                 print(f"[CHROMA] Query exception: {e}")
 
-        # Fallback simulation
-        return [
-            {
-                "id": f"sim_chunk_{textbook_id or 1}_1",
-                "content": f"Relevant context on '{query}' extracted from textbook chapters and core syllabus definitions.",
-                "metadata": {"title": "Active Textbook", "chapter": "Core Concepts", "page": 42, "textbook_id": textbook_id or 1},
-                "distance": 0.2
-            }
-        ]
+        # Never invent context: no results means the tutor must say it could not find the answer.
+        return []
 
     def delete_textbook_chunks(self, textbook_id: int):
         """Delete all chunks belonging to a specific textbook."""

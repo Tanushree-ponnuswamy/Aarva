@@ -186,8 +186,117 @@ class KnowledgeBaseService:
             "indexed_chunks": indexed_count,
             "word_count": parse_result.word_count,
             "warnings": parse_result.parse_warnings,
-            "summary": initial_summary
+            "summary": initial_summary,
+            "_parse_result": parse_result,  # consumed by the background summariser; not sent to clients
         }
+
+    def _extract_page_snippet(self, pages: list, start_p: int, end_p: int, fallback_title: str) -> str:
+        """Extract a meaningful 2-3 sentence overview snippet from a range of pages, skipping boilerplate."""
+        def is_bp(line: str) -> bool:
+            l = line.lower().strip()
+            bp = [
+                "government of", "free textbook programme", "department of school education",
+                "untouchability is", "not for sale", "first edition", "revised edition",
+                "reprint", "published by", "printed by", "scert", "all rights reserved",
+                "isbn", ".indd", "typeset", "content creation", "printing & publishing"
+            ]
+            return any(b in l for b in bp)
+
+        collected = []
+        for p in range(start_p, min(end_p + 1, start_p + 4)):
+            if 1 <= p <= len(pages):
+                for line in pages[p - 1].text.split("\n"):
+                    cl = line.strip()
+                    if len(cl) > 25 and not is_bp(cl) and not any(cl.startswith(x) for x in ['#', '*', '-', '•']):
+                        collected.append(cl)
+                        if len(collected) >= 3:
+                            break
+            if len(collected) >= 3:
+                break
+        if collected:
+            s = " ".join(collected)
+            return s[:260] + "..." if len(s) > 260 else s
+        return f"Core curriculum concepts, analysis, and practice exercises for {fallback_title}."
+
+    def _build_document_sections(self, parse_result: ParseResult, title: str) -> List[Dict[str, Any]]:
+        """Extract structured chapters and sections across the entire document (1 to total_pages)."""
+        sections: List[Dict[str, Any]] = []
+        pages = parse_result.pages or []
+        total_p = parse_result.page_count or len(pages)
+        if not pages or total_p == 0:
+            return sections
+
+        # 1. Check for embedded Table of Contents (TOC)
+        toc = getattr(parse_result, "toc", [])
+        if toc:
+            for idx, entry in enumerate(toc):
+                start_p = entry["page"]
+                end_p = toc[idx + 1]["page"] - 1 if idx + 1 < len(toc) else total_p
+                snippet = self._extract_page_snippet(pages, start_p, end_p, entry["title"])
+                sections.append({
+                    "chapter": idx + 1,
+                    "page": start_p,
+                    "page_end": end_p,
+                    "title": entry["title"],
+                    "summary": snippet
+                })
+            if sections:
+                return sections
+
+        # 2. Check for distinct chapter headings detected on pages
+        detected_chapters = []
+        last_chap = None
+        for p in pages:
+            chap_name = p.chapter.strip() if p.chapter else ""
+            if chap_name and not chap_name.lower().startswith("page ") and chap_name != "Unknown Chapter":
+                if chap_name != last_chap:
+                    detected_chapters.append((p.page_number, chap_name))
+                    last_chap = chap_name
+
+        if len(detected_chapters) >= 3:
+            for idx, (p_num, c_name) in enumerate(detected_chapters):
+                end_p = detected_chapters[idx + 1][0] - 1 if idx + 1 < len(detected_chapters) else total_p
+                snippet = self._extract_page_snippet(pages, p_num, end_p, c_name)
+                sections.append({
+                    "chapter": idx + 1,
+                    "page": p_num,
+                    "page_end": end_p,
+                    "title": c_name,
+                    "summary": snippet
+                })
+            return sections
+
+        # 3. Document has generic page titles: evenly partition across all pages
+        if total_p <= 10:
+            target_count = total_p
+        elif total_p <= 40:
+            target_count = 8
+        else:
+            target_count = min(15, max(8, total_p // 15))
+
+        step = max(1, total_p // target_count)
+        for idx in range(target_count):
+            start_p = 1 + idx * step
+            end_p = total_p if idx == target_count - 1 else min(total_p, (idx + 1) * step)
+            sec_title = f"Section {idx + 1} (Pages {start_p}–{end_p})"
+            # Search for best substantive heading within range
+            for p in range(start_p, min(end_p + 1, start_p + 3)):
+                if 1 <= p <= len(pages):
+                    first_line = pages[p - 1].text.strip().split("\n")[0].strip()
+                    if 4 <= len(first_line) <= 60 and not first_line.endswith(('.', ':', ';')):
+                        sec_title = first_line
+                        break
+
+            snippet = self._extract_page_snippet(pages, start_p, end_p, sec_title)
+            sections.append({
+                "chapter": idx + 1,
+                "page": start_p,
+                "page_end": end_p,
+                "title": sec_title,
+                "summary": snippet
+            })
+
+        return sections
 
     def _generate_initial_summary(
         self,
@@ -198,61 +307,15 @@ class KnowledgeBaseService:
         """Generates an initial structured knowledge summary using the AI service."""
         from services.llama_service import llama_service
 
-        sections = []
-        for p in parse_result.pages[:10]: # First 10 sections/pages
-            snippet = p.text[:240].strip().replace("\n", " ") + "..."
-            sections.append({
-                "page": p.page_number,
-                "title": p.chapter,
-                "summary": snippet
-            })
+        sections = self._build_document_sections(parse_result, title)
 
-        try:
-            structured_summary = llama_service.generate_structured_summary(
-                full_text=parse_result.full_text,
-                filename=title,
-                sections=sections
-            )
-            return structured_summary
-        except Exception as e:
-            _safe_print(f"⚠️ [SUMMARY FALLBACK] AI summary error: {e}")
-            return {
-                "title": title,
-                "overview": f"A comprehensive study overview for {title}.",
-                "complete_summary": f"A comprehensive study overview for {title}.",
-                "main_takeaway": f"Core principles and analytical workflow of {title}.",
-                "key_points": [
-                    f"Document comprises {parse_result.page_count} pages and {parse_result.word_count} words.",
-                    f"Primary topics covered: {', '.join([p.chapter for p in parse_result.pages[:4]])}.",
-                    "Content is indexed and ready for interactive study sessions."
-                ],
-                "topics_covered": [p.chapter for p in parse_result.pages[:5]],
-                "chapters": sections,
-                "concepts": [
-                    {
-                        "name": "Core System Architecture",
-                        "explanation": f"The primary operational structure defined in {title}.",
-                        "how_it_works": "Coordinates data inputs, processing logic, and output validation.",
-                        "example": "Like an orchestra conductor harmonizing distinct instruments into a symphony."
-                    }
-                ],
-                "definitions": [
-                    {"term": "Knowledge Base", "definition": "The indexed semantic representation of this uploaded text."},
-                    {"term": "AI Tutor", "definition": "A patient, interactive guide providing grounded explanations and examples."}
-                ],
-                "important_notes": [
-                    {
-                        "note": f"Document contains {parse_result.page_count} pages and approximately {parse_result.word_count} words covering '{parse_result.pages[0].chapter if parse_result.pages else 'General'}'.",
-                        "type": "Overview",
-                        "page": parse_result.pages[0].page_number if parse_result.pages else 1
-                    },
-                    {
-                        "note": f"Key sections include {', '.join([p.chapter for p in parse_result.pages[:3]])}.",
-                        "type": "Exam Focus",
-                        "page": parse_result.pages[min(1, len(parse_result.pages) - 1)].page_number if parse_result.pages else 1
-                    }
-                ]
-            }
+        # Quick, extractive first summary so the book is usable immediately; the deep summariser
+        # (services/deep_summary.py) then reads every page with the LLM in the background and replaces it.
+        initial = llama_service._rule_based_summary_extraction(parse_result.full_text, title, sections)
+        initial["summary_state"] = "running"
+        initial["summary_progress"] = {"done": 0, "total": 0}
+        return initial
+
 
 
 knowledge_base_service = KnowledgeBaseService()

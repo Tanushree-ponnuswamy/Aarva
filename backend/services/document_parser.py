@@ -25,7 +25,7 @@ import re
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 
 def _safe_print(*args, **kwargs):
     """Safely prints to stdout across all platform console encodings."""
@@ -67,6 +67,7 @@ class ParseResult:
     file_type: str
     word_count: int
     parse_warnings: List[str] = field(default_factory=list)
+    toc: List[Dict[str, Any]] = field(default_factory=list)
 
     @property
     def is_empty(self) -> bool:
@@ -124,6 +125,27 @@ def _guess_chapter(text: str, page_num: int) -> str:
 
 # ─── PDF Parser ──────────────────────────────────────────────────────────────
 
+def _clean_toc_title(title: str) -> str:
+    """Clean PDF bookmarks / outline titles into readable human-friendly chapter names."""
+    t = (title or "").strip()
+    t = re.sub(r'^\d+([-_][A-Za-z0-9]{1,2})?[-_.]\s*', '', t)
+    t = re.sub(r'[-_]\d+[-_][A-Za-z]+$', '', t)
+    t = re.sub(r'[-_]new$', '', t, flags=re.I)
+    t = re.sub(r'\bSR\b', 'Supplementary:', t)
+    t = re.sub(r'^(Prose|Poem)[\-_:\s]+', r'\1: ', t, flags=re.I)
+    t = t.replace('-', ' ').replace('_', ' ')
+    t = re.sub(r'\s+', ' ', t).strip()
+    if t.lower() in ['first page', '00 first page']:
+        return 'Introduction & Front Matter'
+    if t.lower() in ['content', 'contents', '00 content']:
+        return 'Table of Contents'
+    parts = t.split(':', 1)
+    if len(parts) == 2:
+        prefix, rest = parts
+        return f"{prefix.strip()}: {rest.strip().title() if rest.strip().isupper() else rest.strip()}"
+    return t.title() if t.isupper() else t
+
+
 def _parse_pdf(data: bytes, filename: str) -> ParseResult:
     warnings: List[str] = []
     pages: List[PageChunk] = []
@@ -134,15 +156,40 @@ def _parse_pdf(data: bytes, filename: str) -> ParseResult:
         total = doc.page_count
         _safe_print(f"📖 [PDF PARSER] Reading {total} pages from '{filename}'...")
 
+        # Extract embedded bookmarks / Table of Contents (TOC)
+        toc_entries: List[Dict[str, Any]] = []
+        try:
+            raw_toc = doc.get_toc()
+            if raw_toc:
+                for entry in raw_toc:
+                    lvl, raw_t, p_num = entry[0], entry[1], entry[2]
+                    if p_num > 0:
+                        c_title = _clean_toc_title(raw_t)
+                        if c_title:
+                            toc_entries.append({"level": lvl, "title": c_title, "page": p_num})
+        except Exception as toc_err:
+            warnings.append(f"TOC extraction notice: {toc_err}")
+
+        def _get_page_chapter(page_num: int, page_text: str) -> str:
+            if toc_entries:
+                matched = None
+                for entry in toc_entries:
+                    if entry["page"] <= page_num:
+                        matched = entry["title"]
+                    else:
+                        break
+                if matched:
+                    return matched
+            return _guess_chapter(page_text, page_num)
+
         for i, page in enumerate(doc, start=1):
             raw = page.get_text("text")  # type: ignore[attr-defined]
             cleaned = _clean_text(raw)
 
-            # Scanned / handwritten page fallback — very little text extracted
-            if len(cleaned.split()) < 15 and total <= 300:
+            # Scanned / handwritten page fallback — only for short documents or genuine image pages
+            if len(cleaned.split()) < 15 and total <= 10:
                 warnings.append(f"Page {i}: low text yield — attempting OCR on rendered page image.")
                 try:
-                    # Render page to image at 2x scale for better OCR accuracy
                     mat = fitz.Matrix(2, 2)  # type: ignore[attr-defined]
                     pix = page.get_pixmap(matrix=mat, alpha=False)  # type: ignore[attr-defined]
                     img_bytes = pix.tobytes("png")
@@ -153,12 +200,14 @@ def _parse_pdf(data: bytes, filename: str) -> ParseResult:
                 except Exception as ocr_err:
                     warnings.append(f"Page {i}: OCR fallback failed — {ocr_err}")
 
-            _safe_print(f"   [Page {i}/{total}] Read {len(cleaned.split())} words | Section: '{_guess_chapter(cleaned, i)}'")
+            page_chap = _get_page_chapter(i, cleaned)
+            if i <= 5 or i % 25 == 0 or i == total:
+                _safe_print(f"   [Page {i}/{total}] Read {len(cleaned.split())} words | Section: '{page_chap}'")
 
             pages.append(PageChunk(
                 page_number=i,
                 text=cleaned,
-                chapter=_guess_chapter(cleaned, i),
+                chapter=page_chap,
             ))
 
         doc.close()
@@ -176,6 +225,7 @@ def _parse_pdf(data: bytes, filename: str) -> ParseResult:
             file_type="pdf",
             word_count=len(full.split()),
             parse_warnings=warnings,
+            toc=toc_entries,
         )
 
     except ImportError:
@@ -210,6 +260,7 @@ def _parse_pdf_plumber(data: bytes, filename: str, warnings: List[str]) -> Parse
             file_type="pdf",
             word_count=len(full.split()),
             parse_warnings=warnings,
+            toc=[],
         )
     except Exception as e:
         return _empty_result("pdf", f"pdfplumber also failed: {e}")

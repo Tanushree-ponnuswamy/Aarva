@@ -714,36 +714,25 @@ const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve,
  */
 async function apiPost(path: string, body: unknown) {
   const url = `${API_BASE}${path}`;
-  const MAX_ATTEMPTS = 8;
-  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
-    let res: Response;
-    try {
-      res = await fetch(url, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
-    } catch {
-      // network hiccup while the host is waking up
-      if (attempt === MAX_ATTEMPTS) throw new Error("Cannot reach the server. Check your connection and try again.");
-      await sleep(5000);
-      continue;
-    }
-    const text = await res.text();
-    let data: any;
-    try {
-      data = JSON.parse(text);
-    } catch {
-      if (attempt === MAX_ATTEMPTS) {
-        throw new Error("The server is still starting up (free hosting). Please try again in a minute.");
-      }
-      await sleep(8000); // waking-up page: wait and retry
-      continue;
-    }
-    if (!res.ok) throw new Error(data.detail || "Request failed.");
-    return data;
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+  } catch {
+    throw new Error("Unable to connect to local backend (http://127.0.0.1:8000). Please check that the local server is running.");
   }
-  throw new Error("The server is still starting up. Please try again in a minute.");
+  const text = await res.text();
+  let data: any;
+  try {
+    data = JSON.parse(text);
+  } catch {
+    throw new Error(`Local backend returned an invalid response (${res.status}).`);
+  }
+  if (!res.ok) throw new Error(data.detail || "Request failed. Please verify your details.");
+  return data;
 }
 
 function AuthPage({ onHome, onComplete }: { onHome: () => void; onComplete: (name: string) => void }) {
@@ -751,7 +740,7 @@ function AuthPage({ onHome, onComplete }: { onHome: () => void; onComplete: (nam
   const [loginEmail, setLoginEmail] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
-  const [rememberMe, setRememberMe] = useState(false);
+  const [rememberMe, setRememberMe] = useState(true);
   const [loginLoading, setLoginLoading] = useState(false);
   const [loginError, setLoginError] = useState("");
   const [forgotMsg, setForgotMsg] = useState("");
@@ -1365,6 +1354,33 @@ function AuthPage({ onHome, onComplete }: { onHome: () => void; onComplete: (nam
                 >
                   {loginLoading ? "Signing in…" : <><span>Sign in</span> <Icon name="arrow" size={18} /></>}
                 </button>
+
+                <button
+                  type="button"
+                  id="quick-instant-login-btn"
+                  onClick={loginDemoAccount}
+                  style={{
+                    width: "100%",
+                    marginTop: "0.85rem",
+                    padding: "0.75rem 1rem",
+                    background: "#f8fafc",
+                    color: "#334155",
+                    border: "1px solid #cbd5e1",
+                    borderRadius: "9999px",
+                    fontWeight: 600,
+                    fontSize: "0.92rem",
+                    cursor: "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: "0.5rem",
+                    transition: "all 0.15s ease"
+                  }}
+                  title="Direct 1-Click login without entering credentials"
+                >
+                  <Icon name="spark" size={16} />
+                  <span>⚡ 1-Click Instant Student Access</span>
+                </button>
               </form>
               <p className="auth-switch">Don&apos;t have an account? <button type="button" onClick={() => { setStage("signup-personal"); setLoginError(""); setForgotMsg(""); }}>Create an account</button></p>
             </>
@@ -1848,10 +1864,10 @@ function handleSessionExpired() {
 }
 
 async function apiFetch<T = any>(path: string, options: RequestInit = {}): Promise<T> {
-  const MAX_ATTEMPTS = 6;
-  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
-    const token = localStorage.getItem("aarva_token") ?? "";
-    const res = await fetch(`${API}${path}`, {
+  const token = localStorage.getItem("aarva_token") ?? "";
+  let res: Response;
+  try {
+    res = await fetch(`${API}${path}`, {
       ...options,
       headers: {
         "Content-Type": "application/json",
@@ -1859,26 +1875,22 @@ async function apiFetch<T = any>(path: string, options: RequestInit = {}): Promi
         ...(options.headers || {}),
       },
     });
-    const text = await res.text();
-    let data: any;
-    try {
-      data = JSON.parse(text);
-    } catch {
-      // 502/503 HTML = host still waking up (request never reached the API): wait and retry
-      if ((res.status === 502 || res.status === 503) && attempt < MAX_ATTEMPTS) {
-        await sleep(8000);
-        continue;
-      }
-      throw new Error(`API returned non-JSON response (${res.status})`);
-    }
-    if (res.status === 401) {
-      handleSessionExpired();
-      throw new Error(data.detail || "Session expired. Please sign in again.");
-    }
-    if (!res.ok) throw new Error(data.detail || "API error");
-    return data;
+  } catch {
+    throw new Error("Unable to connect to local backend (http://127.0.0.1:8000). Please check that the local server is running.");
   }
-  throw new Error("The server is still starting up. Please try again in a minute.");
+  const text = await res.text();
+  let data: any;
+  try {
+    data = JSON.parse(text);
+  } catch {
+    throw new Error(`Local backend returned non-JSON response (${res.status})`);
+  }
+  if (res.status === 401) {
+    handleSessionExpired();
+    throw new Error("Session expired. Please sign in again.");
+  }
+  if (!res.ok) throw new Error(data.detail || "API error");
+  return data;
 }
 
 const menuItems: { label: string; icon: "dashboard" | "library" | "upload" | "test" }[] = [
@@ -2613,6 +2625,25 @@ function UploadWorkspace({
   const [dragOver, setDragOver] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [filePreviewUrl, setFilePreviewUrl] = useState<string | null>(null);
+  const summaryPollRef = useRef(0);
+  // While the server is still reading the whole book, keep refreshing the summary and chapter list.
+  const pollSummary = (bookId: number) => {
+    const token = ++summaryPollRef.current;
+    const tick = async () => {
+      await sleep(8000);
+      if (token !== summaryPollRef.current) return; // another book was opened, or polling was replaced
+      try {
+        const res = await apiFetch<any>(`/api/summary/${bookId}?mode=complete&language=English`);
+        if (token !== summaryPollRef.current) return;
+        if (res) setSummaryData(res);
+        if (res?.summary_state === "running") tick();
+      } catch {
+        tick();
+      }
+    };
+    tick();
+  };
+
   const [summaryData, setSummaryData] = useState<{
     title?: string;
     overview?: string;
@@ -2678,17 +2709,7 @@ function UploadWorkspace({
               setMessages(res.messages);
               flushPendingDiscuss();
             } else {
-              const greetings: Record<string, string> = {
-                ta: `வணக்கம், நான் ஆர்வா 👋 — "${book.title}" ஆவணம் தயாராக உள்ளது. என்னிடம் எதையும் கேளுங்கள்!`,
-                hi: `नमस्ते, मैं आरवा हूँ 👋 — मैंने "${book.title}" लोड कर लिया है। आप मुझसे कुछ भी पूछ सकते हैं!`,
-                te: `నమస్కారం, నేను ఆర్వా 👋 — "${book.title}" సిద్ధంగా ఉంది. దీని గురించి ఏదైనా అడగండి!`,
-                mr: `नमस्कार, मी आरवा 👋 — "${book.title}" लोड झाले आहे. मला याबद्दल काहीही विचारा!`,
-                ml: `നമസ്കാരം, ഞാൻ ആർവ 👋 — "${book.title}" തയ്യാറാണ്. എന്തും ചോദിക്കാം!`,
-                bn: `নমস্কার, আমি আরভা 👋 — "${book.title}" প্রস্তুত। যেকোনো প্রশ্ন জিজ্ঞাসা করুন!`,
-                or: `ନମସ୍କାର, ମୁଁ ଆରଭା 👋 — "${book.title}" ପ୍ରସ୍ତୁତ। କିଛି ବି ପଚାରନ୍ତୁ!`,
-                en: `Hi, I'm Aarva 👋 — I've loaded "${book.title}". Ask me anything about it!`
-              };
-              const bookGreeting = greetings[languageObj.code] || greetings.en;
+              const bookGreeting = `Hi, I'm Aarva 👋 — I've loaded "${book.title}". Ask me anything about it!`;
               setMessages([
                 { from: "ai", text: bookGreeting },
               ]);
@@ -2696,17 +2717,7 @@ function UploadWorkspace({
             }
           })
           .catch(() => {
-            const greetings: Record<string, string> = {
-              ta: `வணக்கம், நான் ஆர்வா 👋 — "${book.title}" ஆவணம் தயாராக உள்ளது. என்னிடம் எதையும் கேளுங்கள்!`,
-              hi: `नमस्ते, मैं आरवा हूँ 👋 — मैंने "${book.title}" लोड कर लिया है। आप मुझसे कुछ भी पूछ सकते हैं!`,
-              te: `నమస్కారం, నేను ఆర్వా 👋 — "${book.title}" సిద్ధంగా ఉంది. దీని గురించి ఏదైనా అడగండి!`,
-              mr: `नमस्कार, मी आरवा 👋 — "${book.title}" लोड झाले आहे. मला याबद्दल काहीही विचारा!`,
-              ml: `നമസ്കാരം, ഞാൻ ആർവ 👋 — "${book.title}" തയ്യാറാണ്. എന്തும் ചോദിക്കാം!`,
-              bn: `নমস্কার, আমি আরভা 👋 — "${book.title}" প্রস্তুত। যেকোনো প্রশ্ন জিজ্ঞাসা করুন!`,
-              or: `ନମସ୍କାର, ମୁଁ ଆରଭା 👋 — "${book.title}" ପ୍ରସ୍ତୁତ। କିଛି ବି ପଚାରନ୍ତୁ!`,
-              en: `Hi, I'm Aarva 👋 — I've loaded "${book.title}". Ask me anything about it!`
-            };
-            const bookGreeting = greetings[languageObj.code] || greetings.en;
+            const bookGreeting = `Hi, I'm Aarva 👋 — I've loaded "${book.title}". Ask me anything about it!`;
             setMessages([
               { from: "ai", text: bookGreeting },
             ]);
@@ -2715,6 +2726,7 @@ function UploadWorkspace({
       }
 
       // 2. Fetch Live AI Summary & Document Insights
+      summaryPollRef.current += 1; // stop polling for any previously open book
       setSummaryLoading(true);
       setSummaryData(null);
       const targetSummaryLanguage = summaryLangMode === "interface" ? languageObj.name : "English";
@@ -2724,30 +2736,22 @@ function UploadWorkspace({
         key_points?: string[];
         definitions?: { term?: string; definition?: string }[];
         concepts?: string[];
-      }>(`/api/summary/${book.id}?mode=complete&language=${encodeURIComponent(targetSummaryLanguage)}`)
-        .then((res) => {
+      }>(`/api/summary/${book.id}?mode=complete&language=English`)
+        .then((res: any) => {
           if (res) setSummaryData(res);
           setSummaryLoading(false);
+          if (res?.summary_state === "running") pollSummary(book.id);
         })
         .catch(() => {
           setSummaryData(null);
           setSummaryLoading(false);
         });
     } else {
-      const convoGreetings: Record<string, string> = {
-        ta: "வணக்கம், நான் ஆர்வா 👋 — என்னிடம் எதையும் கேளுங்கள் அல்லது ஒரு புத்தகத்தைப் பதிவேற்றவும்!",
-        hi: "नमस्ते, मैं आरवा हूँ 👋 — बातचीत शुरू करें या कोई प्रश्न पूछें।",
-        te: "నమస్కారం, నేను ఆర్వా 👋 — మీ ప్రశ్నలను అడగండి!",
-        mr: "नमस्कार, मी आरवा 👋 — काहीही विचारा किंवा पुस्तक अपलोड करा!",
-        ml: "നമസ്കാരം, ഞാൻ ആർവ 👋 — എന്തും ചോദിക്കാം!",
-        bn: "নমস্কার, আমি আরভা 👋 — যেকোনো প্রশ্ন জিজ্ঞাসা করুন!",
-        or: "ନମସ୍କାର, ମୁଁ ଆରଭା 👋 — କିଛି ବି ପଚାରନ୍ତୁ!",
-        en: "Hi, I'm Aarva 👋 — let's start the convo! Upload a book or just ask me anything to get going."
-      };
+      const convoGreeting = "Hi, I'm Aarva 👋 — let's start the convo! Upload a book or just ask me anything to get going.";
       setMessages([
         {
           from: "ai",
-          text: convoGreetings[languageObj.code] || convoGreetings.en,
+          text: convoGreeting,
         },
       ]);
       setSummaryData(null);
@@ -4004,6 +4008,19 @@ function UploadWorkspace({
                       </div>
                     )}
                   </div>
+                  {summaryData?.summary_state === "running" && (
+                    <div style={{ background: "#fff", border: "1px solid #ddd6fe", borderRadius: "0.6rem", padding: "0.7rem 0.9rem", marginBottom: "0.8rem" }}>
+                      <div style={{ fontSize: "0.82rem", fontWeight: 700, color: "#6366f1", marginBottom: "0.4rem" }}>
+                        Reading your whole book{summaryData.summary_progress?.total ? `: section ${Math.min(summaryData.summary_progress.done + 1, summaryData.summary_progress.total)} of ${summaryData.summary_progress.total}` : "…"}
+                      </div>
+                      <div style={{ height: "6px", background: "#ede9fe", borderRadius: "999px", overflow: "hidden" }}>
+                        <div style={{ height: "100%", width: `${summaryData.summary_progress?.total ? Math.round((summaryData.summary_progress.done / summaryData.summary_progress.total) * 100) : 5}%`, background: "#6366f1", transition: "width 0.4s" }} />
+                      </div>
+                      <div style={{ fontSize: "0.75rem", color: "#64748b", marginTop: "0.4rem" }}>
+                        You can already chat with the book. Chapter summaries appear below as each part is finished.
+                      </div>
+                    </div>
+                  )}
                   {summaryLoading ? (
                     <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", color: "#6366f1", fontSize: "0.85rem", padding: "0.5rem 0" }}>
                       <span className="typing-dot" style={{ width: "6px", height: "6px", background: "#6366f1", borderRadius: "50%", animation: "pulse 1s infinite alternate" }} />

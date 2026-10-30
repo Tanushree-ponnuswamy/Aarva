@@ -85,7 +85,7 @@ class Settings:
     # ── Authentication & Security ────────────────────────────
     JWT_SECRET: str = _resolve_jwt_secret()
     JWT_ALGORITHM: str = os.getenv("JWT_ALGORITHM", "HS256")
-    JWT_ACCESS_TOKEN_EXPIRE_MINUTES: int = _int_env("JWT_ACCESS_TOKEN_EXPIRE_MINUTES", _int_env("JWT_EXPIRE_MINUTES", 10080))
+    JWT_ACCESS_TOKEN_EXPIRE_MINUTES: int = _int_env("JWT_ACCESS_TOKEN_EXPIRE_MINUTES", _int_env("JWT_EXPIRE_MINUTES", 525600))
     BCRYPT_ROUNDS: int = _int_env("BCRYPT_ROUNDS", 12)
 
     # ── Document Parsing & Upload ────────────────────────────
@@ -130,6 +130,7 @@ class Settings:
     LLM_MODEL: str = os.getenv("LLM_MODEL", "qwen3:8b")
     LLM_TEMPERATURE: float = _float_env("LLM_TEMPERATURE", 0.3)
     LLM_MAX_TOKENS: int = _int_env("LLM_MAX_TOKENS", 1024)
+    LLM_NUM_CTX: int = _int_env("LLM_NUM_CTX", 8192)  # Ollama's default context is small and silently truncates prompts
     LLM_TIMEOUT_SECONDS: int = _int_env("LLM_TIMEOUT_SECONDS", 45)
 
 

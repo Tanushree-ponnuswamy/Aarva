@@ -1,3 +1,4 @@
+import os
 from fastapi import APIRouter, Depends, HTTPException, status, Request
 from pydantic import BaseModel
 from typing import Optional, List
@@ -288,6 +289,11 @@ def _create_user_session(
 def register_user(req: SignupRequest, request: Request, db: Session = Depends(get_db)):
     """Register a new student account and return a JWT token."""
     rate_limiter.hit(f"signup-ip:{client_ip(request)}", limit=10, window_seconds=3600)
+    # On Render a SQLite fallback lives on a disk that is wiped at every deploy: refuse to create accounts
+    # that would silently vanish, and say what is wrong instead.
+    from database import postgres as _pg
+    if _pg.engine.dialect.name == "sqlite" and os.getenv("RENDER"):
+        raise HTTPException(status_code=503, detail="The account database is not connected yet. Please try again later.")
     if not req.password_valid:
         raise HTTPException(status_code=400, detail="Password must be at least 10 characters long.")
 
@@ -466,7 +472,7 @@ def admin_login(req: LoginRequest, request: Request, db: Session = Depends(get_d
 
     token, jti = auth_service.create_access_token(
         {"sub": user.email, "user_id": user.id, "role": user.role, "email": user.email},
-        expires_delta=timedelta(hours=8),
+        expires_delta=timedelta(hours=ACCESS_TOKEN_EXPIRE_HOURS),
     )
     _create_user_session(db, user, jti, request, "Admin Portal")
     db.commit()
@@ -500,7 +506,7 @@ def demo_login(req: DemoLoginRequest, request: Request, db: Session = Depends(ge
 
     token, jti = auth_service.create_access_token(
         {"sub": user.email, "user_id": user.id, "role": user.role, "email": user.email},
-        expires_delta=timedelta(hours=8),  # demo sessions are short-lived
+        expires_delta=timedelta(hours=ACCESS_TOKEN_EXPIRE_HOURS),
     )
     _create_user_session(db, user, jti, request, f"Demo Login ({user.name})")
     db.commit()

@@ -77,43 +77,11 @@ def get_summary(
 
     # If book has precomputed summary data
     stored_data = book.summary_data or {}
-    norm_code = normalize_language_code(language)
-    lang_name = get_language_display_name(norm_code)
+    norm_code = "en"
+    lang_name = "English"
 
-    # If requested in a regional language (e.g. Tamil, Hindi), check cache or generate localized summary
+    # Always use the primary English summary data
     data_source = stored_data
-    if norm_code != "en":
-        cache_key = f"summary_{norm_code}"
-        if cache_key in stored_data and isinstance(stored_data[cache_key], dict):
-            data_source = stored_data[cache_key]
-        else:
-            try:
-                # Build context for localized summary generation
-                sample_text = (
-                    f"Title: {book.title}\n\n"
-                    f"Overview: {stored_data.get('overview') or stored_data.get('complete_summary') or ''}\n\n"
-                    f"Key Points: {json.dumps(stored_data.get('key_points', []))}\n"
-                    f"Definitions: {json.dumps(stored_data.get('definitions', []))}\n"
-                    f"Concepts: {json.dumps(stored_data.get('concepts', []))}"
-                )
-                localized = llama_service.generate_structured_summary(
-                    full_text=sample_text,
-                    filename=book.title,
-                    language=lang_name
-                )
-                # Only use/cache the result if it really is in the requested language; when the LLM is
-                # offline the generator returns the English rule-based summary, which must not be cached
-                # under a regional-language key.
-                localized_sample = " ".join([str(localized.get("overview", "")), str(localized.get("main_takeaway", ""))] + [str(k) for k in localized.get("key_points", [])]) if isinstance(localized, dict) else ""
-                if localized_sample.strip() and llama_service._is_in_language(localized_sample, norm_code):
-                    data_source = localized
-                    updated_dict = dict(stored_data)
-                    updated_dict[cache_key] = localized
-                    book.summary_data = updated_dict
-                    db.commit()
-            except Exception as e:
-                print(f"[SUMMARY_ROUTE] Multilingual summary fallback: {e}")
-                data_source = stored_data
 
     if mode == "complete":
         return {
@@ -130,7 +98,10 @@ def get_summary(
             "chapters": data_source.get("chapters", []),
             "concepts": data_source.get("concepts", []),
             "definitions": data_source.get("definitions", []),
-            "important_notes": data_source.get("important_notes", [])
+            "important_notes": data_source.get("important_notes", []),
+            "summary_state": data_source.get("summary_state", "done"),
+            "summary_progress": data_source.get("summary_progress"),
+            "summary_engine": data_source.get("summary_engine"),
         }
     elif mode == "chapter":
         ch_num = chapter or 1
@@ -177,7 +148,7 @@ def chat_with_tutor(req: ChatMessageRequest, db: Session = Depends(get_db), curr
     reply = llama_service.chat_response(
         query=req.query,
         textbook_id=target_id,
-        language=req.language or "English",
+        language="English",
         conversation_history=req.conversation_history,
         doc_summary_data=doc_summary_data,
         doc_title=doc_title

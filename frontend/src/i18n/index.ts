@@ -33,39 +33,7 @@ export const SUPPORTED_LANGUAGES: LanguageOption[] = [
 ];
 
 // Helper to determine initial LLM language from user profile or cache
-export const getInitialLanguage = (): LanguageCode => {
-  if (typeof window === "undefined") return "en";
-
-  try {
-    const rawUser = localStorage.getItem("aarva_user");
-    if (rawUser) {
-      const u = JSON.parse(rawUser);
-      if (u?.id) {
-        const userScopedLang = localStorage.getItem(`aarva_language_user_${u.id}`) as LanguageCode;
-        if (userScopedLang && SUPPORTED_LANGUAGES.some((l) => l.code === userScopedLang)) {
-          return userScopedLang;
-        }
-      }
-      if (u?.preferred_language) {
-        const found = SUPPORTED_LANGUAGES.find(
-          (l) =>
-            l.code === u.preferred_language ||
-            l.name.toLowerCase() === u.preferred_language.toLowerCase() ||
-            l.nativeName === u.preferred_language
-        );
-        if (found) return found.code;
-      }
-    }
-    const globalSaved = localStorage.getItem("aarva_language") as LanguageCode;
-    if (globalSaved && SUPPORTED_LANGUAGES.some((l) => l.code === globalSaved)) {
-      return globalSaved;
-    }
-  } catch {
-    // Fall back to default
-  }
-
-  return "en";
-};
+export const getInitialLanguage = (): LanguageCode => "en";
 
 // Initialize i18next locked to English for the UI interface
 i18n.use(initReactI18next).init({
