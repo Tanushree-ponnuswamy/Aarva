@@ -130,7 +130,7 @@ def health_check(db: Session = Depends(get_db)):
         from database import postgres as _pg
         raw_url = os.getenv("DATABASE_URL", "")
         info = {"status": "healthy", "database": "connected", "engine": _pg.engine.dialect.name,
-                "database_url_set": bool(raw_url), "database_url_scheme": raw_url.split("://")[0] if "://" in raw_url else None}
+                "database_url_set": bool(raw_url), "database_target": _pg.DB_TARGET, "database_url_scheme": raw_url.split("://")[0] if "://" in raw_url else None}
         if _pg.DB_FALLBACK_REASON:
             info["fallback_reason"] = _pg.DB_FALLBACK_REASON
         return info

@@ -25,6 +25,14 @@ DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./aarva.db")
 if DATABASE_URL.startswith("postgres://"):
     DATABASE_URL = "postgresql://" + DATABASE_URL[len("postgres://"):]
 
+DB_TARGET = None  # host/port/database being used (no credentials), shown by /api/health
+try:
+    from sqlalchemy.engine import make_url as _make_url
+    _u = _make_url(DATABASE_URL)
+    DB_TARGET = f"{_u.host}:{_u.port or 5432}/{_u.database}" if _u.host or _u.database else str(_u.drivername)
+except Exception:
+    DB_TARGET = "unparseable"
+
 DB_FALLBACK_REASON = None  # why Postgres was not used (sanitised), shown by /api/health
 
 
@@ -39,7 +47,9 @@ if DATABASE_URL.startswith("sqlite"):
 else:
     try:
         # 1. Try standard PostgreSQL driver (psycopg2)
-        engine = create_engine(DATABASE_URL, pool_pre_ping=True)
+        # Name the driver explicitly: SQLAlchemy 2.1 maps a bare "postgresql://" to psycopg v3, which is not installed.
+        _pg_url = DATABASE_URL.replace("postgresql://", "postgresql+psycopg2://", 1)
+        engine = create_engine(_pg_url, pool_pre_ping=True)
         with engine.connect() as conn:
             pass
     except Exception as _pg_err:
