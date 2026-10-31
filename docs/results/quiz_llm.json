@@ -1,0 +1,281 @@
+{
+ "mode": "llm",
+ "lessons_tested": 4,
+ "questions_total": 12,
+ "seconds_total": 545.2,
+ "generation_calls": {
+  "llm_calls": 4,
+  "llm_valid_first_try": 4
+ },
+ "valid_format_percent": 100.0,
+ "answer_appears_in_lesson_text_percent": 58.3,
+ "source_counts": {
+  "AI-Generated from Textbook RAG": 12
+ },
+ "difficulty_counts": {
+  "hard": 4,
+  "easy": 4,
+  "medium": 4
+ },
+ "per_lesson": [
+  {
+   "lesson": "Prose: The Portrait of a Lady",
+   "pages": "7-25",
+   "questions": 3,
+   "format_ok": 3,
+   "seconds": 135.8,
+   "distinct_evidence_pages": 0,
+   "pages_in_lesson": 19
+  },
+  {
+   "lesson": "Supplementary: A Shot In The Dark",
+   "pages": "64-71",
+   "questions": 3,
+   "format_ok": 3,
+   "seconds": 148.2,
+   "distinct_evidence_pages": 0,
+   "pages_in_lesson": 8
+  },
+  {
+   "lesson": "Poem: Macavity The Mystery Cat",
+   "pages": "132-137",
+   "questions": 3,
+   "format_ok": 3,
+   "seconds": 98.0,
+   "distinct_evidence_pages": 1,
+   "pages_in_lesson": 6
+  },
+  {
+   "lesson": "Prose: The Accidental Tourist",
+   "pages": "174-188",
+   "questions": 3,
+   "format_ok": 3,
+   "seconds": 163.2,
+   "distinct_evidence_pages": 0,
+   "pages_in_lesson": 15
+  }
+ ],
+ "rows": [
+  {
+   "lesson": "Prose: The Portrait of a Lady",
+   "pages": "7-25",
+   "source": "AI-Generated from Textbook RAG",
+   "difficulty": "easy",
+   "question": "What is the main theme of the story 'The Portrait of a Lady'?",
+   "options": [
+    "The importance of education in a nuclear family",
+    "The bond between a grandmother and her grandchild",
+    "The transition from a rural to an urban lifestyle",
+    "The role of religion in daily life"
+   ],
+   "marked_answer": "The bond between a grandmother and her grandchild",
+   "format_ok": true,
+   "answer_appears_in_lesson_text": true,
+   "evidence_pages": [],
+   "explanation": "The story centers around the deep emotional bond between the author and his grandmother, highlighting their relationship and the changes in their lives over time."
+  },
+  {
+   "lesson": "Prose: The Portrait of a Lady",
+   "pages": "7-25",
+   "source": "AI-Generated from Textbook RAG",
+   "difficulty": "medium",
+   "question": "How does the grandmother react to the author's education in an English school?",
+   "options": [
+    "She is thrilled and encourages the author to continue",
+    "She is indifferent and continues her daily routine",
+    "She is upset and disapproves of the teachings",
+    "She is confused and asks the author to explain"
+   ],
+   "marked_answer": "She is upset and disapproves of the teachings",
+   "format_ok": true,
+   "answer_appears_in_lesson_text": false,
+   "evidence_pages": [],
+   "explanation": "The grandmother is distressed by the author's education in an English school, as it does not include religious teachings that she values."
+  },
+  {
+   "lesson": "Prose: The Portrait of a Lady",
+   "pages": "7-25",
+   "source": "AI-Generated from Textbook RAG",
+   "difficulty": "hard",
+   "question": "What happens to the grandmother after the author returns from abroad?",
+   "options": [
+    "She becomes more active and starts singing with neighbors",
+    "She continues her routine of praying and feeding sparrows",
+    "She moves to live with the author in the city",
+    "She starts learning English to better communicate with the author"
+   ],
+   "marked_answer": "She becomes more active and starts singing with neighbors",
+   "format_ok": true,
+   "answer_appears_in_lesson_text": false,
+   "evidence_pages": [],
+   "explanation": "After the author returns, the grandmother becomes more active, starts singing with neighbors, and even stops praying for a time, showing a shift in her behavior."
+  },
+  {
+   "lesson": "Supplementary: A Shot In The Dark",
+   "pages": "64-71",
+   "source": "AI-Generated from Textbook RAG",
+   "difficulty": "medium",
+   "question": "What is the main conflict in the story 'A Shot in the Dark'?",
+   "options": [
+    "A political rivalry between Philip Sletherby and Mrs. Saltpen-Jago",
+    "A misunderstanding between Philip Sletherby and Bertie, the supposed son of Mrs. Saltpen-Jago",
+    "A struggle between Bertie and the local authorities over his fishing rights",
+    "A romantic conflict between Bertie and Mrs. Saltpen-Jago"
+   ],
+   "marked_answer": "A misunderstanding between Philip Sletherby and Bertie, the supposed son of Mrs. Saltpen-Jago",
+   "format_ok": true,
+   "answer_appears_in_lesson_text": true,
+   "evidence_pages": [],
+   "explanation": "The main conflict arises from Bertie's attempt to impersonate the son of Mrs. Saltpen-Jago, leading to a confrontation with Philip Sletherby who exposes his deception."
+  },
+  {
+   "lesson": "Supplementary: A Shot In The Dark",
+   "pages": "64-71",
+   "source": "AI-Generated from Textbook RAG",
+   "difficulty": "hard",
+   "question": "Why does Philip Sletherby suspect Bertie of being a fraud?",
+   "options": [
+    "Bertie claims to have lost his sovereign-purse, which he says has his crest on it",
+    "Bertie mentions that his mother has a greyhound courant on her notepaper",
+    "Bertie incorrectly identifies the Saltpen crest as the Jago crest",
+    "Bertie fails to recognize Philip Sletherby when they meet"
+   ],
+   "marked_answer": "Bertie incorrectly identifies the Saltpen crest as the Jago crest",
+   "format_ok": true,
+   "answer_appears_in_lesson_text": false,
+   "evidence_pages": [],
+   "explanation": "Bertie incorrectly identifies the Saltpen crest as the Jago crest, which raises Philip's suspicions about his true identity."
+  },
+  {
+   "lesson": "Supplementary: A Shot In The Dark",
+   "pages": "64-71",
+   "source": "AI-Generated from Textbook RAG",
+   "difficulty": "easy",
+   "question": "What is the outcome of Philip Sletherby's encounter with Bertie?",
+   "options": [
+    "Bertie is arrested for impersonating Mrs. Saltpen-Jago's son",
+    "Bertie is left on the platform with his belongings, having been tricked",
+    "Philip Sletherby lends Bertie the money he asked for",
+    "Bertie is invited to stay at Brill Manor for the weekend"
+   ],
+   "marked_answer": "Bertie is left on the platform with his belongings, having been tricked",
+   "format_ok": true,
+   "answer_appears_in_lesson_text": false,
+   "evidence_pages": [],
+   "explanation": "Bertie is left on the platform after Philip Sletherby tricks him into revealing his true identity, and Bertie is left in a difficult situation."
+  },
+  {
+   "lesson": "Poem: Macavity The Mystery Cat",
+   "pages": "132-137",
+   "source": "AI-Generated from Textbook RAG",
+   "difficulty": "easy",
+   "question": "What is Macavity's nickname according to the poem?",
+   "options": [
+    "The Hidden Paw",
+    "The Flying Squad",
+    "The Fakir",
+    "The Monster of Depravity"
+   ],
+   "marked_answer": "The Hidden Paw",
+   "format_ok": true,
+   "answer_appears_in_lesson_text": true,
+   "evidence_pages": [
+    132,
+    135
+   ],
+   "explanation": "Macavity is referred to as 'the Hidden Paw' in the poem, highlighting his elusive nature and ability to avoid detection."
+  },
+  {
+   "lesson": "Poem: Macavity The Mystery Cat",
+   "pages": "132-137",
+   "source": "AI-Generated from Textbook RAG",
+   "difficulty": "medium",
+   "question": "Why is the Flying Squad frustrated according to the poem?",
+   "options": [
+    "They cannot find Macavity at the crime scene",
+    "They cannot catch him in the act",
+    "They cannot prove he committed the crime",
+    "They cannot find any evidence"
+   ],
+   "marked_answer": "They cannot find Macavity at the crime scene",
+   "format_ok": true,
+   "answer_appears_in_lesson_text": true,
+   "evidence_pages": [],
+   "explanation": "The Flying Squad is frustrated because Macavity is never present at the crime scene, making it impossible to catch him."
+  },
+  {
+   "lesson": "Poem: Macavity The Mystery Cat",
+   "pages": "132-137",
+   "source": "AI-Generated from Textbook RAG",
+   "difficulty": "hard",
+   "question": "Which law does Macavity break according to the poem?",
+   "options": [
+    "The law of gravity",
+    "The law of nature",
+    "The law of physics",
+    "The law of motion"
+   ],
+   "marked_answer": "The law of gravity",
+   "format_ok": true,
+   "answer_appears_in_lesson_text": true,
+   "evidence_pages": [
+    132
+   ],
+   "explanation": "The poem explicitly states that Macavity breaks the law of gravity, showcasing his supernatural abilities."
+  },
+  {
+   "lesson": "Prose: The Accidental Tourist",
+   "pages": "174-188",
+   "source": "AI-Generated from Textbook RAG",
+   "difficulty": "easy",
+   "question": "What did Bryson's bag contain when it opened at the airport?",
+   "options": [
+    "A passport and English money",
+    "A 14-ounce tin of pipe tobacco",
+    "A camera and travel documents",
+    "A suitcase and a laptop"
+   ],
+   "marked_answer": "A passport and English money",
+   "format_ok": true,
+   "answer_appears_in_lesson_text": true,
+   "evidence_pages": [],
+   "explanation": "The text explicitly mentions that the bag contained a passport, English money, and other items like newspaper cuttings and magazines."
+  },
+  {
+   "lesson": "Prose: The Accidental Tourist",
+   "pages": "174-188",
+   "source": "AI-Generated from Textbook RAG",
+   "difficulty": "medium",
+   "question": "Why did Bryson's concern over his tobacco shift to his finger?",
+   "options": [
+    "He realized he had cut his finger while opening the zipper",
+    "He lost his passport and was worried about being caught",
+    "He spilled his drink and needed to clean up",
+    "He forgot to bring his tobacco and was in a hurry"
+   ],
+   "marked_answer": "He realized he had cut his finger while opening the zipper",
+   "format_ok": true,
+   "answer_appears_in_lesson_text": true,
+   "evidence_pages": [],
+   "explanation": "Bryson initially worried about losing his tobacco but then discovered he had cut his finger while opening the zipper, causing him to bleed."
+  },
+  {
+   "lesson": "Prose: The Accidental Tourist",
+   "pages": "174-188",
+   "source": "AI-Generated from Textbook RAG",
+   "difficulty": "hard",
+   "question": "What was Bryson's worst accident on a plane flight?",
+   "options": [
+    "He spilled his drink on the seat",
+    "He got stuck in the 'crash position' when someone reclined their seat",
+    "He accidentally leaked ink all over his face",
+    "He lost his boarding pass and missed the flight"
+   ],
+   "marked_answer": "He accidentally leaked ink all over his face",
+   "format_ok": true,
+   "answer_appears_in_lesson_text": false,
+   "evidence_pages": [],
+   "explanation": "The text states that Bryson's worst accident on a plane was when he leaked ink all over his face after a conversation with an attractive young lady."
+  }
+ ]
+}

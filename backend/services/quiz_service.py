@@ -7,6 +7,7 @@ high-quality MCQ questions with explanations and difficulty tagging.
 
 Falls back to contextual template questions if Ollama is unavailable.
 """
+import os
 import json
 import re
 import random
@@ -147,7 +148,7 @@ def _call_ollama_for_questions(context: str, num_questions: int, topic_hint: str
         "- Each question must be directly based on the provided content\n"
         "- Each question must have exactly 4 options\n"
         "- Mark the correct answer as a zero-indexed integer (0=first, 1=second, 2=third, 3=fourth)\n"
-        "- Include a detailed educational explanation (2-3 sentences)\n"
+        "- Include a short explanation (one or two sentences) of why the answer is correct\n"
         f"- Difficulty: {'a balanced mix of easy, medium and hard' if difficulty == 'mixed' else difficulty}\n"
         "- Wrong options must be plausible but clearly incorrect; never use 'all of the above' or 'none of the above'\n"
         f"- Topic hint: {topic_hint}"
@@ -177,9 +178,9 @@ def _call_ollama_for_questions(context: str, num_questions: int, topic_hint: str
                 "prompt": prompt,
                 "stream": False,
                 "think": False,
-                "options": {"temperature": 0.5, "top_p": 0.9, "num_predict": 220 * num_questions + 300}
+                "options": {"temperature": 0.5, "top_p": 0.9, "num_predict": 170 * num_questions + 250, "num_ctx": 8192}
             },
-            timeout=150.0
+            timeout=float(os.getenv("QUIZ_LLM_TIMEOUT", "420"))
         )
         if res.status_code == 200:
             raw = res.json().get("response", "").strip()
@@ -319,14 +320,28 @@ def generate_quiz_questions(
         lang_code = llama_service._normalize_lang(language)
     except Exception:
         llama_service, lang_code = None, "en"
+    BATCH = int(os.getenv("QUIZ_LLM_BATCH", "3"))
     for _attempt in range(2):
-        candidate = _call_ollama_for_questions(
-            context=combined_context,
-            num_questions=num_questions,
-            topic_hint=topic or "general subject matter",
-            language=language,
-            difficulty=difficulty
-        )
+        candidate: List[Dict] = []
+        seen = set()
+        for _ in range(-(-num_questions // BATCH) + 1):  # ceil(n / BATCH) calls, plus one spare
+            need = num_questions - len(candidate)
+            if need <= 0:
+                break
+            part = _call_ollama_for_questions(
+                context=combined_context,
+                num_questions=min(BATCH, need),
+                topic_hint=(topic or "general subject matter") + (f". Do not repeat these questions: {'; '.join(q.get('question', '')[:80] for q in candidate)}" if candidate else ""),
+                language=language,
+                difficulty=difficulty
+            )
+            if not part:
+                break
+            for q in part:
+                key = str(q.get("question", "")).strip().lower()[:120]
+                if key and key not in seen:
+                    seen.add(key)
+                    candidate.append(q)
         if not candidate:
             break
         sample = " ".join(

@@ -1,0 +1,72 @@
+{
+ "extraction_completeness": {
+  "pages": 216,
+  "words_extracted_by_aarva": 71298,
+  "words_counted_by_pymupdf_word_list": 71285,
+  "words_counted_by_pdfplumber": 71610,
+  "captured_percent_vs_pymupdf": 100.0,
+  "captured_percent_vs_pdfplumber": 99.6,
+  "empty_pages": 0
+ },
+ "ocr_engines_on_this_machine": {
+  "easyocr": "installed",
+  "pytesseract": "not installed"
+ },
+ "format_coverage": {
+  "sample.pdf": {
+   "read_ok": true,
+   "words": 8,
+   "warnings": [
+    "Page 1: low text yield \u2014 attempting OCR on rendered page image.",
+    "PyMuPDF yield low \u2014 retrying with pdfplumber."
+   ]
+  },
+  "sample.docx": {
+   "read_ok": true,
+   "words": 17,
+   "warnings": []
+  },
+  "sample.xlsx": {
+   "read_ok": true,
+   "words": 30,
+   "warnings": []
+  },
+  "sample.txt": {
+   "read_ok": true,
+   "words": 8,
+   "warnings": []
+  },
+  "sample.png": {
+   "read_ok": false,
+   "words": 0,
+   "warnings": [
+    "OCR produced no text. Image may be blank or non-textual."
+   ]
+  }
+ },
+ "tables": {
+  "sample.docx": {
+   "earth_row_readable": true,
+   "mars_row_readable": true,
+   "excerpt": "Photosynthesis lets green plants make glucose from sunlight. Planet | Moons Earth | 1 Mars | 2"
+  },
+  "sample.xlsx": {
+   "earth_row_readable": false,
+   "mars_row_readable": false,
+   "excerpt": "=== Sheet: Sheet (Page 1) === Headers: Planet | Moons -------------------- Planet: Earth | Moons: 1 Planet: Mars | Moons: 2 Planet: Photosynthesis lets green pl"
+  },
+  "table.pdf": {
+   "earth_row_readable": true,
+   "mars_row_readable": true,
+   "excerpt": "Planet Moons Earth 1 Mars 2"
+  }
+ },
+ "scanned_pdf_12_pages": {
+  "words_extracted": 0,
+  "seconds": 0.0,
+  "note": "OCR is only attempted for scanned PDFs of 10 pages or fewer",
+  "warnings": [
+   "PyMuPDF yield low \u2014 retrying with pdfplumber."
+  ]
+ }
+}

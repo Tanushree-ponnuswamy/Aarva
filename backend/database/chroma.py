@@ -31,21 +31,42 @@ class OllamaBgeEmbeddingFunction(EmbeddingFunction[Documents]):
             if _time.time() < self._down_until:
                 embeddings.append([0.0] * settings.EMBEDDING_DIMENSION)
                 continue
-            try:
-                res = requests.post(
-                    f"{self.base_url}/api/embeddings",
-                    json={"model": self.model_name, "prompt": text[:2000]},
-                    timeout=8.0
-                )
-                if res.status_code == 200:
-                    emb = res.json().get("embedding", [])
+            emb = None
+            # A slow answer is not a dead server: a busy GPU can take 10+ s. Retry slow calls instead of storing an
+            # all-zero vector (which makes that passage invisible to meaning-based search). Only a refused
+            # connection (server not running) trips the 60 s breaker.
+            for attempt in range(3):
+                try:
+                    # /api/embed truncates text that is longer than the model's window (bge-large: 512 tokens).
+                    # The older /api/embeddings rejects it with HTTP 500, which used to leave ~16% of a textbook's
+                    # passages with an all-zero vector, invisible to meaning-based search.
+                    res = requests.post(
+                        f"{self.base_url}/api/embed",
+                        json={"model": self.model_name, "input": text, "truncate": True},
+                        timeout=60.0
+                    )
+                    if res.status_code == 200:
+                        vecs = res.json().get("embeddings") or []
+                        emb = vecs[0] if vecs and vecs[0] else None
+                    elif res.status_code == 404:
+                        # Ollama older than /api/embed: use the old endpoint with a conservative cut
+                        res = requests.post(
+                            f"{self.base_url}/api/embeddings",
+                            json={"model": self.model_name, "prompt": text[:1200]},
+                            timeout=60.0
+                        )
+                        if res.status_code == 200:
+                            emb = res.json().get("embedding", []) or None
                     if emb:
-                        embeddings.append(emb)
-                        continue
-            except Exception as e:
-                self._down_until = _time.time() + 60
-                print(f"[EMBEDDING] Warning: embedding server unavailable ({type(e).__name__}); skipping it for 60s")
-            embeddings.append([0.0] * settings.EMBEDDING_DIMENSION)
+                        break
+                except requests.exceptions.ConnectionError as e:
+                    self._down_until = _time.time() + 60
+                    print(f"[EMBEDDING] Warning: embedding server unavailable ({type(e).__name__}); skipping it for 60s")
+                    break
+                except Exception as e:
+                    print(f"[EMBEDDING] Slow or failed embedding (attempt {attempt + 1}/3): {type(e).__name__}")
+                    _time.sleep(1)
+            embeddings.append(emb if emb else [0.0] * settings.EMBEDDING_DIMENSION)
         return embeddings
 
 
@@ -166,6 +187,24 @@ class ChromaStore:
 
         # Never invent context: no results means the tutor must say it could not find the answer.
         return []
+
+    def repair_zero_vectors(self, textbook_id: int) -> int:
+        """Re-embed passages whose vector is all zeros (the embedding server was unreachable when they were indexed)."""
+        if not self.collection or self.emb_fn is None:
+            return 0
+        got = self.collection.get(where={"textbook_id": textbook_id}, include=["documents", "embeddings"])
+        ids, docs, vecs = got.get("ids", []), got.get("documents", []), got.get("embeddings")
+        if vecs is None or len(ids) == 0:
+            return 0
+        fixed = 0
+        for cid, doc, vec in zip(ids, docs, vecs):
+            if any(vec):
+                continue
+            new = self.emb_fn([doc])[0]
+            if any(new):
+                self.collection.update(ids=[cid], embeddings=[new])
+                fixed += 1
+        return fixed
 
     def delete_textbook_chunks(self, textbook_id: int):
         """Delete all chunks belonging to a specific textbook."""

@@ -1,0 +1,1170 @@
+{
+ "embedding_health": {
+  "passages": 223,
+  "all_zero_vectors_before_repair": 0,
+  "repaired": 0,
+  "all_zero_vectors_after_repair": 0
+ },
+ "indexing": {
+  "pages": 216,
+  "words_extracted": 71298,
+  "chunks": 223,
+  "parse_seconds": 1.2,
+  "chunk_seconds": 0.01,
+  "embed_seconds": 535.9,
+  "embed_chunks_per_second": 0.42,
+  "note": "Parse and embedding times are from the first run on a clean index (the rerun reused that index and the computer was paused during it). 36 of 223 passages had blank vectors in that first run; they were repaired before the scores in this file were measured."
+ },
+ "question_set_check": {
+  "questions": 30,
+  "answer_not_on_stated_page": []
+ },
+ "recall_at_5_percent": {
+  "hybrid": {
+   "all": 90.0,
+   "keyword": 95.0,
+   "paraphrase": 80.0
+  },
+  "dense_only": {
+   "all": 90.0,
+   "keyword": 95.0,
+   "paraphrase": 80.0
+  },
+  "keyword_only_bm25": {
+   "all": 86.7,
+   "keyword": 100.0,
+   "paraphrase": 60.0
+  }
+ },
+ "mrr": {
+  "hybrid": {
+   "all": 0.75,
+   "keyword": 0.8,
+   "paraphrase": 0.63
+  },
+  "dense_only": {
+   "all": 0.75,
+   "keyword": 0.77,
+   "paraphrase": 0.7
+  },
+  "keyword_only_bm25": {
+   "all": 0.68,
+   "keyword": 0.85,
+   "paraphrase": 0.35
+  }
+ },
+ "median_retrieval_ms": {
+  "hybrid": 2520,
+  "dense_only": 2349,
+  "keyword_only_bm25": 2
+ },
+ "questions": [
+  {
+   "q": "Which prefix is added to the word 'audible' to form 'inaudible'?",
+   "answer_pages": [
+    13
+   ],
+   "kind": "keyword",
+   "hybrid": {
+    "pages": [
+     13,
+     78,
+     45,
+     107,
+     77
+    ],
+    "hit": true
+   },
+   "dense_only": {
+    "pages": [
+     13,
+     45,
+     107,
+     77,
+     78
+    ],
+    "hit": true
+   },
+   "keyword_only_bm25": {
+    "pages": [
+     13,
+     126,
+     212,
+     78,
+     152
+    ],
+    "hit": true
+   }
+  },
+  {
+   "q": "According to Edward Fry, how many reading speeds are there?",
+   "answer_pages": [
+    15
+   ],
+   "kind": "keyword",
+   "hybrid": {
+    "pages": [
+     15,
+     114,
+     210,
+     64,
+     81
+    ],
+    "hit": true
+   },
+   "dense_only": {
+    "pages": [
+     15,
+     210,
+     64,
+     81,
+     114
+    ],
+    "hit": true
+   },
+   "keyword_only_bm25": {
+    "pages": [
+     15,
+     110,
+     83,
+     14,
+     113
+    ],
+    "hit": true
+   }
+  },
+  {
+   "q": "What is skimming?",
+   "answer_pages": [
+    15
+   ],
+   "kind": "keyword",
+   "hybrid": {
+    "pages": [
+     15,
+     56,
+     47,
+     164,
+     74
+    ],
+    "hit": true
+   },
+   "dense_only": {
+    "pages": [
+     15,
+     56,
+     47,
+     164,
+     74
+    ],
+    "hit": true
+   },
+   "keyword_only_bm25": {
+    "pages": [
+     15,
+     14
+    ],
+    "hit": true
+   }
+  },
+  {
+   "q": "What do laughter yoga warm-up techniques include?",
+   "answer_pages": [
+    16
+   ],
+   "kind": "keyword",
+   "hybrid": {
+    "pages": [
+     16,
+     206,
+     15,
+     108,
+     166
+    ],
+    "hit": true
+   },
+   "dense_only": {
+    "pages": [
+     16,
+     206,
+     108,
+     15,
+     166
+    ],
+    "hit": true
+   },
+   "keyword_only_bm25": {
+    "pages": [
+     16,
+     15,
+     206,
+     23,
+     184
+    ],
+    "hit": true
+   }
+  },
+  {
+   "q": "What does transcription mean?",
+   "answer_pages": [
+    180
+   ],
+   "kind": "keyword",
+   "hybrid": {
+    "pages": [
+     180,
+     154,
+     54,
+     24,
+     47
+    ],
+    "hit": true
+   },
+   "dense_only": {
+    "pages": [
+     180,
+     54,
+     24,
+     47,
+     19
+    ],
+    "hit": true
+   },
+   "keyword_only_bm25": {
+    "pages": [
+     180,
+     38,
+     112,
+     154,
+     122
+    ],
+    "hit": true
+   }
+  },
+  {
+   "q": "What should a good resume begin with?",
+   "answer_pages": [
+    184
+   ],
+   "kind": "keyword",
+   "hybrid": {
+    "pages": [
+     184,
+     161,
+     160,
+     185,
+     87
+    ],
+    "hit": true
+   },
+   "dense_only": {
+    "pages": [
+     184,
+     161,
+     160,
+     185,
+     87
+    ],
+    "hit": true
+   },
+   "keyword_only_bm25": {
+    "pages": [
+     184,
+     183,
+     161,
+     178,
+     160
+    ],
+    "hit": true
+   }
+  },
+  {
+   "q": "In which order should work history be listed in a resume?",
+   "answer_pages": [
+    184
+   ],
+   "kind": "keyword",
+   "hybrid": {
+    "pages": [
+     184,
+     161,
+     160,
+     182,
+     185
+    ],
+    "hit": true
+   },
+   "dense_only": {
+    "pages": [
+     184,
+     161,
+     160,
+     185,
+     79
+    ],
+    "hit": true
+   },
+   "keyword_only_bm25": {
+    "pages": [
+     184,
+     159,
+     120,
+     121,
+     182
+    ],
+    "hit": true
+   }
+  },
+  {
+   "q": "How much did the dealer bid in the auction in Tight Corners?",
+   "answer_pages": [
+    112
+   ],
+   "kind": "keyword",
+   "hybrid": {
+    "pages": [
+     116,
+     111,
+     115,
+     111,
+     112
+    ],
+    "hit": true
+   },
+   "dense_only": {
+    "pages": [
+     111,
+     116,
+     111,
+     115,
+     112
+    ],
+    "hit": true
+   },
+   "keyword_only_bm25": {
+    "pages": [
+     116,
+     115,
+     112,
+     117,
+     110
+    ],
+    "hit": true
+   }
+  },
+  {
+   "q": "What did the narrator bid in the auction after the dealer's bid?",
+   "answer_pages": [
+    112
+   ],
+   "kind": "keyword",
+   "hybrid": {
+    "pages": [
+     115,
+     116,
+     112,
+     113,
+     111
+    ],
+    "hit": true
+   },
+   "dense_only": {
+    "pages": [
+     115,
+     116,
+     112,
+     113,
+     112
+    ],
+    "hit": true
+   },
+   "keyword_only_bm25": {
+    "pages": [
+     116,
+     115,
+     112,
+     113,
+     142
+    ],
+    "hit": true
+   }
+  },
+  {
+   "q": "What fell from the grandmother's fingers when she died?",
+   "answer_pages": [
+    10
+   ],
+   "kind": "keyword",
+   "hybrid": {
+    "pages": [
+     9,
+     10,
+     8,
+     11,
+     112
+    ],
+    "hit": true
+   },
+   "dense_only": {
+    "pages": [
+     9,
+     8,
+     10,
+     11,
+     112
+    ],
+    "hit": true
+   },
+   "keyword_only_bm25": {
+    "pages": [
+     10,
+     9,
+     7,
+     97,
+     11
+    ],
+    "hit": true
+   }
+  },
+  {
+   "q": "Which scientific law did the narrator tell his grandmother about?",
+   "answer_pages": [
+    9
+   ],
+   "kind": "keyword",
+   "hybrid": {
+    "pages": [
+     9,
+     11,
+     8,
+     115,
+     199
+    ],
+    "hit": true
+   },
+   "dense_only": {
+    "pages": [
+     9,
+     8,
+     11,
+     199,
+     115
+    ],
+    "hit": true
+   },
+   "keyword_only_bm25": {
+    "pages": [
+     9,
+     118,
+     11,
+     138,
+     7
+    ],
+    "hit": true
+   }
+  },
+  {
+   "q": "What do the speaking activity words say athletes cannot run with?",
+   "answer_pages": [
+    47
+   ],
+   "kind": "keyword",
+   "hybrid": {
+    "pages": [
+     47,
+     61,
+     78,
+     46,
+     62
+    ],
+    "hit": true
+   },
+   "dense_only": {
+    "pages": [
+     47,
+     78,
+     46,
+     61,
+     62
+    ],
+    "hit": true
+   },
+   "keyword_only_bm25": {
+    "pages": [
+     47,
+     119,
+     60,
+     61,
+     204
+    ],
+    "hit": true
+   }
+  },
+  {
+   "q": "What did the boxer have to eat with in China?",
+   "answer_pages": [
+    42
+   ],
+   "kind": "keyword",
+   "hybrid": {
+    "pages": [
+     42,
+     41,
+     176,
+     46,
+     43
+    ],
+    "hit": true
+   },
+   "dense_only": {
+    "pages": [
+     42,
+     41,
+     175,
+     176,
+     34
+    ],
+    "hit": true
+   },
+   "keyword_only_bm25": {
+    "pages": [
+     42,
+     43,
+     46,
+     124,
+     176
+    ],
+    "hit": true
+   }
+  },
+  {
+   "q": "What does the word jet lag mean?",
+   "answer_pages": [
+    44
+   ],
+   "kind": "keyword",
+   "hybrid": {
+    "pages": [
+     44,
+     176,
+     178,
+     37,
+     175
+    ],
+    "hit": true
+   },
+   "dense_only": {
+    "pages": [
+     44,
+     176,
+     178,
+     37,
+     175
+    ],
+    "hit": true
+   },
+   "keyword_only_bm25": {
+    "pages": [
+     44,
+     41,
+     154,
+     13,
+     38
+    ],
+    "hit": true
+   }
+  },
+  {
+   "q": "Which idiom means help at the last moment rescuing one from a difficult situation?",
+   "answer_pages": [
+    118
+   ],
+   "kind": "keyword",
+   "hybrid": {
+    "pages": [
+     118,
+     117,
+     122,
+     111,
+     179
+    ],
+    "hit": true
+   },
+   "dense_only": {
+    "pages": [
+     118,
+     122,
+     117,
+     111,
+     179
+    ],
+    "hit": true
+   },
+   "keyword_only_bm25": {
+    "pages": [
+     118,
+     117,
+     114,
+     16,
+     108
+    ],
+    "hit": true
+   }
+  },
+  {
+   "q": "What is the poet's faith in Lines Written in Early Spring?",
+   "answer_pages": [
+    93
+   ],
+   "kind": "keyword",
+   "hybrid": {
+    "pages": [
+     91,
+     93,
+     94,
+     92,
+     95
+    ],
+    "hit": true
+   },
+   "dense_only": {
+    "pages": [
+     91,
+     93,
+     94,
+     92,
+     166
+    ],
+    "hit": true
+   },
+   "keyword_only_bm25": {
+    "pages": [
+     91,
+     93,
+     92,
+     94,
+     5
+    ],
+    "hit": true
+   }
+  },
+  {
+   "q": "Who did King Richard the Second surrender to?",
+   "answer_pages": [
+    192
+   ],
+   "kind": "keyword",
+   "hybrid": {
+    "pages": [
+     189,
+     192,
+     190,
+     193,
+     194
+    ],
+    "hit": true
+   },
+   "dense_only": {
+    "pages": [
+     189,
+     192,
+     190,
+     193,
+     194
+    ],
+    "hit": true
+   },
+   "keyword_only_bm25": {
+    "pages": [
+     189,
+     192,
+     194,
+     193,
+     190
+    ],
+    "hit": true
+   }
+  },
+  {
+   "q": "How is Sindhu said, I play chess written in reported speech?",
+   "answer_pages": [
+    155
+   ],
+   "kind": "keyword",
+   "hybrid": {
+    "pages": [
+     155,
+     154,
+     173,
+     156,
+     56
+    ],
+    "hit": true
+   },
+   "dense_only": {
+    "pages": [
+     155,
+     154,
+     56,
+     62,
+     156
+    ],
+    "hit": true
+   },
+   "keyword_only_bm25": {
+    "pages": [
+     155,
+     173,
+     40,
+     154,
+     157
+    ],
+    "hit": true
+   }
+  },
+  {
+   "q": "What does the narrator of The Accidental Tourist ache to be?",
+   "answer_pages": [
+    176
+   ],
+   "kind": "keyword",
+   "hybrid": {
+    "pages": [
+     187,
+     188,
+     174,
+     177,
+     4
+    ],
+    "hit": false
+   },
+   "dense_only": {
+    "pages": [
+     187,
+     188,
+     174,
+     74,
+     113
+    ],
+    "hit": false
+   },
+   "keyword_only_bm25": {
+    "pages": [
+     187,
+     188,
+     176,
+     174,
+     186
+    ],
+    "hit": true
+   }
+  },
+  {
+   "q": "What does the Queen of Boxing glossary say about the word lauded?",
+   "answer_pages": [
+    44
+   ],
+   "kind": "keyword",
+   "hybrid": {
+    "pages": [
+     44,
+     45,
+     43,
+     46,
+     40
+    ],
+    "hit": true
+   },
+   "dense_only": {
+    "pages": [
+     45,
+     44,
+     43,
+     164,
+     46
+    ],
+    "hit": true
+   },
+   "keyword_only_bm25": {
+    "pages": [
+     44,
+     41,
+     45,
+     43,
+     52
+    ],
+    "hit": true
+   }
+  },
+  {
+   "q": "Why was the narrator's grandmother unhappy about what he learned at the English school?",
+   "answer_pages": [
+    9
+   ],
+   "kind": "paraphrase",
+   "hybrid": {
+    "pages": [
+     9,
+     11,
+     8,
+     142,
+     171
+    ],
+    "hit": true
+   },
+   "dense_only": {
+    "pages": [
+     9,
+     11,
+     8,
+     171,
+     172
+    ],
+    "hit": true
+   },
+   "keyword_only_bm25": {
+    "pages": [
+     9,
+     11,
+     7,
+     115,
+     8
+    ],
+    "hit": true
+   }
+  },
+  {
+   "q": "How did the old woman spend her last moments before she passed away?",
+   "answer_pages": [
+    10
+   ],
+   "kind": "paraphrase",
+   "hybrid": {
+    "pages": [
+     9,
+     10,
+     8,
+     11,
+     200
+    ],
+    "hit": true
+   },
+   "dense_only": {
+    "pages": [
+     8,
+     10,
+     9,
+     11,
+     200
+    ],
+    "hit": true
+   },
+   "keyword_only_bm25": {
+    "pages": [
+     155,
+     9,
+     100,
+     98,
+     10
+    ],
+    "hit": true
+   }
+  },
+  {
+   "q": "Which things does the essayist admit he easily leaves behind?",
+   "answer_pages": [
+    74
+   ],
+   "kind": "paraphrase",
+   "hybrid": {
+    "pages": [
+     76,
+     192,
+     74,
+     77,
+     75
+    ],
+    "hit": true
+   },
+   "dense_only": {
+    "pages": [
+     74,
+     77,
+     75,
+     76,
+     73
+    ],
+    "hit": true
+   },
+   "keyword_only_bm25": {
+    "pages": [
+     76,
+     174,
+     134,
+     114,
+     28
+    ],
+    "hit": false
+   }
+  },
+  {
+   "q": "What is the difference between writing down speech in the same language and converting text into another language?",
+   "answer_pages": [
+    180
+   ],
+   "kind": "paraphrase",
+   "hybrid": {
+    "pages": [
+     180,
+     129,
+     212,
+     173,
+     154
+    ],
+    "hit": true
+   },
+   "dense_only": {
+    "pages": [
+     180,
+     173,
+     129,
+     212,
+     154
+    ],
+    "hit": true
+   },
+   "keyword_only_bm25": {
+    "pages": [
+     180,
+     191,
+     128,
+     3,
+     57
+    ],
+    "hit": true
+   }
+  },
+  {
+   "q": "How were universities used by rulers in the old days according to the speech?",
+   "answer_pages": [
+    146
+   ],
+   "kind": "paraphrase",
+   "hybrid": {
+    "pages": [
+     149,
+     146,
+     150,
+     154,
+     194
+    ],
+    "hit": true
+   },
+   "dense_only": {
+    "pages": [
+     149,
+     146,
+     150,
+     147,
+     145
+    ],
+    "hit": true
+   },
+   "keyword_only_bm25": {
+    "pages": [
+     149,
+     150,
+     146,
+     189,
+     154
+    ],
+    "hit": true
+   }
+  },
+  {
+   "q": "Which expression describes abandoning someone who is in trouble?",
+   "answer_pages": [
+    118
+   ],
+   "kind": "paraphrase",
+   "hybrid": {
+    "pages": [
+     118,
+     168,
+     171,
+     200,
+     70
+    ],
+    "hit": true
+   },
+   "dense_only": {
+    "pages": [
+     118,
+     171,
+     200,
+     70,
+     122
+    ],
+    "hit": true
+   },
+   "keyword_only_bm25": {
+    "pages": [
+     174,
+     118,
+     64,
+     175,
+     29
+    ],
+    "hit": true
+   }
+  },
+  {
+   "q": "Which reading style is the quickest?",
+   "answer_pages": [
+    15
+   ],
+   "kind": "paraphrase",
+   "hybrid": {
+    "pages": [
+     15,
+     131,
+     49,
+     72,
+     47
+    ],
+    "hit": true
+   },
+   "dense_only": {
+    "pages": [
+     15,
+     131,
+     49,
+     72,
+     47
+    ],
+    "hit": true
+   },
+   "keyword_only_bm25": {
+    "pages": [
+     83,
+     152,
+     3,
+     88,
+     178
+    ],
+    "hit": false
+   }
+  },
+  {
+   "q": "Which subject area does the word universities belong to in the speech exercise?",
+   "answer_pages": [
+    150
+   ],
+   "kind": "paraphrase",
+   "hybrid": {
+    "pages": [
+     150,
+     149,
+     146,
+     144,
+     81
+    ],
+    "hit": true
+   },
+   "dense_only": {
+    "pages": [
+     150,
+     149,
+     144,
+     146,
+     81
+    ],
+    "hit": true
+   },
+   "keyword_only_bm25": {
+    "pages": [
+     149,
+     150,
+     146,
+     181,
+     212
+    ],
+    "hit": true
+   }
+  },
+  {
+   "q": "What happens to the narrator's coat when he gets into a car?",
+   "answer_pages": [
+    176
+   ],
+   "kind": "paraphrase",
+   "hybrid": {
+    "pages": [
+     115,
+     35,
+     67,
+     66,
+     69
+    ],
+    "hit": false
+   },
+   "dense_only": {
+    "pages": [
+     67,
+     66,
+     69,
+     68,
+     70
+    ],
+    "hit": false
+   },
+   "keyword_only_bm25": {
+    "pages": [
+     115,
+     35,
+     29,
+     116,
+     113
+    ],
+    "hit": false
+   }
+  },
+  {
+   "q": "What did the group discussion in the boxing lesson ask students to talk about?",
+   "answer_pages": [
+    47
+   ],
+   "kind": "paraphrase",
+   "hybrid": {
+    "pages": [
+     57,
+     172,
+     156,
+     4,
+     46
+    ],
+    "hit": false
+   },
+   "dense_only": {
+    "pages": [
+     57,
+     4,
+     46,
+     14,
+     172
+    ],
+    "hit": false
+   },
+   "keyword_only_bm25": {
+    "pages": [
+     3,
+     89,
+     156,
+     57,
+     9
+    ],
+    "hit": false
+   }
+  }
+ ]
+}

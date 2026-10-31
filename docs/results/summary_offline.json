@@ -1,0 +1,53 @@
+{
+ "mode": "offline",
+ "pages_in_book": 216,
+ "lessons_detected": 21,
+ "lessons_summarised": 21,
+ "front_matter_skipped": true,
+ "first_lesson_page": 7,
+ "last_lesson_end_page": 216,
+ "summary_state": "done",
+ "engine": "extractive",
+ "progress": {
+  "done": 62,
+  "total": 62
+ },
+ "seconds_total": 3.0,
+ "seconds_per_unit": 0.0,
+ "lessons_with_non_empty_summary": 21,
+ "later_lessons_with_summary(page>=100)": [
+  "Prose: Tight Corners",
+  "Poem: Macavity The Mystery Cat",
+  "Supplementary: With the Photographer",
+  "Prose: Dr. Arignar Annadurai",
+  "Poem: Everest is not the only peak",
+  "Supplementary: The Singing Lesson"
+ ],
+ "has_overview": true,
+ "key_points": 8,
+ "definitions": 0,
+ "concepts": 0,
+ "summary_sentences_checked": 220,
+ "sentences_supported_percent_(proxy)": 100.0,
+ "lesson_term_coverage_percent_(proxy)": 54.8,
+ "sample": [
+  {
+   "lesson": "Prose: The Portrait of a Lady",
+   "pages": "7-25",
+   "summary": "My grandmother, like everybody\u2019s grandmother, was an old woman. My grandmother always went to school with me because the school was attached to the temple. Although we shared the same room, my grandmother no longer came to school with me. She broke it into little crumbs, the way my grandmother used to, and threw it to them. Describe the author\u2019s grandmother. b. \u0007What was the daily routine of the grandmother at home? ",
+   "key_terms": []
+  },
+  {
+   "lesson": "Poem: Once upon a time",
+   "pages": "26-32",
+   "summary": "Once Upon A Time Poem Unit 1 Gabriel Okara ________________ ______________________ ______________________ ___________________ ________________ ______________________ ______________________ ___________________ b. Once upon a time, son They used to laugh with their hearts And laugh with their eyes: But now they only laugh with their teeth While their ice-block-cold eyes Search behind my shadow. I want To unlearn all th",
+   "key_terms": []
+  },
+  {
+   "lesson": "Supplementary: After Twenty years",
+   "pages": "33-39",
+   "summary": "About that long ago there used to be a restaurant where this store stands-Big Joe\u2019 Brady\u2019s restaurant.\u201d \u201cUntil five years ago,\u201d said the policeman. \u201cIt was torn down then.\u201d The man in the doorway struck a match and lit his cigar. His scarf pin was a large diamond, oddly set. \u201cTwenty years ago tonight,\u201d said the man, \u201cI dined here at Big Joe\u2019 Brady\u2019s with Jimmy Wells, my best chum, and the finest chap in the world. I ",
+   "key_terms": []
+  }
+ ]
+}

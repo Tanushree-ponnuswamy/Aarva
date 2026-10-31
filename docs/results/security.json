@@ -1,0 +1,49 @@
+{
+ "rate_limit_wrong_logins": {
+  "status_codes": [
+   401,
+   401,
+   401,
+   401,
+   401,
+   401,
+   401,
+   401,
+   429
+  ],
+  "blocked_at_attempt": 9,
+  "pass": true
+ },
+ "otp_five_wrong_codes": {
+  "wrong_attempt_codes": [
+   400,
+   400,
+   400,
+   400,
+   400
+  ],
+  "right_code_afterwards": 400,
+  "pass": true
+ },
+ "logout_token_reuse": {
+  "before_logout": 200,
+  "after_logout": 401,
+  "pass": true
+ },
+ "ownership_other_users_book": {
+  "responses": {
+   "open file": 404,
+   "summary": 404,
+   "status": 404,
+   "delete": 404,
+   "chat": 404,
+   "B's library contains it": false
+  },
+  "pass": true
+ },
+ "no_token": {
+  "library": 401,
+  "pass": true
+ },
+ "all_pass": true
+}

@@ -1,0 +1,469 @@
+{
+ "mode": "offline",
+ "lessons_tested": 4,
+ "questions_total": 20,
+ "seconds_total": 16.5,
+ "generation_calls": {
+  "llm_calls": 4,
+  "llm_valid_first_try": 0
+ },
+ "valid_format_percent": 100.0,
+ "answer_appears_in_lesson_text_percent": 100.0,
+ "source_counts": {
+  "Generated from your document": 20
+ },
+ "difficulty_counts": {
+  "medium": 17,
+  "easy": 3
+ },
+ "per_lesson": [
+  {
+   "lesson": "Prose: The Portrait of a Lady",
+   "pages": "7-25",
+   "questions": 5,
+   "format_ok": 5,
+   "seconds": 4.3,
+   "distinct_evidence_pages": 5,
+   "pages_in_lesson": 19
+  },
+  {
+   "lesson": "Supplementary: A Shot In The Dark",
+   "pages": "64-71",
+   "questions": 5,
+   "format_ok": 5,
+   "seconds": 4.1,
+   "distinct_evidence_pages": 4,
+   "pages_in_lesson": 8
+  },
+  {
+   "lesson": "Poem: Macavity The Mystery Cat",
+   "pages": "132-137",
+   "questions": 5,
+   "format_ok": 5,
+   "seconds": 4.1,
+   "distinct_evidence_pages": 4,
+   "pages_in_lesson": 6
+  },
+  {
+   "lesson": "Prose: The Accidental Tourist",
+   "pages": "174-188",
+   "questions": 5,
+   "format_ok": 5,
+   "seconds": 4.1,
+   "distinct_evidence_pages": 4,
+   "pages_in_lesson": 15
+  }
+ ],
+ "rows": [
+  {
+   "lesson": "Prose: The Portrait of a Lady",
+   "pages": "7-25",
+   "source": "Generated from your document",
+   "difficulty": "medium",
+   "question": "Which word correctly completes this statement from the lesson?\n\n\u201cUsually, the new word formed is the _____ of the given word.\u201d",
+   "options": [
+    "ready",
+    "include",
+    "science",
+    "opposite"
+   ],
+   "marked_answer": "opposite",
+   "format_ok": true,
+   "answer_appears_in_lesson_text": true,
+   "evidence_pages": [
+    13
+   ],
+   "explanation": "The lesson says: \u201cUsually, the new word formed is the opposite of the given word.\u201d (Page 13)."
+  },
+  {
+   "lesson": "Prose: The Portrait of a Lady",
+   "pages": "7-25",
+   "source": "Generated from your document",
+   "difficulty": "medium",
+   "question": "Which word correctly completes this statement from the lesson?\n\n\u201cAs you go through this process, you would be able to acquire several skills such as \u25c6 intensive and extensive reading \u25c6 grasping meaning from the contexts \u25c6 \u0007_____ what you have understood, in appropriate words.\u201d",
+   "options": [
+    "expressing",
+    "priest",
+    "bedlam",
+    "prayer"
+   ],
+   "marked_answer": "expressing",
+   "format_ok": true,
+   "answer_appears_in_lesson_text": true,
+   "evidence_pages": [
+    11,
+    14
+   ],
+   "explanation": "The lesson says: \u201cAs you go through this process, you would be able to acquire several skills such as \u25c6 intensive and extensive reading \u25c6 grasping meaning from the contexts \u25c6 \u0007expressing what you have understood, in appropriate words.\u201d (Pag"
+  },
+  {
+   "lesson": "Prose: The Portrait of a Lady",
+   "pages": "7-25",
+   "source": "Generated from your document",
+   "difficulty": "medium",
+   "question": "Which word correctly completes this statement from the lesson?\n\n\u201cThis time the village dogs would _____ us at the temple door.\u201d",
+   "options": [
+    "veritable",
+    "meet",
+    "three",
+    "popular"
+   ],
+   "marked_answer": "meet",
+   "format_ok": true,
+   "answer_appears_in_lesson_text": true,
+   "evidence_pages": [
+    8,
+    20,
+    21
+   ],
+   "explanation": "The lesson says: \u201cThis time the village dogs would meet us at the temple door.\u201d (Page 8)."
+  },
+  {
+   "lesson": "Prose: The Portrait of a Lady",
+   "pages": "7-25",
+   "source": "Generated from your document",
+   "difficulty": "medium",
+   "question": "Which word correctly completes this statement from the lesson?\n\n\u201cThis therapy has proved to be good for _____ patients.\u201d",
+   "options": [
+    "think",
+    "crucial",
+    "expanse",
+    "depressed"
+   ],
+   "marked_answer": "depressed",
+   "format_ok": true,
+   "answer_appears_in_lesson_text": true,
+   "evidence_pages": [
+    16
+   ],
+   "explanation": "The lesson says: \u201cThis therapy has proved to be good for depressed patients.\u201d (Page 16)."
+  },
+  {
+   "lesson": "Prose: The Portrait of a Lady",
+   "pages": "7-25",
+   "source": "Generated from your document",
+   "difficulty": "medium",
+   "question": "Which word correctly completes this statement from the lesson?\n\n\u201cThe sparrows took no _____ of the bread.\u201d",
+   "options": [
+    "speeding",
+    "comfortable",
+    "visuals",
+    "notice"
+   ],
+   "marked_answer": "notice",
+   "format_ok": true,
+   "answer_appears_in_lesson_text": true,
+   "evidence_pages": [
+    10,
+    23,
+    24
+   ],
+   "explanation": "The lesson says: \u201cThe sparrows took no notice of the bread.\u201d (Page 10)."
+  },
+  {
+   "lesson": "Supplementary: A Shot In The Dark",
+   "pages": "64-71",
+   "source": "Generated from your document",
+   "difficulty": "medium",
+   "question": "Which word correctly completes this statement from the lesson?\n\n\u201cAmong the passengers dotted about on the platform, awaiting their respective trains, Sletherby espied a club acquaintance, and called him up to the _____ for a chat. \u201cOh, you\u2019re staying with Mrs.\u201d",
+   "options": [
+    "particular",
+    "chanced",
+    "months",
+    "carriage-window"
+   ],
+   "marked_answer": "carriage-window",
+   "format_ok": true,
+   "answer_appears_in_lesson_text": true,
+   "evidence_pages": [
+    65
+   ],
+   "explanation": "The lesson says: \u201cAmong the passengers dotted about on the platform, awaiting their respective trains, Sletherby espied a club acquaintance, and called him up to the carriage-window for a chat. \u201cOh, you\u2019re staying with Mrs.\u201d (Page 65)."
+  },
+  {
+   "lesson": "Supplementary: A Shot In The Dark",
+   "pages": "64-71",
+   "source": "Generated from your document",
+   "difficulty": "medium",
+   "question": "Which word correctly completes this statement from the lesson?\n\n\u201cMy _____ to her was through political friends.\u201d",
+   "options": [
+    "tall",
+    "other",
+    "tongue",
+    "introduction"
+   ],
+   "marked_answer": "introduction",
+   "format_ok": true,
+   "answer_appears_in_lesson_text": true,
+   "evidence_pages": [
+    66
+   ],
+   "explanation": "The lesson says: \u201cMy introduction to her was through political friends.\u201d (Page 66)."
+  },
+  {
+   "lesson": "Supplementary: A Shot In The Dark",
+   "pages": "64-71",
+   "source": "Generated from your document",
+   "difficulty": "medium",
+   "question": "Which word correctly completes this statement from the lesson?\n\n\u201cSletherby heard not a single word, noted not one of the details that were being _____ to him.\u201d",
+   "options": [
+    "pulled",
+    "expounded",
+    "country",
+    "test"
+   ],
+   "marked_answer": "expounded",
+   "format_ok": true,
+   "answer_appears_in_lesson_text": true,
+   "evidence_pages": [
+    67,
+    69
+   ],
+   "explanation": "The lesson says: \u201cSletherby heard not a single word, noted not one of the details that were being expounded to him.\u201d (Page 67)."
+  },
+  {
+   "lesson": "Supplementary: A Shot In The Dark",
+   "pages": "64-71",
+   "source": "Generated from your document",
+   "difficulty": "medium",
+   "question": "Which word correctly completes this statement from the lesson?\n\n\u201cInfluential woman, but spoils herself and her chances by being too _____.\u201d",
+   "options": [
+    "restless",
+    "very",
+    "queried",
+    "usage"
+   ],
+   "marked_answer": "restless",
+   "format_ok": true,
+   "answer_appears_in_lesson_text": true,
+   "evidence_pages": [
+    68
+   ],
+   "explanation": "The lesson says: \u201cInfluential woman, but spoils herself and her chances by being too restless.\u201d (Page 68)."
+  },
+  {
+   "lesson": "Supplementary: A Shot In The Dark",
+   "pages": "64-71",
+   "source": "Generated from your document",
+   "difficulty": "medium",
+   "question": "Which word correctly completes this statement from the lesson?\n\n\u201c60 \u201cYou\u2019ve lost something, haven\u2019t you?\u201d said Sletherby. \u201cNot exactly, but left behind, which is almost as bad; just as _____, anyway.\u201d",
+   "options": [
+    "verb",
+    "exhibit",
+    "inconvenient",
+    "preference"
+   ],
+   "marked_answer": "inconvenient",
+   "format_ok": true,
+   "answer_appears_in_lesson_text": true,
+   "evidence_pages": [
+    66
+   ],
+   "explanation": "The lesson says: \u201c60 \u201cYou\u2019ve lost something, haven\u2019t you?\u201d said Sletherby. \u201cNot exactly, but left behind, which is almost as bad; just as inconvenient, anyway.\u201d (Page 66)."
+  },
+  {
+   "lesson": "Poem: Macavity The Mystery Cat",
+   "pages": "132-137",
+   "source": "Generated from your document",
+   "difficulty": "medium",
+   "question": "Which word correctly completes this statement from the lesson?\n\n\u201cIdentify the _____ devices used in the following lines: \u0007a. \u0007He sways his head from side to side, with movements like a snake. \u0007b.\u201d",
+   "options": [
+    "thumbs",
+    "defy",
+    "make",
+    "literary"
+   ],
+   "marked_answer": "literary",
+   "format_ok": true,
+   "answer_appears_in_lesson_text": true,
+   "evidence_pages": [
+    136
+   ],
+   "explanation": "The lesson says: \u201cIdentify the literary devices used in the following lines: \u0007a. \u0007He sways his head from side to side, with movements like a snake. \u0007b.\u201d (Page 136)."
+  },
+  {
+   "lesson": "Poem: Macavity The Mystery Cat",
+   "pages": "132-137",
+   "source": "Generated from your document",
+   "difficulty": "medium",
+   "question": "Which word correctly completes this statement from the lesson?\n\n\u201cAnd when the larder\u2019s looted, or the jewel-case is rifled, Or when the milk is missing, or another Peke\u2019s been stifled, Or the _____ glass is broken, and the trellis past repair Ay, there\u2019s the wonder of the thing!\u201d",
+   "options": [
+    "making",
+    "types",
+    "cute",
+    "greenhouse"
+   ],
+   "marked_answer": "greenhouse",
+   "format_ok": true,
+   "answer_appears_in_lesson_text": true,
+   "evidence_pages": [
+    133,
+    135
+   ],
+   "explanation": "The lesson says: \u201cAnd when the larder\u2019s looted, or the jewel-case is rifled, Or when the milk is missing, or another Peke\u2019s been stifled, Or the greenhouse glass is broken, and the trellis past repair Ay, there\u2019s the wonder of the thing!\u201d ("
+  },
+  {
+   "lesson": "Poem: Macavity The Mystery Cat",
+   "pages": "132-137",
+   "source": "Generated from your document",
+   "difficulty": "easy",
+   "question": "Which word correctly completes this statement from the lesson?\n\n\u201cHe graduated from Harvard _____ and then left for France and the Sorbonne to study philosophy.\u201d",
+   "options": [
+    "Wasteland",
+    "Poetry",
+    "Prufrock",
+    "University"
+   ],
+   "marked_answer": "University",
+   "format_ok": true,
+   "answer_appears_in_lesson_text": true,
+   "evidence_pages": [
+    134
+   ],
+   "explanation": "The lesson says: \u201cHe graduated from Harvard University and then left for France and the Sorbonne to study philosophy.\u201d (Page 134)."
+  },
+  {
+   "lesson": "Poem: Macavity The Mystery Cat",
+   "pages": "132-137",
+   "source": "Generated from your document",
+   "difficulty": "easy",
+   "question": "Which word correctly completes this statement from the lesson?\n\n\u201cEven the Scotland Yard, the _____ (c) ________ agency is unable to arrest him.\u201d",
+   "options": [
+    "Listening",
+    "London",
+    "Hidden",
+    "Naming"
+   ],
+   "marked_answer": "London",
+   "format_ok": true,
+   "answer_appears_in_lesson_text": true,
+   "evidence_pages": [
+    134,
+    135
+   ],
+   "explanation": "The lesson says: \u201cEven the Scotland Yard, the London (c) ________ agency is unable to arrest him.\u201d (Page 135)."
+  },
+  {
+   "lesson": "Poem: Macavity The Mystery Cat",
+   "pages": "132-137",
+   "source": "Generated from your document",
+   "difficulty": "medium",
+   "question": "Which word correctly completes this statement from the lesson?\n\n\u201cThey _____ to see something which we don\u2019t.\u201d",
+   "options": [
+    "appear",
+    "similar",
+    "opportunity",
+    "reach"
+   ],
+   "marked_answer": "appear",
+   "format_ok": true,
+   "answer_appears_in_lesson_text": true,
+   "evidence_pages": [
+    132,
+    135
+   ],
+   "explanation": "The lesson says: \u201cThey appear to see something which we don\u2019t.\u201d (Page 132)."
+  },
+  {
+   "lesson": "Prose: The Accidental Tourist",
+   "pages": "174-188",
+   "source": "Generated from your document",
+   "difficulty": "medium",
+   "question": "Which word correctly completes this statement from the lesson?\n\n\u201c178 _____ your accomplishments, your education, your work experience, and reflect your strengths.\u201d",
+   "options": [
+    "filled",
+    "know",
+    "develop",
+    "summarise"
+   ],
+   "marked_answer": "summarise",
+   "format_ok": true,
+   "answer_appears_in_lesson_text": true,
+   "evidence_pages": [
+    184
+   ],
+   "explanation": "The lesson says: \u201c178 summarise your accomplishments, your education, your work experience, and reflect your strengths.\u201d (Page 184)."
+  },
+  {
+   "lesson": "Prose: The Accidental Tourist",
+   "pages": "174-188",
+   "source": "Generated from your document",
+   "difficulty": "easy",
+   "question": "Which word correctly completes this statement from the lesson?\n\n\u201cIt was at Easter, and we were flying to _____ for a week.\u201d",
+   "options": [
+    "Forms",
+    "Labrador",
+    "Role-play",
+    "England"
+   ],
+   "marked_answer": "England",
+   "format_ok": true,
+   "answer_appears_in_lesson_text": true,
+   "evidence_pages": [
+    174,
+    175
+   ],
+   "explanation": "The lesson says: \u201cIt was at Easter, and we were flying to England for a week.\u201d (Page 174)."
+  },
+  {
+   "lesson": "Prose: The Accidental Tourist",
+   "pages": "174-188",
+   "source": "Generated from your document",
+   "difficulty": "medium",
+   "question": "Which word correctly completes this statement from the lesson?\n\n\u201cTry to rewrite the news item in your mother tongue without losing the spirit and _____ of the text.\u201d",
+   "options": [
+    "since",
+    "flavour",
+    "words",
+    "good"
+   ],
+   "marked_answer": "flavour",
+   "format_ok": true,
+   "answer_appears_in_lesson_text": true,
+   "evidence_pages": [
+    181
+   ],
+   "explanation": "The lesson says: \u201cTry to rewrite the news item in your mother tongue without losing the spirit and flavour of the text.\u201d (Page 181)."
+  },
+  {
+   "lesson": "Prose: The Accidental Tourist",
+   "pages": "174-188",
+   "source": "Generated from your document",
+   "difficulty": "medium",
+   "question": "Which word correctly completes this statement from the lesson?\n\n\u201cCAREER OBJECTIVE Looking for a challenging career which demands the best of my professional ability in terms of _____ and analytical skills, and helps me in enhancing my current skill and knowledge.\u201d",
+   "options": [
+    "seeing",
+    "mathematical",
+    "shoelaces",
+    "mode"
+   ],
+   "marked_answer": "mathematical",
+   "format_ok": true,
+   "answer_appears_in_lesson_text": true,
+   "evidence_pages": [
+    184
+   ],
+   "explanation": "The lesson says: \u201cCAREER OBJECTIVE Looking for a challenging career which demands the best of my professional ability in terms of mathematical and analytical skills, and helps me in enhancing my current skill and knowledge.\u201d (Page 184)."
+  },
+  {
+   "lesson": "Prose: The Accidental Tourist",
+   "pages": "174-188",
+   "source": "Generated from your document",
+   "difficulty": "medium",
+   "question": "Which word correctly completes this statement from the lesson?\n\n\u201c(I am not very good around flowing blood _____, but when it\u2019s my own \u2014 well, I think hysterics are fully justified.) Confused and unable to help, my hair went into panic mode.\u201d",
+   "options": [
+    "only",
+    "exploited",
+    "generally",
+    "managed"
+   ],
+   "marked_answer": "generally",
+   "format_ok": true,
+   "answer_appears_in_lesson_text": true,
+   "evidence_pages": [
+    175
+   ],
+   "explanation": "The lesson says: \u201c(I am not very good around flowing blood generally, but when it\u2019s my own \u2014 well, I think hysterics are fully justified.) Confused and unable to help, my hair went into panic mode.\u201d (Page 175)."
+  }
+ ]
+}

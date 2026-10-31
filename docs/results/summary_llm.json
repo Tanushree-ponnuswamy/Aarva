@@ -1,0 +1,62 @@
+{
+ "mode": "llm",
+ "pages_in_book": 216,
+ "lessons_detected": 21,
+ "lessons_summarised": 2,
+ "front_matter_skipped": true,
+ "first_lesson_page": 7,
+ "last_lesson_end_page": 32,
+ "summary_state": "done",
+ "engine": "llm",
+ "progress": {
+  "done": 7,
+  "total": 7
+ },
+ "seconds_total": 599.5,
+ "seconds_per_unit": 85.6,
+ "lessons_with_non_empty_summary": 2,
+ "later_lessons_with_summary(page>=100)": [],
+ "has_overview": true,
+ "key_points": 8,
+ "definitions": 10,
+ "concepts": 0,
+ "summary_sentences_checked": 28,
+ "sentences_supported_percent_(proxy)": 32.1,
+ "lesson_term_coverage_percent_(proxy)": 56.2,
+ "sample": [
+  {
+   "lesson": "Prose: The Portrait of a Lady",
+   "pages": "7-25",
+   "summary": "The text describes the author's relationship with his grandmother, highlighting their close bond during childhood. The grandmother is portrayed as old, religious, and devoted to her prayers and rituals. She accompanies the author to school, where she reads scriptures while the children learn the alphabet and prayers. As the author grows and goes to an English school, the grandmother feels disconnected from his new ed",
+   "key_terms": [
+    "grandmother",
+    "prayer",
+    "rosary",
+    "school",
+    "sparrows",
+    "scriptures",
+    "mantelpiece",
+    "seclusion",
+    "monotonous",
+    "pallor"
+   ]
+  },
+  {
+   "lesson": "Poem: Once upon a time",
+   "pages": "26-32",
+   "summary": "The poem \"Once Upon a Time\" by Gabriel Okara explores the loss of genuine emotions and sincerity in adults as they grow older. The narrator, a parent, reflects on how people have become insincere, using fake smiles and hollow greetings. He describes how people now laugh only with their teeth and shake hands without heartfelt intentions. The narrator expresses a desire to unlearn these fake behaviors and relearn how t",
+   "key_terms": [
+    "laugh with their teeth",
+    "ice-block-cold eyes",
+    "search behind my shadow",
+    "cocktail face",
+    "conforming smiles",
+    "good-riddance",
+    "laughter",
+    "authenticity",
+    "modern life",
+    "relearn"
+   ]
+  }
+ ]
+}

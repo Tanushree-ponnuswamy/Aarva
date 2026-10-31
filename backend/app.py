@@ -98,6 +98,8 @@ def on_startup():
             for (bid,) in db.query(Textbook.id).filter(Textbook.status == "processed").all():
                 try:
                     knowledge_base_service.ensure_indexed(bid, db)
+                    from database.chroma import chroma_store
+                    chroma_store.repair_zero_vectors(bid)
                 except Exception as e:
                     print(f"[REINDEX] book {bid}: {type(e).__name__}: {e}")
         finally:

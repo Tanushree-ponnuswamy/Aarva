@@ -1,0 +1,42 @@
+{
+ "bm25_rebuild_per_question": {
+  "100_passages_ms_per_question": 24,
+  "1000_passages_ms_per_question": 194,
+  "5000_passages_ms_per_question": 1037
+ },
+ "processing_time": {
+  "10_pages": {
+   "seconds": 26.3,
+   "seconds_per_page": 2.63,
+   "passages": 10
+  },
+  "50_pages": {
+   "seconds": 123.0,
+   "seconds_per_page": 2.46,
+   "passages": 50
+  }
+ },
+ "concurrent_users_cheap_endpoints": {
+  "5_users": {
+   "requests": 50,
+   "errors": 0,
+   "p50_ms": 30,
+   "p95_ms": 46,
+   "requests_per_second": 155.0
+  },
+  "10_users": {
+   "requests": 100,
+   "errors": 0,
+   "p50_ms": 64,
+   "p95_ms": 487,
+   "requests_per_second": 87.0
+  },
+  "20_users": {
+   "requests": 200,
+   "errors": 0,
+   "p50_ms": 125,
+   "p95_ms": 174,
+   "requests_per_second": 151.5
+  }
+ }
+}
